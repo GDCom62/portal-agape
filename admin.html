@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Admin - Portal R</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-body">
+    <header>
+        <div class="logo">R - Admin</div>
+        <nav><a href="{{ url_for('index') }}">Voltar ao Site</a></nav>
+    </header>
+
+    <main class="container-admin">
+        <h1>Gerenciar Conteúdo</h1>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}<p class="alerta-sucesso">{{ messages[0] }}</p>{% endif %}
+        {% endwith %}
+
+        <!-- Formulário da Harpa -->
+        <section class="form-card">
+            <h3>Cadastrar Hino na Harpa</h3>
+            <form action="/admin/add_hino" method="POST">
+                <input type="number" name="numero" placeholder="Nº do Hino" required>
+                <input type="text" name="titulo" placeholder="Título do Hino" required>
+                <textarea name="letra" placeholder="Letra completa..." rows="5" required></textarea>
+                <button type="submit" class="btn-admin">Salvar Hino</button>
+            </form>
+        </section>
+
+        <!-- Formulário da Bíblia -->
+        <section class="form-card">
+            <h3>Cadastrar Versículo da Bíblia</h3>
+            <form action="/admin/add_biblia" method="POST">
+                <input type="text" name="livro" placeholder="Livro (Ex: João)" required>
+                <div class="linha-dupla">
+                    <input type="number" name="capitulo" placeholder="Cap." required>
+                    <input type="number" name="versiculo" placeholder="Ver." required>
+                </div>
+                <textarea name="texto" placeholder="Texto do versículo..." required></textarea>
+                <textarea name="explicacao" placeholder="Explicação teológica..."></textarea>
+                <input type="text" name="audio_url" placeholder="Link do Áudio (Opcional)">
+                <button type="submit" class="btn-admin">Salvar Versículo</button>
+            </form>
+        </section>
+        <section class="form-card">
+            <h3>Lançar Prestação de Contas</h3>
+            <form action="/admin/add_conta" method="POST">
+                <input type="text" name="codigo" placeholder="Código do Membro (Ex: A1B2C3)" required>
+                <input type="text" name="desc" placeholder="Ex: Oferta de Missões" required>
+                <input type="number" step="0.01" name="valor" placeholder="Valor R$" required>
+                <button type="submit" class="btn-admin">Registrar Lançamento</button>
+            </form>
+        </section>
+           
+    </main>
+</body>
+</html>

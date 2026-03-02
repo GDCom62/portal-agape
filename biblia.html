@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <h2>{{ versiculos[0].livro }} - Capítulo {{ versiculos[0].capitulo }}</h2>
+    
+    {% for v in versiculos %}
+    <div class="versiculo-bloco" style="margin-bottom: 20px; text-align: left;">
+        <p><strong>{{ v.versiculo }}.</strong> {{ v.texto }}</p>
+        
+        <!-- Botão que revela a explicação -->
+        <button onclick="document.getElementById('exp-{{v.id}}').style.display='block'" class="btn-estudo">
+            📖 Ler Explicação
+        </button>
+
+        <div id="exp-{{v.id}}" style="display:none; background: #f9f9f9; padding: 10px; border-left: 3px solid gold;">
+            <p><em>{{ v.explicacao }}</em></p>
+            <audio controls src="{{ v.audio_url }}"></audio>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

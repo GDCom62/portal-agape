@@ -1,0 +1,108 @@
+.auth-page {
+    background-color: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.auth-card {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 350px;
+}
+
+.auth-card input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box; /* Garante que o padding não quebre a largura */
+}
+
+.btn-principal {
+    background: #1a2a6c;
+    color: white;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.alerta-erro {
+    color: #d9534f;
+    background: #f2dede;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.link-troca { margin-top: 20px; font-size: 0.9rem; }
+.link-voltar { color: #888; text-decoration: none; font-size: 0.8rem; }
+/* Layout Bíblia e Chat */
+.container-chat, .container-biblia { max-width: 600px; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; }
+.chat-box { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; display: flex; flex-direction: column; }
+.msg-minha { align-self: flex-end; background: #1a2a6c; color: white; padding: 8px; border-radius: 10px; margin: 5px; }
+.msg-outra { align-self: flex-start; background: #eee; padding: 8px; border-radius: 10px; margin: 5px; }
+.item-v { cursor: pointer; padding: 10px; border-bottom: 1px solid #eee; }
+.item-v:hover { background: #fdfae6; }
+.box-explicacao { background: #fff; padding: 10px; margin-top: 5px; border-radius: 5px; font-style: italic; }
+.grid-radios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+    padding: 10px;
+}
+
+.card-radio {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-top: 4px solid #1a2a6c;
+    transition: transform 0.3s;
+}
+
+.card-radio:hover {
+    transform: translateY(-5px);
+}
+
+.radio-info h3 {
+    margin: 0;
+    color: #1a2a6c;
+}
+
+.radio-info span {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.card-radio audio {
+    width: 100%;
+    margin-top: 15px;
+    height: 35px;
+}
+#buscaHino { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 25px; border: 1px solid #ddd; }
+.lista-hinos { max-height: 500px; overflow-y: auto; text-align: left; }
+.item-hino { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.3s; }
+.item-hino:hover { background: #f0f4ff; color: #1a2a6c; }
+.num-h { font-weight: bold; color: #ffd700; margin-right: 10px; }
+.visor-letra { background: #fffdf0; padding: 30px; border-radius: 10px; border-left: 5px solid #1a2a6c; margin-bottom: 20px; text-align: center; }
+.visor-letra pre { white-space: pre-wrap; font-family: 'Segoe UI', serif; font-size: 1.2rem; line-height: 1.6; }
+.container-admin { max-width: 800px; margin: 20px auto; padding: 20px; }
+.form-card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #ddd; }
+.form-card input, .form-card textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; }
+.linha-dupla { display: flex; gap: 10px; }
+.btn-admin { background: #1a2a6c; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
+.alerta-sucesso { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; text-align: center; }
