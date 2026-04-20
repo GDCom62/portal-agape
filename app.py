@@ -1,84 +1,72 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+import streamlit as st
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO, emit
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from datetime import datetime
+from flask import Flask
 import uuid
-import os
+from datetime import datetime
 
-# 1. INICIALIZAÇÃO
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chave_sagrada_2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///portal_r.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# --- CONFIGURAÇÃO INICIAL (HACK PARA USAR SQLALCHEMY COM STREAMLIT) ---
+# Criamos um app Flask "fantasma" apenas para o SQLAlchemy não reclamar
+if 'db_initialized' not in st.session_state:
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///portal_r.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db = SQLAlchemy(app)
+    st.session_state.db = db
+    st.session_state.app = app
+    st.session_state.db_initialized = True
 
-# 2. CONFIGURAÇÃO DO BANCO (O segredo para remover o erro)
-db = SQLAlchemy(app)
+db = st.session_state.db
+app = st.session_state.app
 
-# 3. MODELOS (Com as correções de tabela)
-class Membro(UserMixin, db.Model):
-    __tablename__ = 'membro'
-    __table_args__ = {'extend_existing': True} # Isso força a aceitação
+# --- MODELOS ---
+class Membro(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100))
     email = db.Column(db.String(100), unique=True)
-    senha = db.Column(db.String(100))
     codigo_membro = db.Column(db.String(20), unique=True, default=lambda: str(uuid.uuid4().hex[:6]).upper())
 
-class Biblia(db.Model):
-    __tablename__ = 'biblia'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    livro = db.Column(db.String(50))
-    capitulo = db.Column(db.Integer)
-    versiculo = db.Column(db.Integer)
-    texto = db.Column(db.Text)
-    explicacao = db.Column(db.Text)
-    audio_url = db.Column(db.String(200))
+# Cria o banco se não existir
+with app.app_context():
+    db.create_all()
 
-class MensagemChat(db.Model):
-    __tablename__ = 'mensagem_chat'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    usuario_nome = db.Column(db.String(100))
-    texto = db.Column(db.String(500))
-    data_envio = db.Column(db.DateTime, default=datetime.utcnow)
+# --- INTERFACE STREAMLIT ---
+st.set_page_config(page_title="Portal Agape", layout="wide")
 
-class PrestacaoContas(db.Model):
-    __tablename__ = 'prestacao_contas'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    codigo_referencia = db.Column(db.String(20))
-    descricao = db.Column(db.String(200))
-    valor = db.Column(db.Float)
-    data = db.Column(db.DateTime, default=datetime.utcnow)
+# Menu Lateral (Substitui as rotas /login, /cadastro)
+menu = st.sidebar.selectbox("Navegação", ["Home", "Bíblia", "Harpa Cristã", "Prestação de Contas", "Chat"])
 
-class Harpa(db.Model):
-    __tablename__ = 'harpa'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    numero = db.Column(db.Integer, unique=True)
-    titulo = db.Column(db.String(150))
-    letra = db.Column(db.Text)
+if menu == "Home":
+    st.title("⛪ Portal Agape")
+    st.write("Bem-vindo ao portal! Use o menu lateral para navegar.")
+    
+    # Exemplo de Cadastro Simples
+    with st.expander("Novo Cadastro"):
+        nome = st.text_input("Nome")
+        email = st.text_input("Email")
+        if st.button("Cadastrar"):
+            with app.app_context():
+                novo = Membro(nome=nome, email=email)
+                db.session.add(novo)
+                db.session.commit()
+                st.success(f"Membro {nome} cadastrado com sucesso!")
 
-# 4. RESTANTE DAS CONFIGURAÇÕES
-socketio = SocketIO(app, cors_allowed_origins="*")
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
+elif menu == "Bíblia":
+    st.header("📖 Bíblia Sagrada")
+    pesquisa = st.text_input("Pesquisar Livro ou Versículo")
+    # Aqui você integraria com sua tabela Biblia
 
-@login_manager.user_loader
-def load_user(user_id):
-    return Membro.query.get(int(user_id))
+elif menu == "Chat":
+    st.header("💬 Chat da Comunidade")
+    # Nota: O Streamlit não usa SocketIO da mesma forma que o Flask.
+    # Para um chat real, usaríamos o st.chat_message
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-# ROTA INICIAL PARA TESTE
-@app.route('/')
-def index():
-    return "Portal R no ar! Vá para /cadastro para começar."
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-# ... (Mantenha as outras rotas que você já tem abaixo desta linha)
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port)
-
-
+    if prompt := st.chat_input("Diga algo..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
