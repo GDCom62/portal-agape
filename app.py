@@ -1,55 +1,85 @@
-# --- CONTINUAÇÃO DO app.py ---
+import streamlit as st
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+import uuid
+from datetime import datetime
 
-elif menu == "Bíblia":
-    st.header("📖 Bíblia Sagrada")
+# 1. CONFIGURAÇÃO DO AMBIENTE (Simulando o Flask para o SQLAlchemy)
+if 'app_initialized' not in st.session_state:
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///portal_r.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db = SQLAlchemy(app)
     
-    col1, col2, col3 = st.columns([3, 1, 1])
-    with col1:
-        livro_busca = st.selectbox("Selecione o Livro", ["Gênesis", "Êxodo", "Salmos", "Mateus", "João"]) # Exemplo
-    with col2:
-        cap_busca = st.number_input("Capítulo", min_value=1, value=1)
-    with col3:
-        st.button("Buscar")
+    # Criando as tabelas dentro do contexto do Flask
+    class Membro(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        nome = db.Column(db.String(100))
+        email = db.Column(db.String(100), unique=True)
+        senha = db.Column(db.String(100)) # No Streamlit usaremos simples
 
-    # Exemplo de como exibir o texto (Simulando busca no banco)
-    st.info("Aqui aparecerá o texto bíblico e a explicação cadastrada no banco.")
-    # Exemplo de Áudio (substituindo o audio_url do seu modelo)
-    # st.audio("link_do_audio.mp3")
+    class PrestacaoContas(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        descricao = db.Column(db.String(200))
+        valor = db.Column(db.Float)
+        data = db.Column(db.DateTime, default=datetime.utcnow)
 
-elif menu == "Harpa Cristã":
-    st.header("🎵 Harpa Cristã")
-    num_hino = st.number_input("Número do Hino", min_value=1, step=1)
-    
-    if st.button("Abrir Hino"):
-        with app.app_context():
-            from sqlalchemy import select
-            # Busca no banco de dados que você já tem
-            hino = db.session.execute(select(Harpa).filter_by(numero=num_hino)).scalar()
-            if hino:
-                st.subheader(f"Hino {hino.number}: {hino.titulo}")
-                st.text(hino.letra)
-            else:
-                st.error("Hino não encontrado.")
-
-elif menu == "Prestação de Contas":
-    st.header("💰 Prestação de Contas")
-    
-    # Formulário para nova entrada
-    with st.expander("Registrar Nova Movimentação"):
-        desc = st.text_input("Descrição")
-        valor = st.number_input("Valor (R$)", format="%.2f")
-        if st.button("Salvar Registro"):
-            with app.app_context():
-                nova_conta = PrestacaoContas(descricao=desc, valor=valor)
-                db.session.add(nova_conta)
-                db.session.commit()
-                st.success("Registrado!")
-
-    # Exibição em Tabela (O forte do Streamlit)
-    st.subheader("Histórico Recente")
     with app.app_context():
-        contas = PrestacaoContas.query.all()
-        if contas:
-            # Transforma os dados do banco em uma lista para o Streamlit exibir
-            dados = [{"Data": c.data.strftime("%d/%m/%Y"), "Descrição": c.descricao, "Valor": f"R$ {c.valor:.2f}"} for c in contas]
-            st.table(dados) # Ou st.dataframe(dados) para tabelas interativas
+        db.create_all()
+    
+    st.session_state.db = db
+    st.session_state.app = app
+    st.session_state.app_initialized = True
+
+db = st.session_state.db
+app = st.session_state.app
+
+# 2. SISTEMA DE LOGIN SIMPLES (Substituindo Flask-Login)
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+
+def login():
+    st.sidebar.title("🔐 Acesso Restrito")
+    usuario = st.sidebar.text_input("Usuário")
+    senha = st.sidebar.text_input("Senha", type="password")
+    if st.sidebar.button("Entrar"):
+        if usuario == "admin" and senha == "123": # Altere para sua lógica
+            st.session_state.autenticado = True
+            st.rerun()
+        else:
+            st.sidebar.error("Usuário ou senha inválidos")
+
+# 3. INTERFACE PRINCIPAL
+if not st.session_state.autenticado:
+    st.title("⛪ Bem-vindo ao Portal Ágape")
+    st.warning("Por favor, faça login no menu lateral para acessar o conteúdo.")
+    login()
+else:
+    st.sidebar.success("Conectado como Administrador")
+    if st.sidebar.button("Sair"):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    menu = st.sidebar.selectbox("Navegação", ["Home", "Bíblia", "Harpa Cristã", "Prestação de Contas"])
+
+    if menu == "Home":
+        st.title("🏠 Início")
+        st.write("Portal de membros e gestão da igreja.")
+        
+    elif menu == "Prestação de Contas":
+        st.title("💰 Financeiro")
+        with st.form("nova_conta"):
+            desc = st.text_input("Descrição da Despesa/Dízimo")
+            val = st.number_input("Valor R$", min_value=0.0)
+            if st.form_submit_button("Salvar"):
+                with app.app_context():
+                    nova = PrestacaoContas(descricao=desc, valor=val)
+                    db.session.add(nova)
+                    db.session.commit()
+                st.success("Lançamento realizado!")
+
+        # Mostrar Tabela
+        with app.app_context():
+            dados = PrestacaoContas.query.all()
+            if dados:
+                st.table([{"Descrição": d.descricao, "Valor": f"R$ {d.valor:.2f}", "Data": d.data.strftime("%d/%m/%Y")} for d in dados])
