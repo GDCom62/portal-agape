@@ -12,10 +12,11 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 st.markdown("""
     <style>
-    .stButton>button { border-radius: 12px; width: 100%; height: 3em; background-color: #1E3A8A; color: white; }
+    .stButton>button { border-radius: 12px; width: 100%; height: 3em; }
     .stTextInput>div>div>input { border-radius: 10px; }
     [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #ddd; }
     .aviso-card { padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; margin-bottom: 15px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+    .btn-perigo > div > button { background-color: #ff4b4b !important; color: white !important; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -31,7 +32,6 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
-    # Tabela membros atualizada com coluna 'ativo'
     executar_query('''CREATE TABLE IF NOT EXISTS membros 
         (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT)')
@@ -50,115 +50,86 @@ if 'logado' not in st.session_state: st.session_state.logado = False
 if 'user_nome' not in st.session_state: st.session_state.user_nome = ""
 if 'is_admin' not in st.session_state: st.session_state.is_admin = False
 
-# --- 4. TELA INICIAL (LOGIN / RECUPERAÇÃO / CADASTRO) ---
+# --- 4. TELA INICIAL ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
     col1, col2 = st.columns([1, 1.5])
     
     with col1:
-        tab_login, tab_cadastro, tab_recuperar = st.tabs(["🔐 Entrar", "📝 Novo Cadastro", "🔑 Esqueci Senha"])
+        t_log, t_cad, t_rec = st.tabs(["🔐 Entrar", "📝 Cadastro", "🔑 Senha"])
         
-        with tab_login:
+        with t_log:
             with st.form("login_agape"):
                 email_l = st.text_input("E-mail")
                 senha_l = st.text_input("Senha", type="password")
-                if st.form_submit_button("Acessar Portal"):
+                if st.form_submit_button("Acessar"):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email_l})
                     if not res.empty:
-                        if res.iloc[0]['ativo'] == 0:
-                            st.error("Sua conta está desativada. Entre em contato com o administrador.")
-                        elif check_password_hash(res.iloc[0]['senha'], senha_l):
-                            st.session_state.update({"logado": True, "user_nome": res.iloc[0]['nome'], "is_admin": bool(res.iloc[0]['is_admin'])})
+                        user = res.iloc[0]
+                        if user['ativo'] == 0: st.error("Conta desativada.")
+                        elif check_password_hash(user['senha'], senha_l):
+                            st.session_state.update({"logado": True, "user_nome": user['nome'], "is_admin": bool(user['is_admin'])})
                             st.rerun()
                         else: st.error("Senha incorreta.")
-                    else: st.error("E-mail não cadastrado.")
+                    else: st.error("Não cadastrado.")
         
-        with tab_cadastro:
-            with st.form("cadastro_membro"):
-                novo_nome = st.text_input("Nome Completo")
-                novo_email = st.text_input("E-mail")
-                nova_senha = st.text_input("Crie uma Senha", type="password")
-                if st.form_submit_button("Finalizar Cadastro"):
-                    if novo_nome and novo_email and nova_senha:
-                        existe = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": novo_email})
-                        if existe.empty:
-                            cod = "AG-" + ''.join(random.choices(string.digits, k=4))
-                            hash_pw = generate_password_hash(nova_senha)
-                            executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
-                                           {"n": novo_nome, "e": novo_email, "c": cod, "p": hash_pw})
-                            st.success(f"Cadastro realizado! Guarde seu código: {cod}")
-                        else: st.error("E-mail já cadastrado.")
-                    else: st.warning("Preencha todos os campos.")
-
-        with tab_recuperar:
-            st.info("Informe seu e-mail e código de membro para resetar a senha.")
-            with st.form("recuperar_senha"):
-                rec_email = st.text_input("E-mail cadastrado")
-                rec_codigo = st.text_input("Código de Membro (AG-XXXX)")
-                nova_senha_rec = st.text_input("Nova Senha", type="password")
-                if st.form_submit_button("Redefinir Senha"):
-                    user = consultar_db("SELECT * FROM membros WHERE email=:e AND codigo=:c", {"e": rec_email, "c": rec_codigo})
+        with t_cad:
+            with st.form("cad_membro"):
+                n_n, n_e, n_s = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
+                if st.form_submit_button("Cadastrar"):
+                    if n_n and n_e and n_s:
+                        cod = "AG-" + ''.join(random.choices(string.digits, k=4))
+                        executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
+                                       {"n": n_n, "e": n_e, "c": cod, "p": generate_password_hash(n_s)})
+                        st.success(f"Sucesso! Seu código: {cod}")
+        
+        with t_rec:
+            with st.form("rec_senha"):
+                re_e, re_c, re_s = st.text_input("E-mail"), st.text_input("Código"), st.text_input("Nova Senha", type="password")
+                if st.form_submit_button("Resetar"):
+                    user = consultar_db("SELECT * FROM membros WHERE email=:e AND codigo=:c", {"e": re_e, "c": re_c})
                     if not user.empty:
-                        new_hash = generate_password_hash(nova_senha_rec)
-                        executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": new_hash, "e": rec_email})
-                        st.success("Senha alterada com sucesso! Já pode fazer login.")
-                    else: st.error("Dados não conferem.")
-
-    with col2:
-        st.subheader("📢 Avisos da Comunidade")
-        df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC LIMIT 5")
-        for _, row in df_avisos.iterrows():
-            st.markdown(f"""<div class='aviso-card'><b>{row['titulo']}</b><br><small>{row['data']}</small></div>""", unsafe_allow_html=True)
+                        executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": generate_password_hash(re_s), "e": re_e})
+                        st.success("Senha atualizada!")
 
 # --- 5. ÁREA LOGADA ---
 else:
     st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
-    menus = ["🏠 Mural", "📖 Estudos", "🙏 Orações", "💰 Ofertas"]
-    if st.session_state.is_admin: menus.append("⚙️ Administração")
+    menu = ["🏠 Mural", "📖 Estudos", "🙏 Orações", "💰 Ofertas"]
+    if st.session_state.is_admin: menu.append("⚙️ Administração")
     
-    escolha = st.sidebar.radio("Navegação", menus)
+    escolha = st.sidebar.radio("Navegação", menu)
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
         st.rerun()
 
-    # (As outras páginas permanecem conforme o código anterior...)
-
     if escolha == "⚙️ Administração":
-        st.title("⚙️ Painel Gestor")
-        aba1, aba2, aba3 = st.tabs(["📢 Novo Aviso", "👥 Gerenciar Membros", "📂 Restaurar Dados"])
+        st.title("⚙️ Gestão de Membros")
+        df_m = consultar_db("SELECT id, nome, email, codigo, ativo FROM membros WHERE is_admin=0")
         
-        with aba1:
-            with st.form("aviso_adm"):
-                t = st.text_input("Título")
-                c = st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar Aviso"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)",
-                                   {"t": t, "c": c, "d": datetime.now().strftime("%d/%m/%Y")})
-                    st.rerun()
-
-        with aba2:
-            st.subheader("Lista de Membros")
-            membros = consultar_db("SELECT id, nome, email, codigo, ativo FROM membros WHERE is_admin=0")
-            for _, m in membros.iterrows():
-                col_m1, col_m2 = st.columns([3, 1])
-                status_txt = "✅ Ativo" if m['ativo'] == 1 else "🚫 Bloqueado"
-                col_m1.write(f"**{m['nome']}** ({m['email']}) - Código: {m['codigo']} | Status: {status_txt}")
+        for _, m in df_m.iterrows():
+            with st.expander(f"👤 {m['nome']} ({m['email']})"):
+                st.write(f"**Código:** {m['codigo']} | **Status:** {'✅ Ativo' if m['ativo']==1 else '🚫 Bloqueado'}")
+                c1, c2, c3 = st.columns([1, 1, 2])
                 
-                label_btn = "Bloquear" if m['ativo'] == 1 else "Desbloquear"
-                novo_status = 0 if m['ativo'] == 1 else 1
-                if col_m2.button(label_btn, key=f"btn_m_{m['id']}"):
-                    executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": novo_status, "id": int(m['id'])})
+                # Bloqueio
+                btn_txt = "Bloquear" if m['ativo'] == 1 else "Ativar"
+                if c1.button(btn_txt, key=f"bl_{m['id']}"):
+                    executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": 0 if m['ativo']==1 else 1, "id": int(m['id'])})
                     st.rerun()
+                
+                # Exclusão com Confirmação
+                confirmar = c2.checkbox("Confirmar exclusão", key=f"ch_{m['id']}")
+                st.markdown('<div class="btn-perigo">', unsafe_allow_html=True)
+                if c3.button("EXCLUIR PERMANENTEMENTE", key=f"ex_{m['id']}", disabled=not confirmar):
+                    executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
-        with aba3:
-            up = st.file_uploader("Upload backup_agape.json", type=['json'])
-            if up and st.button("Restaurar Agora"):
-                try:
-                    dados = json.loads(up.read().decode("utf-8"))
-                    for m in dados.get('membros', []):
-                        pw = generate_password_hash('Agape2026')
-                        executar_query("INSERT OR IGNORE INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
-                                       {"n": m['nome'], "e": m['email'], "c": m['codigo'], "p": pw})
-                    st.success("Dados restaurados!")
-                except Exception as e: st.error(f"Erro: {e}")
+    elif escolha == "🏠 Mural":
+        st.title("📢 Avisos")
+        df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, r in df_a.iterrows():
+            st.markdown(f"<div class='aviso-card'><h3>{r['titulo']}</h3><p>{r['conteudo']}</p></div>", unsafe_allow_html=True)
 
+    # (Mantenha as páginas de Estudos Bíblicos e Orações conforme a lógica anterior)
