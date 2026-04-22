@@ -95,7 +95,7 @@ if not st.session_state.logado:
 # --- 5. ÁREA LOGADA ---
 else:
     st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
-    menu = ["🏠 Mural", "📖 Estudos", "🙏 Orações", "💰 Ofertas"]
+    menu = ["🏠 Mural", "📖 Bíblia & Estudos", "🙏 Orações", "💰 Ofertas"]
     if st.session_state.is_admin: menu.append("⚙️ Administração")
     
     escolha = st.sidebar.radio("Navegação", menu)
@@ -103,33 +103,62 @@ else:
         st.session_state.logado = False
         st.rerun()
 
+    # --- PÁGINA ADMIN ---
     if escolha == "⚙️ Administração":
-        st.title("⚙️ Gestão de Membros")
-        df_m = consultar_db("SELECT id, nome, email, codigo, ativo FROM membros WHERE is_admin=0")
+        st.title("⚙️ Gestão Administrativa")
+        tab_m, tab_b = st.tabs(["👥 Gerenciar Membros", "📖 Editar Bíblia/Estudos"])
         
-        for _, m in df_m.iterrows():
-            with st.expander(f"👤 {m['nome']} ({m['email']})"):
-                st.write(f"**Código:** {m['codigo']} | **Status:** {'✅ Ativo' if m['ativo']==1 else '🚫 Bloqueado'}")
-                c1, c2, c3 = st.columns([1, 1, 2])
-                
-                # Bloqueio
-                btn_txt = "Bloquear" if m['ativo'] == 1 else "Ativar"
-                if c1.button(btn_txt, key=f"bl_{m['id']}"):
-                    executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": 0 if m['ativo']==1 else 1, "id": int(m['id'])})
-                    st.rerun()
-                
-                # Exclusão com Confirmação
-                confirmar = c2.checkbox("Confirmar exclusão", key=f"ch_{m['id']}")
-                st.markdown('<div class="btn-perigo">', unsafe_allow_html=True)
-                if c3.button("EXCLUIR PERMANENTEMENTE", key=f"ex_{m['id']}", disabled=not confirmar):
-                    executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+        with tab_m:
+            df_m = consultar_db("SELECT id, nome, email, codigo, ativo FROM membros WHERE is_admin=0")
+            for _, m in df_m.iterrows():
+                with st.expander(f"👤 {m['nome']} ({m['email']})"):
+                    c1, c2, c3 = st.columns(3)
+                    btn_txt = "Bloquear" if m['ativo'] == 1 else "Ativar"
+                    if c1.button(btn_txt, key=f"bl_{m['id']}"):
+                        executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": 0 if m['ativo']==1 else 1, "id": int(m['id'])})
+                        st.rerun()
+                    confirmar = c2.checkbox("Confirmar exclusão", key=f"ch_{m['id']}")
+                    st.markdown('<div class="btn-perigo">', unsafe_allow_html=True)
+                    if c3.button("EXCLUIR", key=f"ex_{m['id']}", disabled=not confirmar):
+                        executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+        with tab_b:
+            st.subheader("📝 Cadastrar ou Editar Estudo Bíblico")
+            with st.form("form_biblia"):
+                liv = st.text_input("Livro (ex: João)")
+                cap = st.number_input("Capítulo", min_value=1)
+                ver = st.number_input("Versículo", min_value=1)
+                txt = st.text_area("Texto Bíblico")
+                exp = st.text_area("Explicação Teológica")
+                if st.form_submit_button("Salvar Estudo"):
+                    # Verifica se já existe para atualizar ou inserir
+                    existe = consultar_db("SELECT id FROM biblia WHERE livro=:l AND capitulo=:c AND versiculo=:v", {"l": liv, "c": cap, "v": ver})
+                    if not existe.empty:
+                        executar_query("UPDATE biblia SET texto=:t, explicacao=:e WHERE id=:id", {"t": txt, "e": exp, "id": int(existe.iloc[0]['id'])})
+                    else:
+                        executar_query("INSERT INTO biblia (livro, capitulo, versiculo, texto, explicacao) VALUES (:l, :c, :v, :t, :e)",
+                                       {"l": liv, "c": cap, "v": ver, "t": txt, "e": exp})
+                    st.success("Estudo salvo!")
+
+    elif escolha == "📖 Bíblia & Estudos":
+        st.title("📖 Explicações Bíblicas")
+        df_b = consultar_db("SELECT DISTINCT livro FROM biblia")
+        if not df_b.empty:
+            l_sel = st.selectbox("Livro", df_b['livro'].tolist())
+            c_sel = st.number_input("Capítulo", min_value=1)
+            if st.button("Buscar Estudo"):
+                res = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c", {"l": l_sel, "c": c_sel})
+                if not res.empty:
+                    for _, r in res.iterrows():
+                        st.info(f"**Versículo {r['versiculo']}**: {r['texto']}")
+                        st.write(f"💡 {r['explicacao']}")
+                else: st.warning("Sem estudos para este capítulo.")
+        else: st.info("O administrador ainda não cadastrou estudos.")
 
     elif escolha == "🏠 Mural":
         st.title("📢 Avisos")
         df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, r in df_a.iterrows():
             st.markdown(f"<div class='aviso-card'><h3>{r['titulo']}</h3><p>{r['conteudo']}</p></div>", unsafe_allow_html=True)
-
-    # (Mantenha as páginas de Estudos Bíblicos e Orações conforme a lógica anterior)
