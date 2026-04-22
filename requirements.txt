@@ -1,3 +1,5 @@
 streamlit
-flask-sqlalchemy
-flask
+pandas
+sqlalchemy
+xlsxwriter
+fpdf2
