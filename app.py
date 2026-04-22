@@ -3,8 +3,10 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import json
 import random
 import string
+import io
 
 # --- 1. CONFIGURAÇÃO E DESIGN ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -61,7 +63,7 @@ if not st.session_state.logado:
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email_l})
                 if not res.empty:
                     user = res.iloc[0]
-                    if user['ativo'] == 0: st.error("Conta desativada. Fale com o pastor/admin.")
+                    if user['ativo'] == 0: st.error("Conta desativada.")
                     elif check_password_hash(user['senha'], senha_l):
                         st.session_state.update({"logado": True, "user_nome": user['nome'], "is_admin": bool(user['is_admin'])})
                         st.rerun()
@@ -78,10 +80,9 @@ if not st.session_state.logado:
                     cod = "AG-" + ''.join(random.choices(string.digits, k=4))
                     executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
                                    {"n": n_n, "e": n_e, "c": cod, "p": generate_password_hash(n_s)})
-                    st.success(f"Cadastro realizado! SEU CÓDIGO É: {cod} (Anote-o para recuperar sua senha)")
+                    st.success(f"Cadastrado! SEU CÓDIGO É: {cod}")
     
     with t_rec:
-        st.info("Use seu e-mail e código AG-XXXX para criar uma nova senha.")
         with st.form("rec_senha"):
             re_e = st.text_input("E-mail")
             re_c = st.text_input("Código de Cadastro")
@@ -90,12 +91,11 @@ if not st.session_state.logado:
                 user = consultar_db("SELECT * FROM membros WHERE email=:e AND codigo=:c", {"e": re_e, "c": re_c})
                 if not user.empty:
                     executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": generate_password_hash(re_s), "e": re_e})
-                    st.success("Senha atualizada! Já pode entrar.")
-                else: st.error("E-mail ou Código incorretos.")
+                    st.success("Senha atualizada!")
 
 # --- 5. ÁREA LOGADA ---
 else:
-    st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
+    st.sidebar.title(f"🙏 {st.session_state.user_nome}")
     menu = ["🏠 Mural", "📖 Bíblia", "🙏 Orações"]
     if st.session_state.is_admin: menu.append("⚙️ Administração")
     
@@ -106,91 +106,88 @@ else:
 
     if escolha == "⚙️ Administração":
         st.title("⚙️ Painel do Administrador")
-        tab_m, tab_b, tab_sup = st.tabs(["👥 Gerenciar Membros", "📖 Bíblia", "🛠️ Suporte/Senhas"])
+        tab_m, tab_sup, tab_bak = st.tabs(["👥 Membros", "🛠️ Suporte", "💾 Backup"])
         
         with tab_m:
             df_m = consultar_db("SELECT * FROM membros WHERE is_admin=0")
             for _, m in df_m.iterrows():
                 with st.expander(f"👤 {m['nome']} ({m['email']})"):
-                    st.write(f"Código: **{m['codigo']}** | Status: **{'✅ Ativo' if m['ativo']==1 else '🚫 Bloqueado'}**")
                     c1, c2, c3 = st.columns(3)
-                    
-                    # BLOQUEIO (Botão Dinâmico)
-                    label = "BLOQUEAR" if m['ativo'] == 1 else "ATIVAR"
-                    if c1.button(label, key=f"btn_bl_{m['id']}"):
+                    if c1.button("BLOQUEAR" if m['ativo']==1 else "ATIVAR", key=f"bl_{m['id']}"):
                         executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": 0 if m['ativo']==1 else 1, "id": int(m['id'])})
                         st.rerun()
-                    
-                    # EXCLUSÃO
-                    confirma = c2.checkbox("Confirmar exclusão", key=f"check_{m['id']}")
+                    conf = c2.checkbox("Excluir?", key=f"ch_{m['id']}")
                     st.markdown('<div class="btn-perigo">', unsafe_allow_html=True)
-                    if c3.button("EXCLUIR", key=f"btn_ex_{m['id']}", disabled=not confirma):
+                    if c3.button("EXCLUIR", key=f"ex_{m['id']}", disabled=not conf):
                         executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
         with tab_sup:
-            st.subheader("🔑 Recuperação Manual (Uso do Admin)")
-            st.write("Se o membro perdeu o código e o acesso, você pode ver os dados e trocar a senha aqui.")
-            membros_lista = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0")
-            sel_mem = st.selectbox("Selecione o Membro", membros_lista['nome'].tolist())
-            if sel_mem:
-                dados = membros_lista[membros_lista['nome'] == sel_mem].iloc[0]
-                st.warning(f"O Código deste membro é: **{dados['codigo']}**")
+            m_list = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0")
+            if not m_list.empty:
+                sel = st.selectbox("Membro", m_list['nome'].tolist())
+                d = m_list[m_list['nome'] == sel].iloc[0]
+                st.warning(f"Código: **{d['codigo']}**")
+                nv_s = st.text_input("Resetar Senha", type="password")
+                if st.button("Trocar Senha"):
+                    executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": generate_password_hash(nv_s), "e": d['email']})
+                    st.success("Senha alterada!")
+
+        with tab_bak:
+            st.subheader("Extrair Dados do Sistema")
+            if st.button("Gerar Relatórios"):
+                # Excel com abas
+                df_membros = consultar_db("SELECT nome, email, codigo, ativo FROM membros")
+                df_oracoes = consultar_db("SELECT * FROM oracoes")
+                df_biblia = consultar_db("SELECT * FROM biblia")
                 
-                nova_s = st.text_input("Forçar Nova Senha", type="password")
-                if st.button("Resetar Senha deste Membro"):
-                    executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": generate_password_hash(nova_s), "e": dados['email']})
-                    st.success(f"Senha de {sel_mem} alterada com sucesso!")
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_membros.to_excel(writer, sheet_name='Membros', index=False)
+                    df_oracoes.to_excel(writer, sheet_name='Orações', index=False)
+                    df_biblia.to_excel(writer, sheet_name='Bíblia', index=False)
+                
+                st.download_button(
+                    label="📥 Baixar Backup em Excel",
+                    data=output.getvalue(),
+                    file_name=f"backup_agape_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.ms-excel"
+                )
 
     elif escolha == "🏠 Mural":
-        st.title("📢 Mural de Avisos")
+        st.title("📢 Mural")
         if st.session_state.is_admin:
-            with st.expander("📝 Publicar Novo Aviso"):
-                with st.form("f_aviso"):
-                    t = st.text_input("Título")
-                    c = st.text_area("Mensagem")
+            with st.expander("Novo Aviso"):
+                with st.form("av"):
+                    t, c = st.text_input("Título"), st.text_area("Texto")
                     if st.form_submit_button("Postar"):
                         executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t":t, "c":c, "d":datetime.now().strftime("%d/%m/%Y")})
                         st.rerun()
-        
-        df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        for _, r in df_a.iterrows():
+        for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             st.markdown(f"<div class='aviso-card'><h3>{r['titulo']}</h3><p>{r['conteudo']}</p></div>", unsafe_allow_html=True)
 
     elif escolha == "📖 Bíblia":
-        st.title("📖 Bíblia e Estudos")
+        st.title("📖 Bíblia")
         if st.session_state.is_admin:
-            with st.expander("📝 Adicionar Versículo/Estudo"):
-                with st.form("f_bib"):
-                    liv = st.text_input("Livro")
-                    cap = st.number_input("Capítulo", min_value=1)
-                    ver = st.number_input("Versículo", min_value=1)
-                    txt = st.text_area("Texto")
-                    exp = st.text_area("Explicação")
-                    if st.form_submit_button("Salvar"):
-                        executar_query("INSERT INTO biblia (livro, capitulo, versiculo, texto, explicacao) VALUES (:l, :c, :v, :t, :e)",
-                                       {"l":liv, "c":cap, "v":ver, "t":txt, "e":exp})
-                        st.success("Salvo!")
-        
+            with st.expander("Novo Estudo"):
+                with st.form("bib"):
+                    l, cp, v = st.text_input("Livro"), st.number_input("Cap", 1), st.number_input("Ver", 1)
+                    tx, ex = st.text_area("Texto"), st.text_area("Explicação")
+                    if st.form_submit_button("Gravar"):
+                        executar_query("INSERT INTO biblia (livro,capitulo,versiculo,texto,explicacao) VALUES (:l,:c,:v,:t,:e)", {"l":l,"c":cp,"v":v,"t":tx,"e":ex})
         df_b = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not df_b.empty:
-            l_sel = st.selectbox("Escolha o Livro", df_b['livro'].tolist())
-            res = consultar_db("SELECT * FROM biblia WHERE livro=:l", {"l": l_sel})
-            for _, r in res.iterrows():
+            l_sel = st.selectbox("Livro", df_b['livro'].tolist())
+            for _, r in consultar_db("SELECT * FROM biblia WHERE livro=:l", {"l": l_sel}).iterrows():
                 st.info(f"**{r['livro']} {r['capitulo']}:{r['versiculo']}** - {r['texto']}")
                 st.write(f"💡 {r['explicacao']}")
-        else: st.info("Nenhum estudo cadastrado.")
 
     elif escolha == "🙏 Orações":
-        st.title("🙏 Mural de Orações")
-        with st.form("f_ora"):
-            ped = st.text_area("Seu pedido de oração")
-            if st.form_submit_button("Enviar"):
-                executar_query("INSERT INTO oracoes (nome_membro, pedido, data, status) VALUES (:n, :p, :d, 'Pendente')",
-                               {"n": st.session_state.user_nome, "p": ped, "d": datetime.now().strftime("%d/%m/%Y")})
-                st.success("Pedido enviado!")
-        
-        df_o = consultar_db("SELECT * FROM oracoes ORDER BY id DESC")
-        for _, r in df_o.iterrows():
-            st.markdown(f"<div class='aviso-card'><b>{r['nome_membro']}</b>: {r['pedido']} <br><small>Status: {r['status']}</small></div>", unsafe_allow_html=True)
+        st.title("🙏 Orações")
+        with st.form("ora"):
+            p = st.text_area("Seu pedido")
+            if st.form_submit_button("Pedir"):
+                executar_query("INSERT INTO oracoes (nome_membro, pedido, data, status) VALUES (:n, :p, :d, 'Pendente')", {"n": st.session_state.user_nome, "p": p, "d": datetime.now().strftime("%d/%m/%Y")})
+        for _, r in consultar_db("SELECT * FROM oracoes ORDER BY id DESC").iterrows():
+            st.markdown(f"<div class='aviso-card'><b>{r['nome_membro']}</b>: {r['pedido']}</div>", unsafe_allow_html=True)
