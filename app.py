@@ -37,6 +37,7 @@ def init_db():
         (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS oracoes (id INTEGER PRIMARY KEY, nome_membro TEXT, pedido TEXT, data TEXT, status TEXT)')
 
     if consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'").empty:
@@ -84,9 +85,7 @@ if not st.session_state.logado:
     
     with t_rec:
         with st.form("rec_senha"):
-            re_e = st.text_input("E-mail")
-            re_c = st.text_input("Código de Cadastro")
-            re_s = st.text_input("Nova Senha", type="password")
+            re_e, re_c, re_s = st.text_input("E-mail"), st.text_input("Código"), st.text_input("Nova Senha", type="password")
             if st.form_submit_button("Redefinir Senha"):
                 user = consultar_db("SELECT * FROM membros WHERE email=:e AND codigo=:c", {"e": re_e, "c": re_c})
                 if not user.empty:
@@ -96,7 +95,7 @@ if not st.session_state.logado:
 # --- 5. ÁREA LOGADA ---
 else:
     st.sidebar.title(f"🙏 {st.session_state.user_nome}")
-    menu = ["🏠 Mural", "📖 Bíblia", "🙏 Orações"]
+    menu = ["🏠 Mural", "📖 Bíblia", "🙏 Orações", "💰 Ofertas"]
     if st.session_state.is_admin: menu.append("⚙️ Administração")
     
     escolha = st.sidebar.radio("Navegação", menu)
@@ -106,7 +105,7 @@ else:
 
     if escolha == "⚙️ Administração":
         st.title("⚙️ Painel do Administrador")
-        tab_m, tab_sup, tab_bak = st.tabs(["👥 Membros", "🛠️ Suporte", "💾 Backup"])
+        tab_m, tab_pix, tab_sup, tab_bak = st.tabs(["👥 Membros", "💳 Configurar PIX", "🛠️ Suporte", "💾 Backup"])
         
         with tab_m:
             df_m = consultar_db("SELECT * FROM membros WHERE is_admin=0")
@@ -116,52 +115,68 @@ else:
                     if c1.button("BLOQUEAR" if m['ativo']==1 else "ATIVAR", key=f"bl_{m['id']}"):
                         executar_query("UPDATE membros SET ativo=:s WHERE id=:id", {"s": 0 if m['ativo']==1 else 1, "id": int(m['id'])})
                         st.rerun()
-                    conf = c2.checkbox("Excluir?", key=f"ch_{m['id']}")
+                    conf = c2.checkbox("Confirmar?", key=f"ch_{m['id']}")
                     st.markdown('<div class="btn-perigo">', unsafe_allow_html=True)
                     if c3.button("EXCLUIR", key=f"ex_{m['id']}", disabled=not conf):
                         executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+        with tab_pix:
+            st.subheader("Configuração de Dízimos e Ofertas")
+            conf_atual = consultar_db("SELECT * FROM config_geral LIMIT 1")
+            
+            with st.form("form_pix"):
+                pix_atual = conf_atual.iloc[0]['chave_pix'] if not conf_atual.empty else ""
+                qr_atual = conf_atual.iloc[0]['url_qrcode'] if not conf_atual.empty else ""
+                
+                nova_chave = st.text_input("Chave PIX", value=pix_atual)
+                nova_url_qr = st.text_input("URL da Imagem do QR Code", value=qr_atual)
+                
+                if st.form_submit_button("Salvar Configurações PIX"):
+                    executar_query("DELETE FROM config_geral") # Limpa anterior
+                    executar_query("INSERT INTO config_geral (chave_pix, url_qrcode) VALUES (:pix, :qr)", 
+                                   {"pix": nova_chave, "qr": nova_url_qr})
+                    st.success("Dados de PIX atualizados!")
+                    st.rerun()
+
         with tab_sup:
             m_list = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0")
             if not m_list.empty:
                 sel = st.selectbox("Membro", m_list['nome'].tolist())
                 d = m_list[m_list['nome'] == sel].iloc[0]
-                st.warning(f"Código: **{d['codigo']}**")
-                nv_s = st.text_input("Resetar Senha", type="password")
+                st.warning(f"Código do Membro: **{d['codigo']}**")
+                nv_s = st.text_input("Nova Senha Manual", type="password")
                 if st.button("Trocar Senha"):
                     executar_query("UPDATE membros SET senha=:p WHERE email=:e", {"p": generate_password_hash(nv_s), "e": d['email']})
                     st.success("Senha alterada!")
 
         with tab_bak:
-            st.subheader("Extrair Dados do Sistema")
-            if st.button("Gerar Relatórios"):
-                # Excel com abas
+            if st.button("Gerar Backup Excel"):
                 df_membros = consultar_db("SELECT nome, email, codigo, ativo FROM membros")
-                df_oracoes = consultar_db("SELECT * FROM oracoes")
-                df_biblia = consultar_db("SELECT * FROM biblia")
-                
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_membros.to_excel(writer, sheet_name='Membros', index=False)
-                    df_oracoes.to_excel(writer, sheet_name='Orações', index=False)
-                    df_biblia.to_excel(writer, sheet_name='Bíblia', index=False)
-                
-                st.download_button(
-                    label="📥 Baixar Backup em Excel",
-                    data=output.getvalue(),
-                    file_name=f"backup_agape_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                    mime="application/vnd.ms-excel"
-                )
+                st.download_button("📥 Baixar Excel", output.getvalue(), "backup.xlsx")
+
+    elif escolha == "💰 Ofertas":
+        st.title("💰 Dízimos e Ofertas")
+        res = consultar_db("SELECT * FROM config_geral LIMIT 1")
+        if not res.empty:
+            st.info("Sua contribuição ajuda na manutenção da obra de Deus.")
+            st.subheader(f"Chave PIX: `{res.iloc[0]['chave_pix']}`")
+            if res.iloc[0]['url_qrcode']:
+                st.image(res.iloc[0]['url_qrcode'], caption="Escaneie o QR Code para contribuir", width=300)
+        else:
+            st.warning("Dados para contribuição ainda não foram configurados pelo administrador.")
 
     elif escolha == "🏠 Mural":
         st.title("📢 Mural")
         if st.session_state.is_admin:
-            with st.expander("Novo Aviso"):
+            with st.expander("Postar Aviso"):
                 with st.form("av"):
-                    t, c = st.text_input("Título"), st.text_area("Texto")
-                    if st.form_submit_button("Postar"):
+                    t, c = st.text_input("Título"), st.text_area("Mensagem")
+                    if st.form_submit_button("Enviar"):
                         executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t":t, "c":c, "d":datetime.now().strftime("%d/%m/%Y")})
                         st.rerun()
         for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
@@ -180,14 +195,15 @@ else:
         if not df_b.empty:
             l_sel = st.selectbox("Livro", df_b['livro'].tolist())
             for _, r in consultar_db("SELECT * FROM biblia WHERE livro=:l", {"l": l_sel}).iterrows():
-                st.info(f"**{r['livro']} {r['capitulo']}:{r['versiculo']}** - {r['texto']}")
+                st.info(f"**{r['livro']} {r['capitulo']}:{r['versiculo']}**")
+                st.write(r['texto'])
                 st.write(f"💡 {r['explicacao']}")
 
     elif escolha == "🙏 Orações":
-        st.title("🙏 Orações")
+        st.title("🙏 Pedidos de Oração")
         with st.form("ora"):
             p = st.text_area("Seu pedido")
-            if st.form_submit_button("Pedir"):
+            if st.form_submit_button("Enviar"):
                 executar_query("INSERT INTO oracoes (nome_membro, pedido, data, status) VALUES (:n, :p, :d, 'Pendente')", {"n": st.session_state.user_nome, "p": p, "d": datetime.now().strftime("%d/%m/%Y")})
         for _, r in consultar_db("SELECT * FROM oracoes ORDER BY id DESC").iterrows():
             st.markdown(f"<div class='aviso-card'><b>{r['nome_membro']}</b>: {r['pedido']}</div>", unsafe_allow_html=True)
