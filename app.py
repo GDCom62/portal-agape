@@ -1,25 +1,25 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-import io
-import smtplib
-from email.message import EmailMessage
 from sqlalchemy import create_engine, text
-from fpdf import FPDF
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+import json
 
-# --- 1. DESIGN E CONFIGURAÇÃO ---
-st.set_page_config(page_title="Lavanderia Pro", layout="wide")
+# --- 1. CONFIGURAÇÃO E DESIGN ---
+st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 st.markdown("""
     <style>
-    .stButton>button, .stTextInput>div>div>input, .stSelectbox>div>div>div, .stNumberInput>div>div>input { border-radius: 12px !important; }
-    [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #e0e0e0; }
-    h1, h2, h3 { color: #1E3A8A; font-family: 'Segoe UI', sans-serif; }
+    .stButton>button { border-radius: 12px; width: 100%; height: 3em; background-color: #1E3A8A; color: white; }
+    .stTextInput>div>div>input { border-radius: 10px; }
+    [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #ddd; }
+    .aviso-card { padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; margin-bottom: 15px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+    .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 0.8em; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///gestao_lavanderia.db", pool_size=20, max_overflow=30)
+# --- 2. BANCO DE DADOS (SQLAlchemy) ---
+engine = create_engine("sqlite:///agape_portal.db", pool_size=10, max_overflow=20)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn:
@@ -30,112 +30,137 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
-    executar_query('CREATE TABLE IF NOT EXISTS operadores (id INTEGER PRIMARY KEY, nome TEXT UNIQUE, senha TEXT, funcao TEXT)')
-    executar_query('''CREATE TABLE IF NOT EXISTS lotes (
-                      id INTEGER PRIMARY KEY AUTOINCREMENT, hospital TEXT, peso_entrada REAL, maquina TEXT, 
-                      processo TEXT, status TEXT, inicio_lavagem TEXT, fim_lavagem TEXT, inicio_secagem TEXT, 
-                      fim_secagem TEXT, inicio_acabamento TEXT, fim_acabamento TEXT, saida_motorista TEXT, 
-                      motorista_nome TEXT, peso_saida REAL, gaiola_num TEXT, operador_lavagem TEXT, 
-                      operador_secagem TEXT, operador_acabamento TEXT)''')
-    executar_query('CREATE TABLE IF NOT EXISTS contagem_itens (lote_id INTEGER, item TEXT, quantidade INTEGER)')
-    executar_query('CREATE TABLE IF NOT EXISTS alertas_panico (id INTEGER PRIMARY KEY AUTOINCREMENT, operador TEXT, etapa TEXT, data TEXT, resolvido INTEGER)')
-    if consultar_db("SELECT * FROM operadores WHERE nome='admin'").empty:
-        executar_query("INSERT INTO operadores (nome, senha, funcao) VALUES ('admin', '1234', 'Administrador')")
+    executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER)')
+    executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
+    # Nova tabela de Pedidos de Oração
+    executar_query('CREATE TABLE IF NOT EXISTS oracoes (id INTEGER PRIMARY KEY, nome_membro TEXT, pedido TEXT, data TEXT, status TEXT)')
+
+    if consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'").empty:
+        pw = generate_password_hash('Agape2026')
+        executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM001', :pw, 1)", {"pw": pw})
 
 init_db()
 
 # --- 3. ESTADO DA SESSÃO ---
-if 'logado' not in st.session_state: st.session_state['logado'] = False
-if 'operador' not in st.session_state: st.session_state['operador'] = ""
-if 'funcao' not in st.session_state: st.session_state['funcao'] = ""
-if 'tambor' not in st.session_state: st.session_state['tambor'] = []
+if 'logado' not in st.session_state: st.session_state.logado = False
+if 'user_nome' not in st.session_state: st.session_state.user_nome = ""
+if 'is_admin' not in st.session_state: st.session_state.is_admin = False
 
 # --- 4. LOGIN ---
-if not st.session_state['logado']:
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        try: st.image("logo.png", use_container_width=True)
-        except: st.title("🏥 Lavanderia Login")
-        
-        with st.form("login"):
-            u = st.text_input("Usuário")
-            s = st.text_input("Senha", type="password")
+if not st.session_state.logado:
+    st.title("⛪ Portal Ágape")
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("🔐 Acesso Restrito")
+        with st.form("login_agape"):
+            email = st.text_input("E-mail")
+            senha = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar"):
-                res = consultar_db("SELECT nome, funcao FROM operadores WHERE nome=:u AND senha=:s", {"u": u, "s": s})
-                if not res.empty:
-                    # CORREÇÃO AQUI: Acesso seguro aos dados da primeira linha
-                    st.session_state['logado'] = True
-                    st.session_state['operador'] = str(res.iloc[0]['nome'])
-                    st.session_state['funcao'] = str(res.iloc[0]['funcao'])
+                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email})
+                if not res.empty and check_password_hash(res.iloc[0]['senha'], senha):
+                    st.session_state.update({"logado": True, "user_nome": res.iloc[0]['nome'], "is_admin": bool(res.iloc[0]['is_admin'])})
                     st.rerun()
-                else: st.error("Acesso Negado")
+                else: st.error("Acesso negado.")
 
-# --- 5. APP LOGADO ---
+    with col2:
+        st.subheader("📢 Últimos Avisos")
+        df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC LIMIT 3")
+        for _, row in df_avisos.iterrows():
+            st.markdown(f"""<div class='aviso-card'><b>{row['titulo']}</b><br><small>{row['data']}</small></div>""", unsafe_allow_html=True)
+
+# --- 5. ÁREA LOGADA ---
 else:
-    try: st.sidebar.image("logo.png", use_container_width=True)
-    except: pass
+    st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
+    menus = ["🏠 Avisos", "📖 Estudos Bíblicos", "🙏 Pedidos de Oração", "💰 Dízimos/Ofertas"]
+    if st.session_state.is_admin: menus.append("⚙️ Administração")
     
-    st.sidebar.title(f"👤 {st.session_state['operador']}")
-    menu = st.sidebar.radio("Navegação", ["Painel Geral", "1. Lavagem", "2. Rampa", "3. Secagem", "4. Acabamento", "5. Expedição", "📊 Relatórios", "⚙️ Gestão"])
-    
-    if st.sidebar.button("Sair"):
-        st.session_state['logado'] = False
+    escolha = st.sidebar.radio("Navegação", menus)
+    if st.sidebar.button("Encerrar Sessão"):
+        st.session_state.logado = False
         st.rerun()
 
-    # --- TELAS ---
-    if menu == "Painel Geral":
-        st.title("📈 Monitoramento Ativo")
-        df_l = consultar_db("SELECT id, hospital, status, maquina, inicio_lavagem FROM lotes WHERE status != 'Finalizado'")
-        if not df_l.empty:
-            st.dataframe(df_l, use_container_width=True)
-        else: st.info("Sem lotes em processamento.")
+    if escolha == "🏠 Avisos":
+        st.title("📢 Mural de Avisos")
+        df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, row in df_avisos.iterrows():
+            st.markdown(f"""<div class='aviso-card'><h3>{row['titulo']}</h3><p>{row['conteudo']}</p><small>Postado em: {row['data']}</small></div>""", unsafe_allow_html=True)
 
-    elif menu == "1. Lavagem":
-        st.header("📥 Entrada Lavadora")
-        maq = st.selectbox("Máquina", ["M1 (120kg)", "M2 (120kg)", "M3 (100kg)", "M4 (60kg)", "M5 (50kg)"])
-        with st.form("add_tambor", clear_on_submit=True):
-            h_n = st.selectbox("Hospital", ["Hospital A", "Hospital B", "Hospital C"])
-            h_p = st.number_input("Peso (kg)", min_value=1.0)
-            h_t = st.radio("Tipo", ["Leve", "Pesada", "Relave"], horizontal=True)
-            if st.form_submit_button("➕ Adicionar"): 
-                st.session_state.tambor.append({"h": h_n, "p": h_p, "t": h_t})
+    elif escolha == "📖 Estudos Bíblicos":
+        st.title("📖 Explicações Bíblicas")
+        livros = ["Gênesis", "Êxodo", "Salmos", "Provérbios", "Mateus", "João", "Romanos", "Apocalipse"]
+        l_sel = st.selectbox("Selecione o Livro", livros)
+        c_sel = st.number_input("Capítulo", min_value=1, step=1)
+        if st.button("Buscar Estudo"):
+            res = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c", {"l": l_sel, "c": c_sel})
+            if not res.empty:
+                st.info(f"📜 {res.iloc[0]['texto']}")
+                st.subheader("💡 Explicação Teológica")
+                st.write(res.iloc[0]['explicacao'])
+            else: st.warning("Ainda não temos um estudo cadastrado para este capítulo.")
+
+    elif escolha == "🙏 Pedidos de Oração":
+        st.title("🙏 Mural de Oração")
+        with st.expander("📝 Registrar Novo Pedido"):
+            with st.form("form_oracao"):
+                msg_pedido = st.text_area("Escreva seu pedido ou agradecimento")
+                if st.form_submit_button("Enviar Pedido"):
+                    executar_query("INSERT INTO oracoes (nome_membro, pedido, data, status) VALUES (:n, :p, :d, 'Pendente')",
+                                   {"n": st.session_state.user_nome, "p": msg_pedido, "d": datetime.now().strftime("%d/%m/%Y")})
+                    st.success("Pedido enviado! Estaremos orando por você.")
+
+        st.subheader("🙌 Pedidos da Comunidade")
+        df_oracoes = consultar_db("SELECT * FROM oracoes ORDER BY id DESC")
+        for _, row in df_oracoes.iterrows():
+            status_cor = "orange" if row['status'] == 'Pendente' else "green"
+            st.markdown(f"""<div class='aviso-card'>
+                <b>{row['nome_membro']}</b> <span style='color:{status_cor};'>[{row['status']}]</span><br>
+                <small>{row['data']}</small><br><p>{row['pedido']}</p></div>""", unsafe_allow_html=True)
+
+    elif escolha == "💰 Dízimos/Ofertas":
+        st.title("💰 Contribuições")
+        res = consultar_db("SELECT * FROM config_geral LIMIT 1")
+        if not res.empty:
+            st.success(f"Chave PIX: {res.iloc[0]['chave_pix']}")
+            if res.iloc[0]['url_qrcode']: st.image(res.iloc[0]['url_qrcode'], width=300)
+        else: st.warning("Informações de PIX não configuradas.")
+
+    elif escolha == "⚙️ Administração":
+        st.title("⚙️ Gestão Ágape")
+        aba1, aba2, aba3 = st.tabs(["📢 Novo Aviso", "🙏 Gerenciar Orações", "📂 Dados & Backup"])
         
-        if st.session_state.tambor:
-            st.table(pd.DataFrame(st.session_state.tambor))
-            if st.button("🚀 INICIAR LAVAGEM"):
-                dt = datetime.now().strftime("%Y-%m-%d %H:%M")
-                for i in st.session_state.tambor:
-                    executar_query("INSERT INTO lotes (hospital, peso_entrada, maquina, processo, status, inicio_lavagem, operador_lavagem) VALUES (:h, :p, :m, :pr, 'Lavando', :dt, :op)",
-                                   {"h": i['h'], "p": i['p'], "m": maq, "pr": i['t'], "dt": dt, "op": st.session_state['operador']})
-                st.session_state.tambor = []; st.success("Lavagem Iniciada!"); st.rerun()
+        with aba1:
+            with st.form("aviso_adm"):
+                st.text_input("Título", key="t_aviso")
+                st.text_area("Mensagem", key="c_aviso")
+                if st.form_submit_button("Publicar"):
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)",
+                                   {"t": st.session_state.t_aviso, "c": st.session_state.c_aviso, "d": datetime.now().strftime("%d/%m/%Y")})
+                    st.rerun()
 
-    elif menu == "4. Acabamento":
-        st.header("🧺 Dobra e Passagem")
-        df = consultar_db("SELECT id, hospital, status FROM lotes WHERE status IN ('Secando', 'Pronto')")
-        if not df.empty:
-            sel = st.selectbox("Lote:", df['id'].astype(str) + " - " + df['hospital'])
-            id_l = int(sel.split(" - ")[0])
-            # Lista de itens
-            lista = ["Lencol", "Fronha", "Oleado", "Colcha", "Edredon", "Calca", "Camisa", "Campo", "Tracado", "Camisola Adulto", "Camisola Infantil", "Cobertor", "Capote", "Toalha de Banho", "Toalha de Rosto", "Piso", "Cortina", "Outros"]
-            ed = st.data_editor(pd.DataFrame([{"Item": i, "Qtd": 0} for i in lista]), hide_index=True)
-            if st.button("✅ Salvar"):
-                executar_query("UPDATE lotes SET status='Pronto', fim_secagem=:dt, inicio_acabamento=:dt, operador_acabamento=:op WHERE id=:id", {"dt": datetime.now().strftime("%Y-%m-%d %H:%M"), "op": st.session_state['operador'], "id": id_l})
-                for _, r in ed.iterrows():
-                    if r['Qtd'] > 0: executar_query("INSERT INTO contagem_itens VALUES (:id, :it, :q)", {"id": id_l, "it": r['Item'], "q": r['Qtd']})
-                st.rerun()
+        with aba2:
+            st.subheader("Pedidos Pendentes")
+            df_p = consultar_db("SELECT * FROM oracoes WHERE status='Pendente'")
+            if not df_p.empty:
+                for _, r in df_p.iterrows():
+                    col_a, col_b = st.columns([3, 1])
+                    col_a.write(f"**{r['nome_membro']}**: {r['pedido']}")
+                    if col_b.button(f"Marcar como Orado #{r['id']}"):
+                        executar_query("UPDATE oracoes SET status='Em Oração' WHERE id=:id", {"id": r['id']})
+                        st.rerun()
+            else: st.info("Nenhum pedido pendente.")
 
-    elif menu == "📊 Relatórios":
-        st.title("📊 Produtividade")
-        df = consultar_db("SELECT * FROM lotes")
-        st.dataframe(df)
-        buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df.to_excel(wr, index=False)
-        st.download_button("📥 Exportar Excel", buf.getvalue(), "relatorio.xlsx")
-
-    elif menu == "⚙️ Gestão":
-        st.header("⚙️ Cadastro de Colaborador")
-        with st.form("cad"):
-            n, s, f = st.text_input("Nome"), st.text_input("Senha"), st.selectbox("Função", ["Operador", "Motorista", "Administrador"])
-            if st.form_submit_button("Salvar"): 
-                executar_query("INSERT INTO operadores (nome, senha, funcao) VALUES (:n, :s, :f)", {"n": n, "s": s, "f": f})
-                st.success("Cadastrado!"); st.rerun()
+        with aba3:
+            st.subheader("📥 Importar Dados do Legado")
+            up = st.file_uploader("Upload backup_agape.json", type=['json'])
+            if up and st.button("Restaurar Agora"):
+                try:
+                    dados = json.loads(up.read().decode("utf-8"))
+                    for m in dados.get('membros', []):
+                        pw = generate_password_hash('Agape2026')
+                        executar_query("INSERT OR IGNORE INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n, :e, :c, :p, 0)",
+                                       {"n": m['nome'], "e": m['email'], "c": m['codigo'], "p": pw})
+                    st.success("Restauração concluída!")
+                except Exception as e: st.error(f"Erro: {e}")
