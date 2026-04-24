@@ -9,7 +9,7 @@ import json
 # --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Portal Ágape", layout="centered", page_icon="⛪")
 
-# --- 2. BANCO DE DADOS (VERSÃO V5 PARA RESETAR ERROS) ---
+# --- 2. BANCO DE DADOS (Versão estável) ---
 engine = create_engine("sqlite:///agape_final_v5.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
@@ -27,7 +27,7 @@ def init_db():
         (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, UNIQUE(livro, capitulo, versiculo))''')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     
-    # Criar Admin inicial se não existir
+    # Criar Admin inicial
     try:
         check = consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'")
         if check.empty:
@@ -72,30 +72,34 @@ if not st.session_state.logado:
                     try:
                         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
                                        {"n": n_c, "e": e_c, "c": cod, "p": generate_password_hash(s_c)})
-                        st.success(f"Sucesso! Seu código de membro é: {cod}")
-                    except: st.error("E-mail já cadastrado.")
+                        st.success(f"Sucesso! Código: {cod}")
+                    except: st.error("E-mail já existe.")
 
 # --- 5. ÁREA LOGADA ---
 else:
     u = st.session_state.user
     st.sidebar.title(f"🙏 Olá, {u['nome']}")
-    
     menu_op = ["📖 Bíblia", "📢 Mural"]
     if u['is_admin'] == 1: menu_op.append("⚙️ Admin")
+    escolha = st.sidebar.radio("Navegação", menu_op)
     
-    escolha = st.sidebar.radio("Menu", menu_op)
-    
-    if st.sidebar.button("Encerrar Sessão"):
+    if st.sidebar.button("Sair"):
         st.session_state.logado = False
         st.rerun()
 
     # --- ABA ADMIN (IMPORTAÇÃO INTELIGENTE) ---
     if escolha == "⚙️ Admin":
-        st.header("⚙️ Painel do Administrador")
-        st.subheader("📥 Importar Bíblia (JSON)")
+        st.header("⚙️ Painel Administrativo")
         
+        if st.button("🗑️ Limpar Bíblia (Apagar Erros/Desconhecidos)", type="secondary"):
+            executar_query("DELETE FROM biblia")
+            st.warning("Banco da Bíblia resetado!")
+            st.rerun()
+
+        st.subheader("📥 Importar Bíblia (JSON)")
         f = st.file_uploader("Selecione o arquivo acf.json", type=['json'])
-        if f and st.button("🚀 Iniciar Importação Massiva"):
+        
+        if f and st.button("🚀 Iniciar Importação Inteligente"):
             try:
                 dados = json.load(f)
                 total = len(dados)
@@ -106,47 +110,40 @@ else:
                     bloco = dados[i:i+500]
                     with engine.begin() as conn:
                         for v in bloco:
-                            # Mapeamento dinâmico para aceitar inglês ou português do JSON
-                            livro = v.get('book') or v.get('livro') or v.get('nome') or "Desconhecido"
-                            cap = v.get('chapter') or v.get('capitulo') or 0
-                            num = v.get('number') or v.get('versiculo') or 0
-                            txt = v.get('text') or v.get('texto') or ""
+                            # Tenta mapear qualquer nome de campo (Inglês ou Português)
+                            livro = v.get('book') or v.get('livro') or v.get('nome') or v.get('abbrev') or v.get('name')
+                            cap = v.get('chapter') or v.get('capitulo') or v.get('cap') or v.get('c')
+                            num = v.get('number') or v.get('versiculo') or v.get('ver') or v.get('v') or v.get('n')
+                            txt = v.get('text') or v.get('texto') or v.get('txt') or v.get('t')
                             
-                            conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
-                                         {"l": str(livro).strip(), "c": cap, "v": num, "t": txt})
+                            if livro and txt:
+                                conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
+                                             {"l": str(livro).strip(), "c": cap, "v": num, "t": txt})
                     
                     prog.progress(min((i+500)/total, 1.0))
                     st_txt.text(f"Salvando versículos: {i+len(bloco)} de {total}...")
                 
-                st.success("✅ Importação concluída com sucesso! Vá para a aba Bíblia.")
+                st.success("✅ Concluído! Verifique a aba Bíblia.")
             except Exception as e:
                 st.error(f"Erro no processamento: {e}")
 
-    # --- ABA BÍBLIA (EXIBIÇÃO CORRIGIDA) ---
+    # --- ABA BÍBLIA ---
     elif escolha == "📖 Bíblia":
         st.header("📖 Bíblia Sagrada")
-        
-        # Busca apenas livros que possuem conteúdo
-        livros_df = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
+        livros_df = consultar_db("SELECT DISTINCT livro FROM biblia WHERE livro != 'Desconhecido' ORDER BY id")
         
         if not livros_df.empty:
-            lista_livros = livros_df['livro'].tolist()
-            l_sel = st.selectbox("Selecione o Livro", lista_livros)
-            
-            # Busca capítulos do livro escolhido
+            l_sel = st.selectbox("Livro", livros_df['livro'].tolist())
             caps_df = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l ORDER BY capitulo", {"l": l_sel})
             c_sel = st.selectbox("Capítulo", caps_df['capitulo'].tolist())
-            
-            # Exibe os versículos
             versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": l_sel, "c": c_sel})
             
             st.divider()
             for _, v in versos.iterrows():
                 st.markdown(f"**{v['versiculo']}** {v['texto']}")
         else:
-            st.warning("⚠️ Nenhuma Bíblia encontrada no banco de dados.")
-            st.info("Logue como Administrador e realize a importação na aba Admin.")
+            st.warning("⚠️ Bíblia não encontrada. Vá em Admin e realize a importação.")
 
     elif escolha == "📢 Mural":
-        st.header("📢 Mural da Comunidade")
-        st.write("Bem-vindo ao Portal Ágape. Use o menu lateral para navegar.")
+        st.header("📢 Mural Ágape")
+        st.write("Bem-vindo ao Portal da nossa comunidade!")
