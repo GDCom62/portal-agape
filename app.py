@@ -7,10 +7,10 @@ import string
 import json
 
 # --- 1. CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="Portal Ágape", layout="centered")
+st.set_page_config(page_title="Portal Ágape", layout="centered", page_icon="⛪")
 
-# --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///portal_agape_v4.db", pool_pre_ping=True)
+# --- 2. BANCO DE DADOS (VERSÃO V5 PARA RESETAR ERROS) ---
+engine = create_engine("sqlite:///agape_final_v5.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn:
@@ -24,10 +24,10 @@ def init_db():
     executar_query('''CREATE TABLE IF NOT EXISTS membros 
         (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
     executar_query('''CREATE TABLE IF NOT EXISTS biblia 
-        (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT, UNIQUE(livro, capitulo, versiculo))''')
+        (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, UNIQUE(livro, capitulo, versiculo))''')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
     
+    # Criar Admin inicial se não existir
     try:
         check = consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'")
         if check.empty:
@@ -37,95 +37,116 @@ def init_db():
 
 init_db()
 
-# --- 3. CONTROLE DE SESSÃO ---
+# --- 3. ESTADO DA SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'user' not in st.session_state: st.session_state.user = None
 
 # --- 4. TELA DE ACESSO ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
-    t_log, t_cad = st.tabs(["Login", "Cadastro"])
+    t_log, t_cad = st.tabs(["🔐 Login", "📝 Cadastro"])
     
     with t_log:
-        with st.form("form_login"):
-            email_in = st.text_input("E-mail")
-            senha_in = st.text_input("Senha", type="password")
+        with st.form("login_form"):
+            e = st.text_input("E-mail")
+            s = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar"):
-                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email_in})
+                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                 if not res.empty:
-                    u_dict = res.to_dict('records')[0]
-                    if check_password_hash(u_dict['senha'], senha_in):
+                    u_data = res.iloc[0].to_dict()
+                    if check_password_hash(u_data['senha'], s):
                         st.session_state.logado = True
-                        st.session_state.user = u_dict
+                        st.session_state.user = u_data
                         st.rerun()
                     else: st.error("Senha incorreta.")
-                else: st.error("Usuário não encontrado.")
+                else: st.error("E-mail não cadastrado.")
 
     with t_cad:
-        with st.form("form_cadastro"):
-            nome_c = st.text_input("Nome Completo")
-            email_c = st.text_input("E-mail")
-            senha_c = st.text_input("Senha", type="password")
+        with st.form("cad_form"):
+            n_c = st.text_input("Nome Completo")
+            e_c = st.text_input("E-mail")
+            s_c = st.text_input("Senha", type="password")
             if st.form_submit_button("Cadastrar"):
-                if nome_c and email_c and senha_c:
+                if n_c and e_c and s_c:
                     cod = "AG-" + "".join(random.choices(string.digits, k=4))
                     try:
                         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
-                                       {"n": nome_c, "e": email_c, "c": cod, "p": generate_password_hash(senha_c)})
-                        st.success(f"Cadastrado! Código: {cod}")
+                                       {"n": n_c, "e": e_c, "c": cod, "p": generate_password_hash(s_c)})
+                        st.success(f"Sucesso! Seu código de membro é: {cod}")
                     except: st.error("E-mail já cadastrado.")
 
 # --- 5. ÁREA LOGADA ---
 else:
     u = st.session_state.user
-    st.sidebar.title(f"Olá, {u['nome']}")
-    menu = ["Bíblia", "Mural"]
-    if u['is_admin'] == 1: menu.append("Admin")
-    escolha = st.sidebar.radio("Navegação", menu)
+    st.sidebar.title(f"🙏 Olá, {u['nome']}")
     
-    if st.sidebar.button("Sair"):
+    menu_op = ["📖 Bíblia", "📢 Mural"]
+    if u['is_admin'] == 1: menu_op.append("⚙️ Admin")
+    
+    escolha = st.sidebar.radio("Menu", menu_op)
+    
+    if st.sidebar.button("Encerrar Sessão"):
         st.session_state.logado = False
         st.rerun()
 
-    if escolha == "Admin":
-        st.header("⚙️ Importar Bíblia")
-        f = st.file_uploader("Selecione o arquivo JSON da Bíblia", type=['json'])
-        if f and st.button("Iniciar Importação Inteligente"):
-            dados = json.load(f)
-            total = len(dados)
-            prog = st.progress(0)
-            st_txt = st.empty()
-            
-            for i in range(0, total, 500):
-                bloco = dados[i:i+500]
-                with engine.begin() as conn:
-                    for v in bloco:
-                        # Tenta encontrar as chaves corretas no seu arquivo
-                        livro = v.get('book') or v.get('nome') or v.get('abbrev') or "Desconhecido"
-                        cap = v.get('chapter') or v.get('capitulo') or 0
-                        ver = v.get('number') or v.get('versiculo') or 0
-                        txt = v.get('text') or v.get('texto') or ""
-                        
-                        conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
-                                     {"l": livro, "c": cap, "v": ver, "t": txt})
+    # --- ABA ADMIN (IMPORTAÇÃO INTELIGENTE) ---
+    if escolha == "⚙️ Admin":
+        st.header("⚙️ Painel do Administrador")
+        st.subheader("📥 Importar Bíblia (JSON)")
+        
+        f = st.file_uploader("Selecione o arquivo acf.json", type=['json'])
+        if f and st.button("🚀 Iniciar Importação Massiva"):
+            try:
+                dados = json.load(f)
+                total = len(dados)
+                prog = st.progress(0)
+                st_txt = st.empty()
                 
-                prog.progress(min((i+500)/total, 1.0))
-                st_txt.text(f"Importando {i+len(bloco)} de {total}...")
-            st.success("Bíblia Importada!")
+                for i in range(0, total, 500):
+                    bloco = dados[i:i+500]
+                    with engine.begin() as conn:
+                        for v in bloco:
+                            # Mapeamento dinâmico para aceitar inglês ou português do JSON
+                            livro = v.get('book') or v.get('livro') or v.get('nome') or "Desconhecido"
+                            cap = v.get('chapter') or v.get('capitulo') or 0
+                            num = v.get('number') or v.get('versiculo') or 0
+                            txt = v.get('text') or v.get('texto') or ""
+                            
+                            conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
+                                         {"l": str(livro).strip(), "c": cap, "v": num, "t": txt})
+                    
+                    prog.progress(min((i+500)/total, 1.0))
+                    st_txt.text(f"Salvando versículos: {i+len(bloco)} de {total}...")
+                
+                st.success("✅ Importação concluída com sucesso! Vá para a aba Bíblia.")
+            except Exception as e:
+                st.error(f"Erro no processamento: {e}")
 
-    elif escolha == "Bíblia":
+    # --- ABA BÍBLIA (EXIBIÇÃO CORRIGIDA) ---
+    elif escolha == "📖 Bíblia":
         st.header("📖 Bíblia Sagrada")
-        livros_df = consultar_db("SELECT DISTINCT livro FROM biblia")
+        
+        # Busca apenas livros que possuem conteúdo
+        livros_df = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
+        
         if not livros_df.empty:
-            l = st.selectbox("Livro", livros_df['livro'].tolist())
-            caps_df = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": l})
-            c = st.selectbox("Capítulo", caps_df['capitulo'].tolist())
-            versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": l, "c": c})
+            lista_livros = livros_df['livro'].tolist()
+            l_sel = st.selectbox("Selecione o Livro", lista_livros)
+            
+            # Busca capítulos do livro escolhido
+            caps_df = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l ORDER BY capitulo", {"l": l_sel})
+            c_sel = st.selectbox("Capítulo", caps_df['capitulo'].tolist())
+            
+            # Exibe os versículos
+            versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": l_sel, "c": c_sel})
+            
+            st.divider()
             for _, v in versos.iterrows():
-                st.write(f"**{v['versiculo']}** {v['texto']}")
+                st.markdown(f"**{v['versiculo']}** {v['texto']}")
         else:
-            st.info("Bíblia ainda não importada.")
+            st.warning("⚠️ Nenhuma Bíblia encontrada no banco de dados.")
+            st.info("Logue como Administrador e realize a importação na aba Admin.")
 
-    elif escolha == "Mural":
-        st.header("📢 Mural de Avisos")
-        st.write("Bem-vindo!")
+    elif escolha == "📢 Mural":
+        st.header("📢 Mural da Comunidade")
+        st.write("Bem-vindo ao Portal Ágape. Use o menu lateral para navegar.")
