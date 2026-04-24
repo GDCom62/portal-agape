@@ -6,10 +6,10 @@ import random
 import string
 import json
 
-# --- 1. CONFIGURAÇÃO INICIAL (Sem temas complexos para não travar) ---
+# --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Portal Ágape", layout="centered")
 
-# --- 2. BANCO DE DADOS (USANDO NOVO NOME PARA FORÇAR RESET) ---
+# --- 2. BANCO DE DADOS (Conexão Robusta) ---
 engine = create_engine("sqlite:///portal_agape_v3.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
@@ -28,7 +28,6 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
     
-    # Criar Admin inicial
     try:
         check = consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'")
         if check.empty:
@@ -47,33 +46,37 @@ if 'user' not in st.session_state:
 # --- 4. TELA DE ACESSO ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
-    
     tab_log, tab_cad = st.tabs(["Login", "Cadastro"])
     
     with tab_log:
-        email = st.text_input("E-mail")
-        senha = st.text_input("Senha", type="password")
-        if st.button("Entrar"):
-            res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email})
-            if not res.empty:
-                u_data = res.iloc[0].to_dict()
-                if check_password_hash(u_data['senha'], senha):
-                    st.session_state.logado = True
-                    st.session_state.user = u_data
-                    st.rerun()
-                else: st.error("Senha incorreta.")
-            else: st.error("Usuário não encontrado.")
+        with st.form("form_login"):
+            email_in = st.text_input("E-mail")
+            senha_in = st.text_input("Senha", type="password")
+            if st.form_submit_button("Entrar"):
+                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": email_in})
+                if not res.empty:
+                    # CORREÇÃO: Transforma em dicionário antes de salvar na sessão
+                    u_dict = res.to_dict('records')[0]
+                    if check_password_hash(u_dict['senha'], senha_in):
+                        st.session_state.logado = True
+                        st.session_state.user = u_dict
+                        st.rerun()
+                    else: st.error("Senha incorreta.")
+                else: st.error("Usuário não encontrado.")
 
     with tab_cad:
-        nome_c = st.text_input("Nome Completo")
-        email_c = st.text_input("E-mail para cadastro")
-        senha_c = st.text_input("Senha para cadastro", type="password")
-        if st.button("Cadastrar Novo Membro"):
-            if nome_c and email_c and senha_c:
-                cod = "AG-" + "".join(random.choices(string.digits, k=4))
-                executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
-                               {"n": nome_c, "e": email_c, "c": cod, "p": generate_password_hash(senha_c)})
-                st.success(f"Cadastrado! Código: {cod}")
+        with st.form("form_cadastro"):
+            nome_c = st.text_input("Nome Completo")
+            email_c = st.text_input("E-mail")
+            senha_c = st.text_input("Senha", type="password")
+            if st.form_submit_button("Cadastrar"):
+                if nome_c and email_c and senha_c:
+                    cod = "AG-" + "".join(random.choices(string.digits, k=4))
+                    try:
+                        executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
+                                       {"n": nome_c, "e": email_c, "c": cod, "p": generate_password_hash(senha_c)})
+                        st.success(f"Cadastrado! Seu código: {cod}")
+                    except: st.error("E-mail já cadastrado.")
 
 # --- 5. ÁREA LOGADA ---
 else:
@@ -88,6 +91,7 @@ else:
     
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
+        st.session_state.user = None
         st.rerun()
 
     if escolha == "Admin":
@@ -96,6 +100,7 @@ else:
         if f and st.button("Iniciar Importação"):
             dados = json.load(f)
             prog = st.progress(0)
+            status_txt = st.empty()
             total = len(dados)
             for i in range(0, total, 500):
                 bloco = dados[i:i+500]
@@ -103,16 +108,18 @@ else:
                     for v in bloco:
                         conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
                                      {"l":v['book'], "c":v['chapter'], "v":v['number'], "t":v['text']})
+                
                 prog.progress(min((i+500)/total, 1.0))
+                status_txt.text(f"Importando {i+len(bloco)} de {total}...")
             st.success("Bíblia Importada com Sucesso!")
 
     elif escolha == "Bíblia":
         st.header("📖 Bíblia Sagrada")
-        livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-        if not livros.empty:
-            l = st.selectbox("Livro", livros['livro'].tolist())
-            caps = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": l})
-            c = st.selectbox("Capítulo", caps['capitulo'].tolist())
+        livros_df = consultar_db("SELECT DISTINCT livro FROM biblia")
+        if not livros_df.empty:
+            l = st.selectbox("Livro", livros_df['livro'].tolist())
+            caps_df = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": l})
+            c = st.selectbox("Capítulo", caps_df['capitulo'].tolist())
             versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l": l, "c": c})
             for _, v in versos.iterrows():
                 st.write(f"**{v['versiculo']}** {v['texto']}")
@@ -121,4 +128,4 @@ else:
 
     elif escolha == "Mural":
         st.header("📢 Mural de Avisos")
-        st.write("Bem-vindo ao portal da comunidade.")
+        st.write(f"Bem-vindo, {u['nome']}! Em breve teremos novidades aqui.")
