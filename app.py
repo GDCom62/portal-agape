@@ -16,7 +16,6 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e2e8f0; }
     h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
     
-    /* Card da Palavra do Dia - Destaque */
     .palavra-dia-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
         color: white !important;
@@ -26,9 +25,8 @@ st.markdown("""
         margin-bottom: 30px;
         text-align: center;
     }
-    .palavra-dia-card h2 { color: white !important; }
+    .palavra-dia-card h2, .palavra-dia-card p, .palavra-dia-card div { color: white !important; }
 
-    /* Cards do Mural */
     .mural-card {
         background-color: white;
         padding: 25px;
@@ -38,7 +36,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* Imagens nos avisos */
     .aviso-img {
         width: 100%;
         max-height: 400px;
@@ -61,15 +58,23 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
+    # Tabelas Base
     executar_query('''CREATE TABLE IF NOT EXISTS membros 
         (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
     executar_query('''CREATE TABLE IF NOT EXISTS biblia 
         (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT, UNIQUE(livro, capitulo, versiculo))''')
     executar_query('''CREATE TABLE IF NOT EXISTS avisos 
-        (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT, img_url TEXT)''')
+        (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)''')
     executar_query('''CREATE TABLE IF NOT EXISTS palavra_dia 
         (id INTEGER PRIMARY KEY, versiculo TEXT, referencia TEXT, devocional TEXT)''')
     
+    # Adicionar coluna img_url se não existir (Correção do KeyError)
+    try:
+        consultar_db("SELECT img_url FROM avisos LIMIT 1")
+    except:
+        executar_query("ALTER TABLE avisos ADD COLUMN img_url TEXT")
+    
+    # Criar Admin
     try:
         if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
             pw = generate_password_hash('Agape2026')
@@ -90,13 +95,15 @@ if not st.session_state.logado:
         t_log, t_cad = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with t_log:
             with st.form("login"):
-                e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
+                e = st.text_input("E-mail")
+                s = st.text_input("Senha", type="password")
                 if st.form_submit_button("Entrar"):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                     if not res.empty:
                         u_data = res.iloc[0].to_dict()
                         if check_password_hash(u_data['senha'], s):
-                            st.session_state.update({"logado": True, "user": u_data}); st.rerun()
+                            st.session_state.update({"logado": True, "user": u_data})
+                            st.rerun()
                     st.error("Dados incorretos.")
         with t_cad:
             with st.form("cad"):
@@ -116,9 +123,7 @@ else:
     escolha = st.sidebar.radio("Menu", ["📢 Mural Ágape", "📖 Bíblia Sagrada"] + (["⚙️ Admin"] if u['is_admin'] == 1 else []))
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- MURAL COM PALAVRA DO DIA ---
     if escolha == "📢 Mural Ágape":
-        # Palavra do Dia (Destaque)
         pd_data = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
         if not pd_data.empty:
             p = pd_data.iloc[0]
@@ -136,7 +141,9 @@ else:
         st.markdown("<h1>📢 Mural da Comunidade</h1>", unsafe_allow_html=True)
         df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, r in df_a.iterrows():
-            img_html = f'<img src="{r["img_url"]}" class="aviso-img">' if r['img_url'] else ''
+            # Uso do .get() para evitar KeyError caso o ALTER TABLE falhe por algum motivo
+            img_url = r.get('img_url', None)
+            img_html = f'<img src="{img_url}" class="aviso-img">' if img_url else ''
             st.markdown(f"""
                 <div class="mural-card">
                     {img_html}
@@ -146,7 +153,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-    # --- BÍBLIA ---
     elif escolha == "📖 Bíblia Sagrada":
         livros_df = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not livros_df.empty:
@@ -159,28 +165,20 @@ else:
             for _, v in versos.iterrows():
                 st.markdown(f"<div style='background:white; padding:10px; border-radius:8px; margin-bottom:5px;'><b style='color:#3b82f6;'>{v['versiculo']}</b> {v['texto']}</div>", unsafe_allow_html=True)
 
-    # --- ADMINISTRAÇÃO ---
     elif escolha == "⚙️ Admin":
         st.markdown("<h1>⚙️ Administração</h1>", unsafe_allow_html=True)
         t1, t2, t3 = st.tabs(["✨ Palavra do Dia", "📢 Novo Aviso", "👥 Membros"])
         
         with t1:
-            st.subheader("Definir Palavra Diária")
             with st.form("form_pd"):
-                v_pd = st.text_area("Versículo")
-                r_pd = st.text_input("Referência (Ex: João 3:16)")
-                d_pd = st.text_area("Mensagem Devocional/Reflexão")
-                if st.form_submit_button("Atualizar Palavra do Dia"):
-                    executar_query("INSERT INTO palavra_dia (versiculo, referencia, devocional) VALUES (:v, :r, :d)",
-                                   {"v": v_pd, "r": r_pd, "d": d_pd})
-                    st.success("Palavra do dia atualizada!")
-
+                v_pd, r_pd = st.text_area("Versículo"), st.text_input("Referência")
+                d_pd = st.text_area("Devocional")
+                if st.form_submit_button("Atualizar"):
+                    executar_query("INSERT INTO palavra_dia (versiculo, referencia, devocional) VALUES (:v, :r, :d)", {"v": v_pd, "r": r_pd, "d": d_pd})
+                    st.success("Atualizado!")
         with t2:
-            st.subheader("Novo Aviso com Imagem")
             with st.form("form_av"):
-                tit = st.text_input("Título")
-                cont = st.text_area("Mensagem")
-                img = st.text_input("Link da Imagem (URL)")
+                tit, cont, img = st.text_input("Título"), st.text_area("Mensagem"), st.text_input("Link da Imagem")
                 if st.form_submit_button("Publicar"):
                     executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)",
                                    {"t": tit, "c": cont, "d": datetime.now().strftime("%d/%m/%Y"), "i": img})
