@@ -22,7 +22,7 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
-    # Criação das tabelas garantindo a coluna 'ativo'
+    # Garante que a tabela tenha todas as colunas necessárias
     executar_query('''CREATE TABLE IF NOT EXISTS membros 
         (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
     executar_query('''CREATE TABLE IF NOT EXISTS biblia 
@@ -30,17 +30,19 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
     
-    # Criar Admin inicial se não existir
-    if consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'").empty:
+    # Verifica se Admin existe
+    admin_check = consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'")
+    if admin_check.empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1, 1)", {"pw": pw})
 
 init_db()
 
 # --- 3. ESTADO DA SESSÃO ---
-if 'logado' not in st.session_state: st.session_state.logado = False
+if 'logado' not in st.session_state:
+    st.session_state.logado = False
 
-# --- 4. TELA DE ACESSO ---
+# --- 4. TELA DE ACESSO (LOGIN) ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
     t_log, t_cad = st.tabs(["🔐 Entrar", "📝 Novo Cadastro"])
@@ -49,58 +51,70 @@ if not st.session_state.logado:
         with st.form("login_form"):
             u = st.text_input("E-mail")
             s = st.text_input("Senha", type="password")
-            if st.form_submit_button("Acessar"):
+            if st.form_submit_button("Entrar"):
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": u})
-                if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
-                    st.session_state.update({
-                        "logado": True, 
-                        "user_nome": res.iloc[0]['nome'], 
-                        "user_email": res.iloc[0]['email'],
-                        "is_admin": bool(res.iloc[0]['is_admin'])
-                    })
-                    st.rerun()
-                else: st.error("E-mail ou senha incorretos.")
+                if not res.empty:
+                    # Coleta dados com segurança para evitar travamento iloc
+                    usuario_db = res.to_dict('records')[0]
+                    if usuario_db['ativo'] == 0:
+                        st.error("Sua conta está desativada.")
+                    elif check_password_hash(usuario_db['senha'], s):
+                        st.session_state.logado = True
+                        st.session_state.user_nome = usuario_db['nome']
+                        st.session_state.user_email = usuario_db['email']
+                        st.session_state.is_admin = bool(usuario_db['is_admin'])
+                        st.rerun()
+                    else:
+                        st.error("Senha incorreta.")
+                else:
+                    st.error("Usuário não encontrado.")
 
     with t_cad:
         with st.form("cad_form"):
             n = st.text_input("Nome")
             e = st.text_input("E-mail")
             s1 = st.text_input("Senha", type="password")
-            if st.form_submit_button("Cadastrar"):
+            if st.form_submit_button("Criar Conta"):
                 if n and e and s1:
-                    # Verifica se e-mail já existe antes de tentar inserir
                     check = consultar_db("SELECT id FROM membros WHERE email=:e", {"e": e})
                     if check.empty:
                         cod = "AG-" + "".join(random.choices(string.digits, k=5))
-                        executar_query(
-                            "INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
-                            {"n": n, "e": e, "c": cod, "p": generate_password_hash(s1)}
-                        )
-                        st.success(f"Cadastrado com sucesso! Seu código: {cod}")
+                        executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)",
+                                       {"n": n, "e": e, "c": cod, "p": generate_password_hash(s1)})
+                        st.success(f"Cadastrado! Seu código: {cod}")
                     else:
-                        st.error("Este e-mail já está cadastrado no sistema.")
-                else: st.warning("Preencha todos os campos.")
+                        st.error("E-mail já cadastrado.")
 
-# --- 5. ÁREA LOGADA ---
+# --- 5. ÁREA LOGADA (PÓS-LOGIN) ---
 else:
     st.sidebar.title(f"🙏 {st.session_state.user_nome}")
-    menu_options = ["Mural", "Bíblia", "Ofertas"]
-    if st.session_state.get('is_admin') or st.session_state.get('user_email') == 'admin@agape.com':
-        menu_options.append("Admin")
     
-    menu = st.sidebar.radio("Navegação", menu_options)
+    menu_opcoes = ["Mural", "Bíblia", "Ofertas"]
+    if st.session_state.is_admin:
+        menu_opcoes.append("Admin")
+    
+    menu = st.sidebar.radio("Navegação", menu_opcoes)
     
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
         st.rerun()
 
-    # --- PÁGINA ADMIN ---
-    if menu == "Admin":
-        st.title("⚙️ Administração")
-        t_aviso, t_biblia, t_membros = st.tabs(["Avisos/PIX", "📥 Importar Bíblia", "Membros"])
+    if menu == "Mural":
+        st.header("📢 Mural de Avisos")
+        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        if avisos.empty:
+            st.info("Nenhum aviso disponível.")
+        else:
+            for _, r in avisos.iterrows():
+                st.info(f"**{r['titulo']}**\n\n{r['conteudo']}")
+
+    elif menu == "Admin":
+        st.title("⚙️ Painel do Administrador")
+        tab1, tab2, tab3 = st.tabs(["Avisos/PIX", "📥 Bíblia", "Membros"])
         
-        with t_biblia:
-            file = st.file_uploader("Upload acf.json", type=['json'])
+        with tab2:
+            st.subheader("Importar arquivo acf.json")
+            file = st.file_uploader("Selecione o arquivo", type=['json'])
             if file and st.button("🚀 Iniciar Importação"):
                 try:
                     dados = json.load(file)
@@ -113,25 +127,34 @@ else:
                                 conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)"),
                                              {"l":v['book'], "c":v['chapter'], "v":v['number'], "t":v['text']})
                         prog.progress(min((i+500)/total, 1.0))
-                    st.success("Bíblia importada!")
-                except Exception as ex: st.error(f"Erro: {ex}")
+                    st.success("✅ Importação concluída!")
+                except Exception as ex:
+                    st.error(f"Erro: {ex}")
 
-        with t_membros:
+        with tab3:
             df_m = consultar_db("SELECT id, nome, email, codigo, ativo FROM membros")
             st.dataframe(df_m, use_container_width=True)
 
-    # --- OUTRAS PÁGINAS (Resumidas) ---
-    elif menu == "Mural":
-        st.title("📢 Mural")
-        df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        for _, r in df_a.iterrows():
-            st.info(f"**{r['titulo']}**\n\n{r['conteudo']}")
-
     elif menu == "Bíblia":
-        st.title("📖 Bíblia")
+        st.header("📖 Bíblia Sagrada")
+        # Carrega livros disponíveis
         livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not livros.empty:
-            l = st.selectbox("Livro", livros['livro'].tolist())
-            vers = consultar_db("SELECT * FROM biblia WHERE livro=:l", {"l": l})
-            st.dataframe(vers[['capitulo', 'versiculo', 'texto']], hide_index=True)
-        else: st.info("Bíblia não importada.")
+            l = st.selectbox("Escolha o Livro", livros['livro'].tolist())
+            capitulos = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": l})
+            c = st.selectbox("Capítulo", capitulos['capitulo'].tolist())
+            versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l": l, "c": c})
+            for _, v in versos.iterrows():
+                st.write(f"**{v['versiculo']}** {v['texto']}")
+        else:
+            st.info("Bíblia ainda não disponível no sistema.")
+
+    elif menu == "Ofertas":
+        st.header("💰 Dízimos e Ofertas")
+        conf = consultar_db("SELECT * FROM config_geral LIMIT 1")
+        if not conf.empty:
+            st.success(f"PIX: {conf.iloc[0]['chave_pix']}")
+            if conf.iloc[0]['url_qrcode']:
+                st.image(conf.iloc[0]['url_qrcode'], width=250)
+        else:
+            st.warning("Configurações de PIX não encontradas.")
