@@ -20,7 +20,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS ---
+# --- 2. BANCO DE DADOS (SQLAlchemy) ---
 engine = create_engine("sqlite:///agape_portal.db", pool_size=10, max_overflow=20)
 
 def executar_query(sql, params={}):
@@ -47,12 +47,15 @@ init_db()
 # --- 3. LOGIN E ESTADO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
+# --- 4. TELA INICIAL (LOGOFF) ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
     t_log, t_cad = st.tabs(["🔐 Entrar", "📝 Novo Cadastro"])
+    
     with t_log:
-        with st.form("login"):
-            u, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
+        with st.form("login_form"):
+            u = st.text_input("E-mail")
+            s = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar"):
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": u})
                 if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
@@ -60,7 +63,7 @@ if not st.session_state.logado:
                     st.rerun()
                 else: st.error("Dados inválidos.")
     with t_cad:
-        with st.form("cad"):
+        with st.form("cad_form"):
             n, e, s1 = st.text_input("Nome Completo"), st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Cadastrar"):
                 cod = "AG-" + "".join(random.choices(string.digits, k=5))
@@ -68,53 +71,78 @@ if not st.session_state.logado:
                                {"n": n, "e": e, "c": cod, "p": generate_password_hash(s1)})
                 st.markdown(f"<div class='codigo-box'>CADASTRO REALIZADO!<br>Código: {cod}</div>", unsafe_allow_html=True)
 
-# --- 4. ÁREA LOGADA ---
+# --- 5. ÁREA LOGADA ---
 else:
-    st.sidebar.title(f"🙏 {st.session_state.user_nome}")
+    st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
     menu = st.sidebar.radio("Navegação", ["🏠 Mural", "📖 Sala de Estudos", "💰 Ofertas", "⚙️ Administração"])
     
-    if menu == "📖 Sala de Estudos":
+    if menu == "🏠 Mural":
+        st.title("📢 Mural de Avisos")
+        df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, r in df_a.iterrows():
+            st.markdown(f"<div class='aviso-card'><h3>{r['titulo']}</h3><p>{r['conteudo']}</p></div>", unsafe_allow_html=True)
+
+    elif menu == "📖 Sala de Estudos":
         st.title("📖 Sala de Estudos Bíblicos")
-        livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
+        livros_db = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         
         if not livros_db.empty:
-            c1, c2 = st.columns(2)
-            liv_sel = c1.selectbox("Livro", livros_db['livro'].tolist())
-            caps_db = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": liv_sel})
-            cap_sel = c2.selectbox("Capítulo", caps_db['capitulo'].tolist())
+            col1, col2 = st.columns(2)
+            liv_sel = col1.selectbox("Escolha o Livro", livros_db['livro'].tolist())
+            caps_db = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l ORDER BY capitulo", {"l": liv_sel})
+            cap_sel = col2.selectbox("Capítulo", caps_db['capitulo'].tolist())
             
-            versiculos = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c", {"l": liv_sel, "c": cap_sel})
+            versiculos = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": liv_sel, "c": cap_sel})
             
             for _, v in versiculos.iterrows():
                 with st.expander(f"Versículo {v['versiculo']}"):
                     st.info(v['texto'])
-                    st.subheader("💬 Comentários e Dúvidas")
                     comts = consultar_db("SELECT * FROM comentarios WHERE biblia_id=:id", {"id": int(v['id'])})
                     for _, c in comts.iterrows():
-                        st.markdown(f"<div class='comentario-box'><b>{c['nome_membro']}</b> ({c['data']}):<br>{c['comentario']}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='comentario-box'><b>{c['nome_membro']}</b>: {c['comentario']}</div>", unsafe_allow_html=True)
                     
                     with st.form(f"cm_{v['id']}", clear_on_submit=True):
-                        txt_c = st.text_area("Comentar...")
+                        txt_c = st.text_area("Adicione um comentário/dúvida")
                         if st.form_submit_button("Enviar"):
                             executar_query("INSERT INTO comentarios (biblia_id, nome_membro, comentario, data) VALUES (:bid, :nome, :txt, :dt)",
                                            {"bid": int(v['id']), "nome": st.session_state.user_nome, "txt": txt_c, "dt": datetime.now().strftime("%d/%m %H:%M")})
                             st.rerun()
-        else: st.warning("Aguardando importação da Bíblia pelo Administrador.")
+        else: st.warning("Bíblia ainda não importada.")
 
     elif menu == "⚙️ Administração" and st.session_state.is_admin:
         st.title("⚙️ Painel do Administrador")
-        t1, t2 = st.tabs(["📥 Importar Bíblia", "👥 Membros"])
+        t1, t2, t3 = st.tabs(["📥 Importar Bíblia", "👥 Membros", "🗑️ Limpar Banco"])
+        
         with t1:
-            st.write("Suba o JSON com: livro, capitulo, versiculo, texto")
-            file = st.file_uploader("Arquivo JSON", type=['json'])
-            if file and st.button("Importar Dados"):
-                dados = json.load(file)
-                for i in dados:
-                    executar_query("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)",
-                                   {"l": i['livro'], "c": i['capitulo'], "v": i['versiculo'], "t": i['texto']})
-                st.success("Importado!")
+            st.subheader("Importação Segura por Blocos")
+            file = st.file_uploader("Subir arquivo 'acf.json'", type=['json'])
+            if file and st.button("Iniciar Importação"):
+                try:
+                    dados = json.load(file)
+                    total = len(dados)
+                    progresso = st.progress(0)
+                    texto_status = st.empty()
+                    
+                    for i in range(0, total, 500):
+                        bloco = dados[i:i+500]
+                        with engine.begin() as conn:
+                            for v in bloco:
+                                conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
+                                             {"l": v['book'], "c": v['chapter'], "v": v['number'], "t": v['text']})
+                        perc = min((i + 500) / total, 1.0)
+                        progresso.progress(perc)
+                        texto_status.text(f"Processando {i+len(bloco)} de {total}...")
+                    st.success("✅ Importação concluída!")
+                except Exception as e: st.error(f"Erro: {e}")
+
         with t2:
-            st.dataframe(consultar_db("SELECT nome, email, codigo FROM membros"), use_container_width=True)
+            st.dataframe(consultar_db("SELECT id, nome, email, codigo FROM membros"))
+
+        with t3:
+            st.warning("Cuidado! Isso apagará todos os versículos importados.")
+            if st.button("🔴 APAGAR TODOS OS VERSÍCULOS"):
+                executar_query("DELETE FROM biblia")
+                st.rerun()
 
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
