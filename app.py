@@ -17,6 +17,7 @@ st.markdown("""
     .stTextInput>div>div>input { border-radius: 10px; }
     [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #ddd; }
     .aviso-card { padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; margin-bottom: 15px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+    .comentario-box { padding: 10px; border-left: 4px solid #1E3A8A; background-color: #f1f3f9; margin-top: 5px; border-radius: 5px; }
     .codigo-box { background-color: #e3f2fd; padding: 15px; border-radius: 10px; border: 1px dashed #1e88e5; text-align: center; font-size: 20px; font-weight: bold; color: #1e3a8a; }
     </style>
     """, unsafe_allow_html=True)
@@ -33,9 +34,9 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
-    executar_query('''CREATE TABLE IF NOT EXISTS membros 
-        (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
+    executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, biblia_id INTEGER, nome_membro TEXT, comentario TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS oracoes (id INTEGER PRIMARY KEY, nome_membro TEXT, pedido TEXT, data TEXT, status TEXT)')
@@ -51,90 +52,93 @@ if 'logado' not in st.session_state: st.session_state.logado = False
 if 'user_nome' not in st.session_state: st.session_state.user_nome = ""
 if 'is_admin' not in st.session_state: st.session_state.is_admin = False
 
-# --- 4. FUNÇÕES DE APOIO ---
-def ocultar_nome(nome):
-    partes = nome.split()
-    oculto = []
-    for p in partes:
-        oculto.append(p[0] + "*" * (len(p)-1))
-    return " ".join(oculto)
-
-# --- 5. TELA INICIAL ---
+# --- 4. TELA INICIAL ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
-    t_log, t_cad, t_trans = st.tabs(["🔐 Entrar", "📝 Novo Cadastro", "📊 Transparência"])
+    t_log, t_cad = st.tabs(["🔐 Entrar", "📝 Novo Cadastro"])
     
     with t_log:
-        with st.form("login_agape"):
+        with st.form("login"):
             u, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar"):
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": u})
                 if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
-                    if res.iloc[0]['ativo'] == 1:
-                        st.session_state.update({"logado": True, "user_nome": res.iloc[0]['nome'], "is_admin": bool(res.iloc[0]['is_admin'])})
-                        st.rerun()
-                    else: st.error("Conta bloqueada.")
+                    st.session_state.update({"logado": True, "user_nome": res.iloc[0]['nome'], "is_admin": bool(res.iloc[0]['is_admin'])})
+                    st.rerun()
                 else: st.error("Dados inválidos.")
 
     with t_cad:
         with st.form("cad"):
             n, e, s1 = st.text_input("Nome Completo"), st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Cadastrar"):
-                if n and e and s1:
-                    cod = "AG-" + "".join(random.choices(string.digits, k=5))
-                    executar_query("INSERT INTO membros (nome, email, codigo, senha) VALUES (:n, :e, :c, :p)",
-                                   {"n": n, "e": e, "c": cod, "p": generate_password_hash(s1)})
-                    st.markdown(f"<div class='codigo-box'>CADASTRO REALIZADO!<br>Seu código individual é: {cod}</div>", unsafe_allow_html=True)
-                    st.warning("⚠️ Guarde este código! Ele será usado para conferir suas ofertas e recuperar sua senha.")
+                cod = "AG-" + "".join(random.choices(string.digits, k=5))
+                executar_query("INSERT INTO membros (nome, email, codigo, senha) VALUES (:n, :e, :c, :p)",
+                               {"n": n, "e": e, "c": cod, "p": generate_password_hash(s1)})
+                st.markdown(f"<div class='codigo-box'>CADASTRO REALIZADO!<br>Seu código é: {cod}</div>", unsafe_allow_html=True)
 
-    with t_trans:
-        st.subheader("📋 Relação de Membros (Identificação por Código)")
-        df_m = consultar_db("SELECT nome, codigo FROM membros WHERE is_admin=0")
-        if not df_m.empty:
-            df_m['Nome'] = df_m['nome'].apply(ocultar_nome)
-            st.table(df_m[['codigo', 'Nome']].rename(columns={'codigo': 'Código Individual'}))
-
-# --- 6. ÁREA LOGADA ---
+# --- 5. ÁREA LOGADA ---
 else:
     st.sidebar.title(f"🙏 {st.session_state.user_nome}")
-    menu = ["🏠 Mural", "📖 Bíblia", "🙏 Orações", "💰 Ofertas"]
-    if st.session_state.is_admin: menu.append("⚙️ Administração")
+    menu = st.sidebar.radio("Navegação", ["🏠 Mural", "📖 Sala de Estudos", "🙏 Orações", "💰 Ofertas", "⚙️ Administração"])
     
-    escolha = st.sidebar.radio("Navegação", menu)
-    
-    if escolha == "💰 Ofertas":
+    if menu == "📖 Sala de Estudos":
+        st.title("📖 Sala de Estudos Interativa")
+        livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
+        
+        if not livros_db.empty:
+            col1, col2 = st.columns(2)
+            livro_sel = col1.selectbox("Escolha o Livro", livros_db['livro'].tolist())
+            caps_db = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": livro_sel})
+            cap_sel = col2.selectbox("Capítulo", caps_db['capitulo'].tolist())
+            
+            versiculos = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c", {"l": livro_sel, "c": cap_sel})
+            
+            for _, v in versiculos.iterrows():
+                with st.expander(f"Versículo {v['versiculo']}"):
+                    st.info(v['texto'])
+                    if v['explicacao']:
+                        st.subheader("💡 Explicação do Pastor/Líder")
+                        st.write(v['explicacao'])
+                    
+                    st.divider()
+                    st.subheader("💬 Comentários dos Membros")
+                    coments = consultar_db("SELECT * FROM comentarios WHERE biblia_id=:id", {"id": int(v['id'])})
+                    for _, c in coments.iterrows():
+                        st.markdown(f"<div class='comentario-box'><b>{c['nome_membro']}</b> ({c['data']}):<br>{c['comentario']}</div>", unsafe_allow_html=True)
+                    
+                    with st.form(f"coment_{v['id']}", clear_on_submit=True):
+                        txt_coment = st.text_area("Adicione sua dúvida ou comentário")
+                        if st.form_submit_button("Enviar Comentário"):
+                            executar_query("INSERT INTO comentarios (biblia_id, nome_membro, comentario, data) VALUES (:bid, :nome, :txt, :dt)",
+                                           {"bid": int(v['id']), "nome": st.session_state.user_nome, "txt": txt_coment, "dt": datetime.now().strftime("%d/%m %H:%M")})
+                            st.rerun()
+        else:
+            st.warning("Nenhum conteúdo bíblico importado ainda.")
+
+    elif menu == "⚙️ Administração" and st.session_state.is_admin:
+        st.title("⚙️ Painel Administrativo")
+        t1, t2 = st.tabs(["📥 Importar Bíblia (JSON)", "👥 Membros"])
+        
+        with t1:
+            st.subheader("Importação Massiva de Versículos")
+            st.write("O arquivo JSON deve conter uma lista de objetos com: livro, capitulo, versiculo, texto.")
+            file = st.file_uploader("Subir JSON da Bíblia", type=['json'])
+            if file and st.button("Processar Importação"):
+                dados = json.load(file)
+                for item in dados:
+                    executar_query("INSERT INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)",
+                                   {"l": item['livro'], "c": item['capitulo'], "v": item['versiculo'], "t": item['texto']})
+                st.success("Importação concluída com sucesso!")
+
+        with t2:
+            st.dataframe(consultar_db("SELECT id, nome, email, codigo FROM membros"))
+
+    elif menu == "💰 Ofertas":
         st.title("💰 Dízimos e Ofertas")
         res = consultar_db("SELECT * FROM config_geral LIMIT 1")
         if not res.empty:
-            st.info(f"Ao realizar o PIX, use seu código de membro na descrição para conferência.")
             st.success(f"Chave PIX: `{res.iloc[0]['chave_pix']}`")
             if res.iloc[0]['url_qrcode']: st.image(res.iloc[0]['url_qrcode'], width=300)
-        
-    elif escolha == "⚙️ Administração":
-        st.title("⚙️ Administração")
-        t1, t2, t3 = st.tabs(["👥 Membros", "💳 Configurar PIX", "💾 Backup"])
-        with t1:
-            membros = consultar_db("SELECT * FROM membros WHERE is_admin=0")
-            for _, m in membros.iterrows():
-                col_a, col_b = st.columns([3, 1])
-                col_a.write(f"**{m['nome']}** | Código: `{m['codigo']}`")
-                if col_b.button("Excluir", key=f"ex_{m['id']}"):
-                    executar_query("DELETE FROM membros WHERE id=:id", {"id": int(m['id'])})
-                    st.rerun()
-        with t2:
-            with st.form("pix"):
-                px = st.text_input("Nova Chave PIX")
-                qr = st.text_input("URL QR Code")
-                if st.form_submit_button("Salvar"):
-                    executar_query("DELETE FROM config_geral")
-                    executar_query("INSERT INTO config_geral (chave_pix, url_qrcode) VALUES (:p, :q)", {"p":px, "q":qr})
-                    st.success("Salvo!")
-        with t3:
-            if st.button("Gerar Backup Excel"):
-                df_b = consultar_db("SELECT * FROM membros")
-                towrap = io.BytesIO()
-                with pd.ExcelWriter(towrap, engine='xlsxwriter') as wr: df_b.to_excel(wr, index=False)
-                st.download_button("📥 Baixar Excel", towrap.getvalue(), "backup_agape.xlsx")
 
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
