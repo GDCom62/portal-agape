@@ -15,12 +15,12 @@ st.markdown("""
     <style>
     .stButton>button { border-radius: 12px; width: 100%; height: 3em; background-color: #1E3A8A; color: white; }
     .aviso-card { padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; margin-bottom: 15px; background-color: white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
-    .comentario-box { padding: 10px; border-left: 4px solid #1E3A8A; background-color: #f1f3f9; margin-top: 5px; border-radius: 5px; font-size: 14px; }
+    .comentario-box { padding: 10px; border-left: 4px solid #1E3A8A; background-color: #f1f3f9; margin-top: 5px; border-radius: 5px; }
     .codigo-box { background-color: #e3f2fd; padding: 15px; border-radius: 10px; border: 1px dashed #1e88e5; text-align: center; font-size: 20px; font-weight: bold; color: #1e3a8a; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS (SQLAlchemy) ---
+# --- 2. BANCO DE DADOS ---
 engine = create_engine("sqlite:///agape_portal.db", pool_size=10, max_overflow=20)
 
 def executar_query(sql, params={}):
@@ -37,25 +37,23 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, biblia_id INTEGER, nome_membro TEXT, comentario TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS config_geral (id INTEGER PRIMARY KEY, chave_pix TEXT, url_qrcode TEXT)')
-
+    
     if consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1, 1)", {"pw": pw})
 
 init_db()
 
-# --- 3. LOGIN E ESTADO ---
+# --- 3. ESTADO DA SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
-# --- 4. TELA INICIAL (LOGOFF) ---
+# --- 4. TELA DE LOGIN / CADASTRO ---
 if not st.session_state.logado:
     st.title("⛪ Portal Ágape")
     t_log, t_cad = st.tabs(["🔐 Entrar", "📝 Novo Cadastro"])
-    
     with t_log:
-        with st.form("login_form"):
-            u = st.text_input("E-mail")
-            s = st.text_input("Senha", type="password")
+        with st.form("login"):
+            u, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar"):
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": u})
                 if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
@@ -63,7 +61,7 @@ if not st.session_state.logado:
                     st.rerun()
                 else: st.error("Dados inválidos.")
     with t_cad:
-        with st.form("cad_form"):
+        with st.form("cad"):
             n, e, s1 = st.text_input("Nome Completo"), st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Cadastrar"):
                 cod = "AG-" + "".join(random.choices(string.digits, k=5))
@@ -73,7 +71,7 @@ if not st.session_state.logado:
 
 # --- 5. ÁREA LOGADA ---
 else:
-    st.sidebar.title(f"🙏 Olá, {st.session_state.user_nome}")
+    st.sidebar.title(f"🙏 {st.session_state.user_nome}")
     menu = st.sidebar.radio("Navegação", ["🏠 Mural", "📖 Sala de Estudos", "💰 Ofertas", "⚙️ Administração"])
     
     if menu == "🏠 Mural":
@@ -85,64 +83,74 @@ else:
     elif menu == "📖 Sala de Estudos":
         st.title("📖 Sala de Estudos Bíblicos")
         livros_db = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
-        
         if not livros_db.empty:
-            col1, col2 = st.columns(2)
-            liv_sel = col1.selectbox("Escolha o Livro", livros_db['livro'].tolist())
+            c1, c2 = st.columns(2)
+            liv_sel = c1.selectbox("Livro", livros_db['livro'].tolist())
             caps_db = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l ORDER BY capitulo", {"l": liv_sel})
-            cap_sel = col2.selectbox("Capítulo", caps_db['capitulo'].tolist())
-            
+            cap_sel = c2.selectbox("Capítulo", caps_db['capitulo'].tolist())
             versiculos = consultar_db("SELECT * FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": liv_sel, "c": cap_sel})
-            
             for _, v in versiculos.iterrows():
                 with st.expander(f"Versículo {v['versiculo']}"):
                     st.info(v['texto'])
                     comts = consultar_db("SELECT * FROM comentarios WHERE biblia_id=:id", {"id": int(v['id'])})
                     for _, c in comts.iterrows():
                         st.markdown(f"<div class='comentario-box'><b>{c['nome_membro']}</b>: {c['comentario']}</div>", unsafe_allow_html=True)
-                    
                     with st.form(f"cm_{v['id']}", clear_on_submit=True):
-                        txt_c = st.text_area("Adicione um comentário/dúvida")
+                        txt_c = st.text_area("Comentar...")
                         if st.form_submit_button("Enviar"):
                             executar_query("INSERT INTO comentarios (biblia_id, nome_membro, comentario, data) VALUES (:bid, :nome, :txt, :dt)",
                                            {"bid": int(v['id']), "nome": st.session_state.user_nome, "txt": txt_c, "dt": datetime.now().strftime("%d/%m %H:%M")})
                             st.rerun()
         else: st.warning("Bíblia ainda não importada.")
 
+    elif menu == "💰 Ofertas":
+        st.title("💰 Dízimos e Ofertas")
+        conf = consultar_db("SELECT * FROM config_geral LIMIT 1")
+        if not conf.empty:
+            st.info("Utilize os dados abaixo para sua contribuição.")
+            st.subheader(f"Chave PIX: `{conf.iloc[0]['chave_pix']}`")
+            if conf.iloc[0]['url_qrcode']: st.image(conf.iloc[0]['url_qrcode'], width=300)
+        else: st.warning("Dados de PIX não configurados pela administração.")
+
     elif menu == "⚙️ Administração" and st.session_state.is_admin:
         st.title("⚙️ Painel do Administrador")
-        t1, t2, t3 = st.tabs(["📥 Importar Bíblia", "👥 Membros", "🗑️ Limpar Banco"])
+        t1, t2, t3, t4 = st.tabs(["📢 Postar Aviso", "💳 Configurar PIX", "📥 Importar Bíblia", "👥 Membros"])
         
         with t1:
-            st.subheader("Importação Segura por Blocos")
-            file = st.file_uploader("Subir arquivo 'acf.json'", type=['json'])
-            if file and st.button("Iniciar Importação"):
-                try:
-                    dados = json.load(file)
-                    total = len(dados)
-                    progresso = st.progress(0)
-                    texto_status = st.empty()
-                    
-                    for i in range(0, total, 500):
-                        bloco = dados[i:i+500]
-                        with engine.begin() as conn:
-                            for v in bloco:
-                                conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
-                                             {"l": v['book'], "c": v['chapter'], "v": v['number'], "t": v['text']})
-                        perc = min((i + 500) / total, 1.0)
-                        progresso.progress(perc)
-                        texto_status.text(f"Processando {i+len(bloco)} de {total}...")
-                    st.success("✅ Importação concluída!")
-                except Exception as e: st.error(f"Erro: {e}")
+            with st.form("new_aviso"):
+                tit = st.text_input("Título do Aviso")
+                cont = st.text_area("Conteúdo")
+                if st.form_submit_button("Publicar"):
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t": tit, "c": cont, "d": datetime.now().strftime("%d/%m/%Y")})
+                    st.success("Aviso publicado!")
 
         with t2:
-            st.dataframe(consultar_db("SELECT id, nome, email, codigo FROM membros"))
+            conf_atual = consultar_db("SELECT * FROM config_geral LIMIT 1")
+            with st.form("pix_config"):
+                cpix = st.text_input("Chave PIX", value=conf_atual.iloc[0]['chave_pix'] if not conf_atual.empty else "")
+                cqr = st.text_input("URL da Imagem do QR Code", value=conf_atual.iloc[0]['url_qrcode'] if not conf_atual.empty else "")
+                if st.form_submit_button("Salvar Configurações"):
+                    executar_query("DELETE FROM config_geral")
+                    executar_query("INSERT INTO config_geral (chave_pix, url_qrcode) VALUES (:p, :q)", {"p": cpix, "q": cqr})
+                    st.success("Dados salvos!")
 
         with t3:
-            st.warning("Cuidado! Isso apagará todos os versículos importados.")
-            if st.button("🔴 APAGAR TODOS OS VERSÍCULOS"):
-                executar_query("DELETE FROM biblia")
-                st.rerun()
+            file = st.file_uploader("Subir arquivo 'acf.json'", type=['json'])
+            if file and st.button("Iniciar Importação"):
+                dados = json.load(file)
+                prog = st.progress(0)
+                for i in range(0, len(dados), 500):
+                    bloco = dados[i:i+500]
+                    with engine.begin() as conn:
+                        for v in bloco:
+                            conn.execute(text("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
+                                         {"l": v['book'], "c": v['chapter'], "v": v['number'], "t": v['text']})
+                    prog.progress(min((i + 500) / len(dados), 1.0))
+                st.success("Importação concluída!")
+
+        with t4:
+            df_m = consultar_db("SELECT id, nome, email, codigo FROM membros")
+            st.dataframe(df_m, use_container_width=True)
 
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
