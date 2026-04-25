@@ -7,7 +7,7 @@ import random
 import string
 import json
 
-# --- 1. CONFIGURAÇÃO ---
+# --- 1. CONFIGURAÇÃO E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 st.markdown("""
@@ -15,19 +15,26 @@ st.markdown("""
     .stApp { background-color: #f8fafc; }
     [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e2e8f0; }
     h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
+    
+    /* Cards */
     .palavra-dia-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
         color: white !important; padding: 30px; border-radius: 20px;
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin-bottom: 30px; text-align: center;
     }
-    .palavra-dia-card h2, .palavra-dia-card p, .palavra-dia-card div { color: white !important; }
+    .palavra-dia-card h2, .palavra-dia-card p { color: white !important; }
     .mural-card {
         background-color: white; padding: 25px; border-radius: 15px;
         border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;
     }
     .aviso-img { width: 100%; max-height: 400px; object-fit: cover; border-radius: 10px; margin-bottom: 15px; }
-    .live-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
+    
+    /* Live Video */
+    .live-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
     .live-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+    
+    /* Chat Style */
+    .chat-msg { background: white; padding: 10px; border-radius: 10px; margin-bottom: 5px; border-left: 3px solid #3b82f6; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -43,24 +50,17 @@ def consultar_db(sql, params={}):
         return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
-    executar_query('''CREATE TABLE IF NOT EXISTS membros 
-        (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)''')
-    executar_query('''CREATE TABLE IF NOT EXISTS biblia 
-        (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT, UNIQUE(livro, capitulo, versiculo))''')
-    executar_query('''CREATE TABLE IF NOT EXISTS avisos 
-        (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT, img_url TEXT)''')
-    executar_query('''CREATE TABLE IF NOT EXISTS palavra_dia 
-        (id INTEGER PRIMARY KEY, versiculo TEXT, referencia TEXT, devocional TEXT)''')
-    executar_query('''CREATE TABLE IF NOT EXISTS oracoes 
-        (id INTEGER PRIMARY KEY, nome_membro TEXT, pedido TEXT, data TEXT, status TEXT DEFAULT 'Pendente')''')
-    executar_query('''CREATE TABLE IF NOT EXISTS configuracoes 
-        (id INTEGER PRIMARY KEY, chave TEXT UNIQUE, valor TEXT)''')
+    executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)')
+    executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, explicacao TEXT, UNIQUE(livro, capitulo, versiculo))')
+    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT, img_url TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS palavra_dia (id INTEGER PRIMARY KEY, versiculo TEXT, referencia TEXT, devocional TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS oracoes (id INTEGER PRIMARY KEY, nome_membro TEXT, pedido TEXT, data TEXT, status TEXT DEFAULT "Pendente")')
+    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (id INTEGER PRIMARY KEY, chave TEXT UNIQUE, valor TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS chat_live (id INTEGER PRIMARY KEY, nome TEXT, mensagem TEXT, hora TEXT)')
     
-    try:
-        if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
-            pw = generate_password_hash('Agape2026')
-            executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1, 1)", {"pw": pw})
-    except: pass
+    if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
+        pw = generate_password_hash('Agape2026')
+        executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1, 1)", {"pw": pw})
 
 init_db()
 
@@ -82,7 +82,7 @@ if not st.session_state.logado:
                         u_data = res.iloc[0].to_dict()
                         if check_password_hash(u_data['senha'], s):
                             st.session_state.update({"logado": True, "user": u_data}); st.rerun()
-                    st.error("E-mail ou senha incorretos.")
+                    st.error("Dados incorretos.")
         with t_cad:
             with st.form("cad"):
                 n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
@@ -103,19 +103,31 @@ else:
     escolha = st.sidebar.radio("Navegação", opcoes)
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- AO VIVO ---
+    # --- AO VIVO COM CHAT ---
     if escolha == "📺 Ao Vivo":
         st.markdown("<h1>📺 Transmissão ao Vivo</h1>", unsafe_allow_html=True)
         live_status = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
         live_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
         
-        if not live_status.empty and live_status.iloc[0]['valor'] == 'Sim' and not live_url.empty:
+        if not live_status.empty and live_status.iloc[0]['valor'] == 'Sim':
             url = live_url.iloc[0]['valor'].replace("watch?v=", "embed/")
             st.markdown(f'<div class="live-container"><iframe src="{url}" allowfullscreen></iframe></div>', unsafe_allow_html=True)
-            st.caption("Interaja pelo chat do YouTube clicando no vídeo.")
+            
+            st.divider()
+            st.subheader("💬 Interação da Comunidade")
+            with st.form("chat_form", clear_on_submit=True):
+                msg = st.text_input("Deixe seu Amém ou sua dúvida...")
+                if st.form_submit_button("Enviar"):
+                    if msg:
+                        executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)",
+                                       {"n": u['nome'], "m": msg, "h": datetime.now().strftime("%H:%M")})
+                        st.rerun()
+            
+            mensagens = consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 15")
+            for _, m in mensagens.iterrows():
+                st.markdown(f"<div class='chat-msg'><b>{m['nome']}</b> <small>{m['hora']}</small><br>{m['mensagem']}</div>", unsafe_allow_html=True)
         else:
-            st.warning("Não há nenhuma transmissão ao vivo no momento. Fique atento aos avisos!")
-            st.image("https://unsplash.com", caption="Em breve estaremos juntos online")
+            st.info("Nenhuma transmissão ativa agora. Fique atento ao Mural!")
 
     # --- MURAL ---
     elif escolha == "📢 Mural Ágape":
@@ -138,47 +150,47 @@ else:
             caps_df = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l": l_sel})
             c_sel = c2.selectbox("Capítulo", caps_df['capitulo'].tolist())
             versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": l_sel, "c": c_sel})
+            st.markdown(f"### {l_sel} - Capítulo {c_sel}")
             for _, v in versos.iterrows():
-                st.markdown(f"<div style='background:white; padding:10px; border-radius:8px; margin-bottom:5px;'><b style='color:#3b82f6;'>{v['versiculo']}</b> {v['texto']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background:white; padding:10px; border-radius:8px; margin-bottom:5px; border-left:3px solid #3b82f6;'><b>{v['versiculo']}</b> {v['texto']}</div>", unsafe_allow_html=True)
 
     # --- ORAÇÃO ---
     elif escolha == "🙏 Pedidos de Oração":
-        st.markdown("<h1>🙏 Pedidos de Oração</h1>", unsafe_allow_html=True)
-        with st.form("form_ora", clear_on_submit=True):
-            msg = st.text_area("Seu pedido de intercessão:")
+        st.header("🙏 Espaço de Intercessão")
+        with st.form("ora_f", clear_on_submit=True):
+            ped = st.text_area("Escreva seu pedido aqui:")
             if st.form_submit_button("Enviar ao Pastor"):
-                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n": u['nome'], "p": msg, "d": datetime.now().strftime("%d/%m/%Y %H:%M")})
+                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n": u['nome'], "p": ped, "d": datetime.now().strftime("%d/%m/%Y")})
                 st.success("Pedido enviado!")
 
     # --- ADMIN ---
     elif escolha == "⚙️ Admin":
-        st.markdown("<h1>⚙️ Painel do Administrador</h1>", unsafe_allow_html=True)
-        t1, t2, t3, t4 = st.tabs(["🔴 Gestão de Live", "📢 Avisos", "👥 Membros & Relatórios", "🙏 Orações"])
+        st.title("⚙️ Painel Gestor")
+        t1, t2, t3, t4 = st.tabs(["🔴 Live & Chat", "📢 Mural", "👥 Membros", "🙏 Orações"])
         
         with t1:
-            st.subheader("Configurar Transmissão")
-            with st.form("live_f"):
-                ativa = st.selectbox("Live está ativa agora?", ["Não", "Sim"])
-                url_live = st.text_input("Link do YouTube (Ex: https://youtube.com)")
-                if st.form_submit_button("Atualizar Live"):
+            with st.form("live_admin"):
+                ativa = st.selectbox("Ativar Live?", ["Não", "Sim"], index=1 if not consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'").empty and consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'").iloc[0]['valor'] == 'Sim' else 0)
+                link = st.text_input("Link YouTube")
+                if st.form_submit_button("Salvar Configuração"):
                     executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_ativa', :v)", {"v": ativa})
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_url', :u)", {"u": url_live})
-                    st.success("Configuração de Live atualizada!")
+                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_url', :u)", {"u": link})
+                    st.success("Salvo!")
+            if st.button("🗑️ Limpar Mensagens do Chat"):
+                executar_query("DELETE FROM chat_live"); st.rerun()
 
         with t2:
-            with st.form("f_av"):
-                t, c, i = st.text_input("Título"), st.text_area("Mensagem"), st.text_input("URL da Imagem")
-                if st.form_submit_button("Publicar"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":t, "c":c, "d":datetime.now().strftime("%d/%m/%Y"), "i":i}); st.rerun()
+            with st.form("av_admin"):
+                tit, cont, img = st.text_input("Título"), st.text_area("Mensagem"), st.text_input("URL Imagem")
+                if st.form_submit_button("Postar"):
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y"), "i":img}); st.rerun()
 
         with t3:
-            membros = consultar_db("SELECT * FROM membros")
-            st.metric("Total de Membros Cadastrados", len(membros))
-            st.dataframe(membros[['nome', 'email', 'codigo', 'ativo']], use_container_width=True)
+            st.dataframe(consultar_db("SELECT nome, email, codigo, ativo FROM membros"), use_container_width=True)
 
         with t4:
-            pedidos = consultar_db("SELECT * FROM oracoes WHERE status='Pendente' ORDER BY id DESC")
-            for _, p in pedidos.iterrows():
-                st.write(f"**{p['nome_membro']}**: {p['pedido']}")
-                if st.button("Marcar como Orado", key=f"o_{p['id']}"):
-                    executar_query("UPDATE oracoes SET status='Atendido' WHERE id=:id", {"id": int(p['id'])}); st.rerun()
+            ordata = consultar_db("SELECT * FROM oracoes WHERE status='Pendente'")
+            for _, o in ordata.iterrows():
+                st.write(f"**{o['nome_membro']}**: {o['pedido']}")
+                if st.button("Marcar como Orado", key=o['id']):
+                    executar_query("UPDATE oracoes SET status='Atendido' WHERE id=:id", {"id": o['id']}); st.rerun()
