@@ -50,9 +50,10 @@ def init_db():
 
 init_db()
 
-# --- 3. LOGIN ---
+# --- 3. ESTADO DA SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
+# --- 4. LOGIN / CADASTRO ---
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
@@ -86,49 +87,62 @@ else:
     escolha = st.sidebar.radio("Navegação", opcoes)
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- 📊 TRANSPARÊNCIA (VISÃO DO MEMBRO) ---
+    # --- 📊 TRANSPARÊNCIA (VISÃO DO MEMBRO COM GRÁFICO) ---
     if escolha == "📊 Transparência":
         st.title("📊 Prestação de Contas")
-        st.info("Abaixo constam as entradas e saídas identificadas pelo Código do Membro.")
         df_fin = consultar_db("SELECT data as Data, codigo_membro as Identificador, valor as Valor, tipo as Categoria FROM financas ORDER BY id DESC")
+        
         if not df_fin.empty:
             saldo = df_fin['Valor'].sum()
-            st.metric("Saldo Atual em Caixa", f"R$ {saldo:,.2f}")
-            st.dataframe(df_fin, use_container_width=True, hide_index=True)
-        else: st.info("Nenhum lançamento registrado.")
+            col_m1, col_m2 = st.columns(2)
+            col_m1.metric("Saldo Atual em Caixa", f"R$ {saldo:,.2f}")
+            
+            # Criando dados para o gráfico
+            receitas = df_fin[df_fin['Valor'] > 0]['Valor'].sum()
+            despesas = abs(df_fin[df_fin['Valor'] < 0]['Valor'].sum())
+            df_grafico = pd.DataFrame({'Tipo': ['Entradas', 'Saídas'], 'Total': [receitas, despesas]})
+            
+            with col_m2:
+                st.subheader("Resumo Visual")
+                st.bar_chart(data=df_grafico, x='Tipo', y='Total', color=['#1e3a8a'])
 
-    # --- ⚙️ ADMIN (VISÃO DO PASTOR/ADMIN) ---
+            st.divider()
+            st.subheader("Lista de Lançamentos (Identificação por Código)")
+            st.dataframe(df_fin, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum lançamento registrado.")
+
+    # --- ⚙️ ADMIN ---
     elif escolha == "⚙️ Admin":
-        st.title("⚙️ Painel do Administrador")
-        t1, t2, t3, t4, t5 = st.tabs(["💰 Lançar Finanças", "👥 Lista de Códigos", "📢 Mural", "📻 Rádio/Live", "🛠 Limpeza"])
+        st.title("⚙️ Administração")
+        t1, t2, t3, t4 = st.tabs(["💰 Lançar Finanças", "👥 Membros & Códigos", "📢 Mural", "🛠 Limpeza"])
         
         with t1:
-            st.subheader("💰 Lançar Entrada ou Despesa")
+            st.subheader("Lançar Entrada ou Despesa")
             membros_list = consultar_db("SELECT nome, codigo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
             if not membros_list.empty:
                 with st.form("form_fin", clear_on_submit=True):
-                    # Admin escolhe pelo NOME
                     nome_sel = st.selectbox("Selecione o Membro:", membros_list['nome'].tolist())
+                    # Extrai o código corretamente da lista
                     codigo_sel = membros_list[membros_list['nome'] == nome_sel]['codigo'].values[0]
                     
                     val = st.number_input("Valor (R$)", min_value=0.0, step=0.01)
                     tipo = st.selectbox("Tipo:", ["Dízimo", "Oferta", "Doação", "Despesa (Débito)"])
                     
                     if st.form_submit_button("Confirmar Lançamento"):
-                        # Se for despesa, salva como valor negativo para o cálculo do saldo
                         valor_final = val if "Despesa" not in tipo else -val
                         executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)",
                                        {"d": datetime.now().strftime("%d/%m/%Y"), "c": codigo_sel, "v": valor_final, "t": tipo})
                         st.success(f"Lançamento de {nome_sel} ({codigo_sel}) registrado!")
-            else: st.warning("Cadastre membros para realizar lançamentos.")
+            else: st.warning("Nenhum membro cadastrado.")
 
         with t2:
-            st.subheader("📋 Relação Nome x Código")
+            st.subheader("Lista Mestra")
             df_m = consultar_db("SELECT nome, codigo, email FROM membros WHERE is_admin=0")
             st.dataframe(df_m, use_container_width=True)
 
         with t3:
-            with st.form("av"):
+            with st.form("av_f"):
                 ti, co, f = st.text_input("Título"), st.text_area("Mensagem"), st.file_uploader("Foto", type=['jpg', 'png'])
                 if st.form_submit_button("Postar"):
                     img_b = f"data:image/png;base64,{base64.b64encode(f.getvalue()).decode()}" if f else ""
@@ -136,15 +150,9 @@ else:
                     st.success("Postado!")
 
         with t4:
-            res_r = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-            nova_r = st.text_input("Link da Rádio (Zeno/MP3)", value=res_r.iloc[0]['valor'] if not res_r.empty else "")
-            if st.button("Gravar Rádio"):
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": nova_r}); st.rerun()
+            if st.button("🗑 Limpar Chat"): executar_query("DELETE FROM chat_live"); st.rerun()
 
-        with t5:
-            if st.button("🗑 Limpar Chat da Live"): executar_query("DELETE FROM chat_live"); st.rerun()
-
-    # --- OUTRAS PÁGINAS ---
+    # --- PÁGINAS RESTANTES (Mural, Rádio, Live, Bíblia) ---
     elif escolha == "📢 Mural Ágape":
         pd_data = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
         if not pd_data.empty:
@@ -155,10 +163,10 @@ else:
             st.markdown(f'<div class="mural-card">{img}<h3>{r["titulo"]}</h3><p>{r["conteudo"]}</p></div>', unsafe_allow_html=True)
 
     elif escolha == "📻 Rádio Gospel":
-        st.title("📻 Rádio Ágape Online")
+        st.title("📻 Rádio Ágape")
         conf = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
         url_radio = conf.iloc[0]['valor'] if not conf.empty else "https://zeno.fm"
-        st.audio(url_radio, format="audio/mpeg")
+        st.audio(url_radio)
 
     elif escolha == "📖 Bíblia":
         livros = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
@@ -166,4 +174,4 @@ else:
             l = st.selectbox("Livro", livros['livro'].tolist())
             cap = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'].tolist())
             for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":cap}).iterrows():
-                st.markdown(f"**{v['versiculo']}** {v['texto']}")
+                st.write(f"**{v['versiculo']}** {v['texto']}")
