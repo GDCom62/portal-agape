@@ -26,13 +26,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///agape_v7.db", pool_pre_ping=True)
+engine = create_engine("sqlite:///agape_v8.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
-    with engine.begin() as conn: conn.execute(text(sql), params)
+    with engine.begin() as conn:
+        conn.execute(text(sql), params)
 
 def consultar_db(sql, params={}):
-    with engine.connect() as conn: return pd.read_sql_query(text(sql), conn, params=params)
+    with engine.connect() as conn:
+        return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER, ativo INTEGER DEFAULT 1)')
@@ -67,7 +69,8 @@ if not st.session_state.logado:
                 if st.form_submit_button("Entrar"):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
-                        st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()}); st.rerun()
+                        st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
+                        st.rerun()
                     st.error("Dados incorretos.")
         with t_cad:
             with st.form("cad"):
@@ -75,7 +78,8 @@ if not st.session_state.logado:
                 if st.form_submit_button("Cadastrar"):
                     c = "AG-" + "".join(random.choices(string.digits, k=4))
                     executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)", {"n": n, "e": em, "c": c, "p": generate_password_hash(se)})
-                    st.success(f"Cadastrado! Seu código é: {c}")
+                    st.success(f"Cadastrado! Seu código: {c}")
+
 # --- 5. ÁREA LOGADA ---
 else:
     u = st.session_state.user
@@ -99,7 +103,6 @@ else:
             <h3 style='color:#1e3a8a;'>Estação Conectada</h3><br>
             <audio controls autoplay style='width:100%'><source src="{url_reset}" type="audio/mpeg"></audio>
         </div>""", unsafe_allow_html=True)
-        if st.button("🔄 Reiniciar Player"): st.rerun()
 
     # --- TRANSPARÊNCIA ---
     elif escolha == "📊 Transparência":
@@ -143,45 +146,47 @@ else:
     elif escolha == "⚙️ Admin":
         st.title("⚙️ Administração")
         tab1, tab2, tab3, tab4 = st.tabs(["📻 Rádio", "💰 Finanças", "📢 Avisos", "👥 Membros"])
+        
         with tab1:
+            st.subheader("Configurar Rádio")
             res_link = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-            atual = res_link.iloc[0]['valor'] if not res_link.empty else ""
-            with st.form("set_radio"):
-                novo_link = st.text_input("Link MP3 da Rádio", value=atual)
-                if st.form_submit_button("Salvar Rádio"):
-                    executar_query("DELETE FROM configuracoes WHERE chave='radio_url'")
-                    executar_query("INSERT INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": novo_link})
-                    st.success("Salvo!"); st.rerun()
+            link_atual = res_link.iloc[0]['valor'] if not res_link.empty else ""
+            st.info(f"Link gravado: {link_atual}")
+            novo_link = st.text_input("Novo Link Streaming:", value=link_atual)
+            if st.button("💾 Salvar Link da Rádio"):
+                executar_query("DELETE FROM configuracoes WHERE chave='radio_url'")
+                executar_query("INSERT INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": novo_link})
+                st.success("Gravado!"); st.rerun()
+        
         with tab2:
             with st.form("add_fin"):
                 c, v, t = st.text_input("Código Membro"), st.number_input("Valor", 0.0), st.selectbox("Tipo", ["Dízimo", "Oferta"])
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)", {"d": datetime.now().strftime("%d/%m/%Y"), "c": c, "v": v, "t": t})
                     st.success("Sucesso!")
+
         with tab3:
             with st.form("add_av"):
                 ti, co, f = st.text_input("Título"), st.text_area("Mensagem"), st.file_uploader("Foto", type=['jpg', 'png'])
                 if st.form_submit_button("Postar"):
-                    img_b64 = f"data:image/png;base64,{base64.b64encode(f.getvalue()).decode()}" if f else ""
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":ti, "c":co, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_b64})
+                    img_b = f"data:image/png;base64,{base64.b64encode(f.getvalue()).decode()}" if f else ""
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":ti, "c":co, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_b})
                     st.success("Postado!")
+
         with tab4:
             st.dataframe(consultar_db("SELECT nome, email, codigo FROM membros"))
 
-    # --- BÍBLIA (Simplificada para o código não ficar gigante) ---
     elif escolha == "📖 Bíblia":
-        st.title("📖 Bíblia Sagrada")
         livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not livros.empty:
             l = st.selectbox("Livro", livros['livro'].tolist())
             cap = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'].tolist())
             for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":cap}).iterrows():
-                st.write(f"**{v['versiculo']}** {v['texto']}")
+                st.markdown(f"**{v['versiculo']}** {v['texto']}")
 
-    # --- OUVIDORIA ---
     elif escolha == "📣 Ouvidoria":
         with st.form("ouv"):
-            msg = st.text_area("Sua mensagem (Elogio ou Sugestão)")
+            msg = st.text_area("Elogio ou Sugestão")
             if st.form_submit_button("Enviar"):
                 executar_query("INSERT INTO ouvidoria (data, mensagem, autor) VALUES (:d, :m, :a)", {"d": datetime.now().strftime("%d/%m/%Y"), "m": msg, "a": u['nome']})
                 st.success("Enviado!")
