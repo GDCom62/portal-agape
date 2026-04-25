@@ -6,6 +6,7 @@ from datetime import datetime
 import random
 import string
 import json
+import base64
 
 # --- 1. CONFIGURAÇÃO E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -15,8 +16,6 @@ st.markdown("""
     .stApp { background-color: #f8fafc; }
     [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e2e8f0; }
     h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
-    
-    /* Cards */
     .palavra-dia-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
         color: white !important; padding: 30px; border-radius: 20px;
@@ -27,13 +26,9 @@ st.markdown("""
         background-color: white; padding: 25px; border-radius: 15px;
         border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;
     }
-    .aviso-img { width: 100%; max-height: 400px; object-fit: cover; border-radius: 10px; margin-bottom: 15px; }
-    
-    /* Live Video */
+    .aviso-img { width: 100%; max-height: 500px; object-fit: contain; border-radius: 10px; margin-bottom: 15px; }
     .live-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
     .live-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
-    
-    /* Chat Style */
     .chat-msg { background: white; padding: 10px; border-radius: 10px; margin-bottom: 5px; border-left: 3px solid #3b82f6; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     </style>
     """, unsafe_allow_html=True)
@@ -103,31 +98,28 @@ else:
     escolha = st.sidebar.radio("Navegação", opcoes)
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- AO VIVO COM CHAT ---
+    # --- AO VIVO ---
     if escolha == "📺 Ao Vivo":
         st.markdown("<h1>📺 Transmissão ao Vivo</h1>", unsafe_allow_html=True)
         live_status = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
         live_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
-        
         if not live_status.empty and live_status.iloc[0]['valor'] == 'Sim':
             url = live_url.iloc[0]['valor'].replace("watch?v=", "embed/")
             st.markdown(f'<div class="live-container"><iframe src="{url}" allowfullscreen></iframe></div>', unsafe_allow_html=True)
-            
             st.divider()
             st.subheader("💬 Interação da Comunidade")
             with st.form("chat_form", clear_on_submit=True):
-                msg = st.text_input("Deixe seu Amém ou sua dúvida...")
+                msg = st.text_input("Deixe sua mensagem...")
                 if st.form_submit_button("Enviar"):
                     if msg:
                         executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)",
                                        {"n": u['nome'], "m": msg, "h": datetime.now().strftime("%H:%M")})
                         st.rerun()
-            
             mensagens = consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 15")
             for _, m in mensagens.iterrows():
                 st.markdown(f"<div class='chat-msg'><b>{m['nome']}</b> <small>{m['hora']}</small><br>{m['mensagem']}</div>", unsafe_allow_html=True)
         else:
-            st.info("Nenhuma transmissão ativa agora. Fique atento ao Mural!")
+            st.info("Nenhuma transmissão ativa.")
 
     # --- MURAL ---
     elif escolha == "📢 Mural Ágape":
@@ -139,7 +131,7 @@ else:
         df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, r in df_a.iterrows():
             img_tag = f'<img src="{r["img_url"]}" class="aviso-img">' if r.get("img_url") else ""
-            st.markdown(f"""<div class="mural-card">{img_tag}<h3>{r['titulo']}</h3><p>{r['conteudo']}</p><small>📅 {r['data']}</small></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="mural-card">{img_tag}<h3>{r['titulo']}</h3><p style="color: #475569;">{r['conteudo']}</p><small>📅 {r['data']}</small></div>""", unsafe_allow_html=True)
 
     # --- BÍBLIA ---
     elif escolha == "📖 Ler a Bíblia":
@@ -152,45 +144,62 @@ else:
             versos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c ORDER BY versiculo", {"l": l_sel, "c": c_sel})
             st.markdown(f"### {l_sel} - Capítulo {c_sel}")
             for _, v in versos.iterrows():
-                st.markdown(f"<div style='background:white; padding:10px; border-radius:8px; margin-bottom:5px; border-left:3px solid #3b82f6;'><b>{v['versiculo']}</b> {v['texto']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background:white; padding:10px; border-radius:8px; margin-bottom:5px;'><b>{v['versiculo']}</b> {v['texto']}</div>", unsafe_allow_html=True)
 
     # --- ORAÇÃO ---
     elif escolha == "🙏 Pedidos de Oração":
         st.header("🙏 Espaço de Intercessão")
         with st.form("ora_f", clear_on_submit=True):
-            ped = st.text_area("Escreva seu pedido aqui:")
-            if st.form_submit_button("Enviar ao Pastor"):
-                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n": u['nome'], "p": ped, "d": datetime.now().strftime("%d/%m/%Y")})
+            ped = st.text_area("Escreva seu pedido:")
+            if st.form_submit_button("Enviar"):
+                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n": u['nome'], "p": ped, "d": datetime.now().strftime("%d/%m/%Y %H:%M")})
                 st.success("Pedido enviado!")
 
     # --- ADMIN ---
     elif escolha == "⚙️ Admin":
         st.title("⚙️ Painel Gestor")
-        t1, t2, t3, t4 = st.tabs(["🔴 Live & Chat", "📢 Mural", "👥 Membros", "🙏 Orações"])
+        t1, t2, t3, t4, t5 = st.tabs(["✨ Palavra do Dia", "📢 Mural", "🔴 Live", "👥 Membros", "🙏 Orações"])
         
         with t1:
+            with st.form("f_pd"):
+                v, r, d = st.text_area("Versículo"), st.text_input("Referência"), st.text_area("Devocional")
+                if st.form_submit_button("Atualizar"):
+                    executar_query("INSERT INTO palavra_dia (versiculo, referencia, devocional) VALUES (:v, :r, :d)", {"v":v, "r":r, "d":d})
+                    st.success("Atualizado!")
+
+        with t2:
+            st.subheader("📢 Novo Comunicado com Foto")
+            with st.form("av_admin", clear_on_submit=True):
+                tit = st.text_input("Título do Aviso")
+                cont = st.text_area("Mensagem detalhada")
+                foto_arquivo = st.file_uploader("Selecione uma foto (PNG, JPG)", type=['png', 'jpg', 'jpeg'])
+                if st.form_submit_button("Postar Aviso"):
+                    if tit and cont:
+                        img_str = ""
+                        if foto_arquivo:
+                            img_str = f"data:image/jpeg;base64,{base64.b64encode(foto_arquivo.getvalue()).decode()}"
+                        executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", 
+                                       {"t": tit, "c": cont, "d": datetime.now().strftime("%d/%m/%Y %H:%M"), "i": img_str})
+                        st.success("✅ Postado!")
+                        st.rerun()
+
+        with t3:
             with st.form("live_admin"):
-                ativa = st.selectbox("Ativar Live?", ["Não", "Sim"], index=1 if not consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'").empty and consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'").iloc[0]['valor'] == 'Sim' else 0)
+                ativa = st.selectbox("Ativar Live?", ["Não", "Sim"])
                 link = st.text_input("Link YouTube")
-                if st.form_submit_button("Salvar Configuração"):
+                if st.form_submit_button("Salvar"):
                     executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_ativa', :v)", {"v": ativa})
                     executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_url', :u)", {"u": link})
                     st.success("Salvo!")
-            if st.button("🗑️ Limpar Mensagens do Chat"):
+            if st.button("🗑️ Limpar Chat"):
                 executar_query("DELETE FROM chat_live"); st.rerun()
 
-        with t2:
-            with st.form("av_admin"):
-                tit, cont, img = st.text_input("Título"), st.text_area("Mensagem"), st.text_input("URL Imagem")
-                if st.form_submit_button("Postar"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y"), "i":img}); st.rerun()
-
-        with t3:
-            st.dataframe(consultar_db("SELECT nome, email, codigo, ativo FROM membros"), use_container_width=True)
-
         with t4:
+            st.dataframe(consultar_db("SELECT nome, email, codigo FROM membros"), use_container_width=True)
+
+        with t5:
             ordata = consultar_db("SELECT * FROM oracoes WHERE status='Pendente'")
             for _, o in ordata.iterrows():
                 st.write(f"**{o['nome_membro']}**: {o['pedido']}")
-                if st.button("Marcar como Orado", key=o['id']):
+                if st.button("Marcar Orado", key=o['id']):
                     executar_query("UPDATE oracoes SET status='Atendido' WHERE id=:id", {"id": o['id']}); st.rerun()
