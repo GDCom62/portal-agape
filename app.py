@@ -19,7 +19,7 @@ st.markdown("""
     h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
     .mural-card { background-color: white; padding: 25px; border-radius: 15px; border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
     .palavra-dia-card { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white !important; padding: 30px; border-radius: 20px; text-align: center; margin-bottom: 30px; }
-    .palavra-dia-card h2, .palavra-dia-card p { color: white !important; }
+    .palavra-dia-card h2, .palavra-dia-card p, .palavra-dia-card div { color: white !important; }
     .aviso-img { width: 100%; max-height: 500px; object-fit: contain; border-radius: 10px; margin-bottom: 15px; }
     .radio-btn-play { padding: 15px 35px; border-radius: 50px; border: none; background-color: #1e3a8a; color: white; cursor: pointer; font-weight: bold; margin-right: 10px; font-size: 16px; }
     .radio-btn-pause { padding: 15px 35px; border-radius: 50px; border: none; background-color: #f1f5f9; color: #1e3a8a; cursor: pointer; font-weight: bold; font-size: 16px; }
@@ -88,76 +88,75 @@ else:
     escolha = st.sidebar.radio("Navegação", opcoes)
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- TRANSPARÊNCIA (PÚBLICA - SÓ CÓDIGOS) ---
-    if escolha == "📊 Transparência":
+    # --- TRANSMISSÃO AO VIVO ---
+    if escolha == "📺 Ao Vivo":
+        st.title("📺 Transmissão ao Vivo")
+        l_stat = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
+        l_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
+        if not l_stat.empty and l_stat.iloc[0]['valor'] == 'Sim':
+            embed = l_url.iloc[0]['valor'].replace("watch?v=", "embed/")
+            st.markdown(f'<iframe width="100%" height="500" src="{embed}" frameborder="0" allowfullscreen></iframe>', unsafe_allow_html=True)
+            st.subheader("💬 Chat da Live")
+            with st.form("chat_l", clear_on_submit=True):
+                m_c = st.text_input("Escreva sua saudação")
+                if st.form_submit_button("Enviar"):
+                    executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)", {"n": u['nome'], "m": m_c, "h": datetime.now().strftime("%H:%M")})
+                    st.rerun()
+            for _, m in consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 10").iterrows():
+                st.markdown(f"**{m['nome']}**: {m['mensagem']}")
+        else: st.info("Nenhuma transmissão ativa no momento.")
+
+    # --- TRANSPARÊNCIA ---
+    elif escolha == "📊 Transparência":
         st.title("📊 Transparência Financeira")
-        st.info("Os nomes dos membros são preservados. Identifique sua contribuição pelo seu código individual.")
-        df_fin = consultar_db("SELECT data as Data, codigo_membro as 'Código Membro', valor as Valor, tipo as Tipo FROM financas ORDER BY id DESC")
+        df_fin = consultar_db("SELECT data as Data, codigo_membro as 'Código', valor as Valor, tipo as Tipo FROM financas ORDER BY id DESC")
         if not df_fin.empty:
             st.metric("Total Acumulado", f"R$ {df_fin['Valor'].sum():,.2f}")
             st.dataframe(df_fin, use_container_width=True, hide_index=True)
-        else: st.info("Nenhum lançamento registrado até o momento.")
+        else: st.info("Sem lançamentos.")
 
-    # --- ADMIN (VISÃO GERAL COMPLETA) ---
+    # --- ADMIN ---
     elif escolha == "⚙️ Admin":
         st.title("⚙️ Administração")
-        t1, t2, t3, t4, t5 = st.tabs(["💰 Lançar Finanças", "👥 Membros & Nomes", "📢 Mural", "📻 Rádio", "📖 Bíblia"])
+        t1, t2, t3, t4, t5 = st.tabs(["💰 Finanças", "👥 Membros", "🛠 Limpeza", "📻 Rádio/Live", "📢 Mural"])
         
-        with t1: # Lançamento
+        with t1:
             with st.form("fin"):
-                c, v, t = st.text_input("Código do Membro (AG-XXXX)"), st.number_input("Valor", 0.0), st.selectbox("Tipo", ["Dízimo", "Oferta", "Doação"])
+                c, v, t = st.text_input("Código Membro"), st.number_input("Valor"), st.selectbox("Tipo", ["Dízimo", "Oferta", "Doação"])
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)", {"d": datetime.now().strftime("%d/%m/%Y"), "c": c, "v": v, "t": t})
-                    st.success("Lançado com sucesso!")
+                    st.success("Lançado!")
 
-        with t2: # VISÃO GERAL SÓ ADMIN
-            st.subheader("📋 Relação Nome x Código")
-            st.write("Somente o administrador tem acesso a esta lista.")
-            df_membros = consultar_db("SELECT nome as Nome, email as Email, codigo as Código, ativo as Ativo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
-            st.dataframe(df_membros, use_container_width=True, hide_index=True)
-            
-            # Exportação
+        with t2:
+            df_m = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
+            st.dataframe(df_m, use_container_width=True)
             buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df_membros.to_excel(wr, index=False)
-            st.download_button("📥 Baixar Lista Mestra (Excel)", buf.getvalue(), "lista_mestra_agape.xlsx")
+            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df_m.to_excel(wr, index=False)
+            st.download_button("📥 Baixar Lista em Excel", buf.getvalue(), "membros_agape.xlsx")
 
-        with t3: # Mural
-            with st.form("av"):
-                ti, co, f = st.text_input("Título"), st.text_area("Mensagem"), st.file_uploader("Foto", type=['jpg', 'png'])
-                if st.form_submit_button("Postar"):
-                    img_b = f"data:image/png;base64,{base64.b64encode(f.getvalue()).decode()}" if f else ""
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":ti, "c":co, "d":datetime.now().strftime("%d/%m/%Y %H:%M"), "i":img_b})
-                    st.success("Postado!")
+        with t3:
+            st.subheader("Manutenção do Portal")
+            if st.button("🗑 Limpar Chat da Live"):
+                executar_query("DELETE FROM chat_live"); st.success("Chat limpo!"); st.rerun()
+            if st.button("🗑 Limpar Pedidos de Oração"):
+                executar_query("DELETE FROM oracoes"); st.success("Pedidos limpos!"); st.rerun()
 
-        with t4: # Rádio
+        with t4:
             res_r = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-            novo_r = st.text_input("URL da Rádio:", value=res_r.iloc[0]['valor'] if not res_r.empty else "")
-            if st.button("💾 Salvar Rádio"):
-                executar_query("DELETE FROM configuracoes WHERE chave='radio_url'")
-                executar_query("INSERT INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": novo_r})
-                st.success("Link atualizado!"); st.rerun()
+            nova_r = st.text_input("URL da Rádio", value=res_r.iloc[0]['valor'] if not res_r.empty else "")
+            if st.button("Salvar Rádio"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": nova_r})
+                st.success("Salvo!"); st.rerun()
 
-        with t5: # Bíblia
-            f_bib = st.file_uploader("Importar acf.json", type=['json'])
-            if f_bib and st.button("🚀 Processar"):
-                dados = json.load(f_bib)
-                for idx, liv in enumerate(dados):
-                    nm = liv.get('name') or liv.get('nome')
-                    for ic, cl in enumerate(liv.get('chapters', [])):
-                        for iv, tv in enumerate(cl):
-                            executar_query("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)", {"l": str(nm), "c": ic+1, "v": iv+1, "t": str(tv)})
-                st.success("Importado!")
-
-    # --- PÁGINAS RESTANTES (Mural, Rádio, Live, Bíblia, Orações, Ouvidoria) ---
+    # --- RESTANTE DAS PÁGINAS (Mural, Bíblia, Orações, Ouvidoria) ---
     elif escolha == "📢 Mural Ágape":
         pd_data = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
         if not pd_data.empty:
             p = pd_data.iloc[0]
-            st.markdown(f'<div class="palavra-dia-card"><h2>📖 Palavra do Dia</h2><p>"{p["versiculo"]}"</p><strong>— {p["referencia"]}</strong><br><br><div>{p["devocional"]}</div></div>', unsafe_allow_html=True)
-        df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        for _, r in df_a.iterrows():
+            st.markdown(f'<div class="palavra-dia-card"><h2>📖 Palavra do Dia</h2><p>"{p["versiculo"]}"</p><strong>— {p["referencia"]}</strong><br><br>{p["devocional"]}</div>', unsafe_allow_html=True)
+        for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             img = f'<img src="{r["img_url"]}" class="aviso-img">' if r['img_url'] else ""
-            st.markdown(f'<div class="mural-card">{img}<h3>{r["titulo"]}</h3><p>{r["conteudo"]}</p><small>{r["data"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="mural-card">{img}<h3>{r["titulo"]}</h3><p>{r["conteudo"]}</p></div>', unsafe_allow_html=True)
 
     elif escolha == "📻 Rádio Gospel":
         st.title("📻 Rádio Ágape Online")
@@ -170,21 +169,6 @@ else:
             <button class="radio-btn-pause" onclick="document.getElementById('player').pause()">⏸️ PARAR</button></div>
         </div>""", unsafe_allow_html=True)
 
-    elif escolha == "📺 Ao Vivo":
-        l_stat = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
-        l_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
-        if not l_stat.empty and l_stat.iloc[0]['valor'] == 'Sim':
-            embed = l_url.iloc[0]['valor'].replace("watch?v=", "embed/")
-            st.markdown(f'<iframe width="100%" height="500" src="{embed}" frameborder="0" allowfullscreen></iframe>', unsafe_allow_html=True)
-            with st.form("chat"):
-                mc = st.text_input("Mensagem")
-                if st.form_submit_button("Enviar"):
-                    executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)", {"n": u['nome'], "m": mc, "h": datetime.now().strftime("%H:%M")})
-                    st.rerun()
-            for _, m in consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 10").iterrows():
-                st.markdown(f"**{m['nome']}**: {m['mensagem']}")
-        else: st.info("Sem live ativa.")
-
     elif escolha == "📖 Bíblia":
         livros = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not livros.empty:
@@ -195,14 +179,14 @@ else:
 
     elif escolha == "🙏 Orações":
         with st.form("ora"):
-            ped = st.text_area("Seu pedido")
+            msg = st.text_area("Seu pedido")
             if st.form_submit_button("Enviar"):
-                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n": u['nome'], "p": ped, "d": datetime.now().strftime("%d/%m/%Y")})
-                st.success("Registrado!")
+                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n":u['nome'],"p":msg,"d":datetime.now().strftime("%d/%m/%Y")})
+                st.success("Enviado!")
 
     elif escolha == "📣 Ouvidoria":
         with st.form("ouv"):
-            msg = st.text_area("Elogio ou Sugestão")
+            m = st.text_area("Mensagem")
             if st.form_submit_button("Enviar"):
-                executar_query("INSERT INTO ouvidoria (data, mensagem, autor) VALUES (:d, :m, :a)", {"d": datetime.now().strftime("%d/%m/%Y"), "m": msg, "a": u['nome']})
-                st.success("Enviado!")
+                executar_query("INSERT INTO ouvidoria (data, mensagem, autor) VALUES (:d, :m, :a)", {"d":datetime.now().strftime("%d/%m/%Y"),"m":m,"a":u['nome']})
+                st.success("Obrigado!")
