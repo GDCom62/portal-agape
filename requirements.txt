@@ -2,4 +2,3 @@ streamlit
 pandas
 sqlalchemy
 werkzeug
-xlsxwriter
