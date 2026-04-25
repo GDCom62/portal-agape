@@ -19,10 +19,8 @@ st.markdown("""
     h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
     .mural-card { background-color: white; padding: 25px; border-radius: 15px; border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
     .palavra-dia-card { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white !important; padding: 30px; border-radius: 20px; text-align: center; margin-bottom: 30px; }
-    .palavra-dia-card h2, .palavra-dia-card p, .palavra-dia-card div { color: white !important; }
+    .palavra-dia-card h2, .palavra-dia-card p { color: white !important; }
     .aviso-img { width: 100%; max-height: 500px; object-fit: contain; border-radius: 10px; margin-bottom: 15px; }
-    .radio-btn-play { padding: 15px 35px; border-radius: 50px; border: none; background-color: #1e3a8a; color: white; cursor: pointer; font-weight: bold; margin-right: 10px; font-size: 16px; }
-    .radio-btn-pause { padding: 15px 35px; border-radius: 50px; border: none; background-color: #f1f5f9; color: #1e3a8a; cursor: pointer; font-weight: bold; font-size: 16px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -52,9 +50,10 @@ def init_db():
 
 init_db()
 
-# --- 3. LOGIN ---
+# --- 3. ESTADO DA SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
+# --- 4. LOGIN ---
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
@@ -66,8 +65,10 @@ if not st.session_state.logado:
                 e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
                 if st.form_submit_button("Entrar"):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
-                    if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
-                        st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()}); st.rerun()
+                    if not res.empty:
+                        u_data = res.iloc[0].to_dict()
+                        if check_password_hash(u_data['senha'], s):
+                            st.session_state.update({"logado": True, "user": u_data}); st.rerun()
                     st.error("Dados incorretos.")
         with t_cad:
             with st.form("cad"):
@@ -88,23 +89,14 @@ else:
     escolha = st.sidebar.radio("Navegação", opcoes)
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- TRANSMISSÃO AO VIVO ---
-    if escolha == "📺 Ao Vivo":
-        st.title("📺 Transmissão ao Vivo")
-        l_stat = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
-        l_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
-        if not l_stat.empty and l_stat.iloc[0]['valor'] == 'Sim':
-            embed = l_url.iloc[0]['valor'].replace("watch?v=", "embed/")
-            st.markdown(f'<iframe width="100%" height="500" src="{embed}" frameborder="0" allowfullscreen></iframe>', unsafe_allow_html=True)
-            st.subheader("💬 Chat da Live")
-            with st.form("chat_l", clear_on_submit=True):
-                m_c = st.text_input("Escreva sua saudação")
-                if st.form_submit_button("Enviar"):
-                    executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)", {"n": u['nome'], "m": m_c, "h": datetime.now().strftime("%H:%M")})
-                    st.rerun()
-            for _, m in consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 10").iterrows():
-                st.markdown(f"**{m['nome']}**: {m['mensagem']}")
-        else: st.info("Nenhuma transmissão ativa no momento.")
+    # --- RÁDIO GOSPEL (PLAYER NATIVO) ---
+    if escolha == "📻 Rádio Gospel":
+        st.title("📻 Rádio Ágape Online")
+        conf = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
+        url_radio = conf.iloc[0]['valor'] if not conf.empty else "https://streamtheworld.com"
+        st.markdown("<div style='background:white; padding:20px; border-radius:15px; text-align:center;'><h3>Sintonizando...</h3></div>", unsafe_allow_html=True)
+        st.audio(url_radio, format="audio/mpeg")
+        st.link_button("🌐 Ouvir em tela cheia (Plano B)", url_radio)
 
     # --- TRANSPARÊNCIA ---
     elif escolha == "📊 Transparência":
@@ -115,40 +107,7 @@ else:
             st.dataframe(df_fin, use_container_width=True, hide_index=True)
         else: st.info("Sem lançamentos.")
 
-    # --- ADMIN ---
-    elif escolha == "⚙️ Admin":
-        st.title("⚙️ Administração")
-        t1, t2, t3, t4, t5 = st.tabs(["💰 Finanças", "👥 Membros", "🛠 Limpeza", "📻 Rádio/Live", "📢 Mural"])
-        
-        with t1:
-            with st.form("fin"):
-                c, v, t = st.text_input("Código Membro"), st.number_input("Valor"), st.selectbox("Tipo", ["Dízimo", "Oferta", "Doação"])
-                if st.form_submit_button("Lançar"):
-                    executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)", {"d": datetime.now().strftime("%d/%m/%Y"), "c": c, "v": v, "t": t})
-                    st.success("Lançado!")
-
-        with t2:
-            df_m = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
-            st.dataframe(df_m, use_container_width=True)
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df_m.to_excel(wr, index=False)
-            st.download_button("📥 Baixar Lista em Excel", buf.getvalue(), "membros_agape.xlsx")
-
-        with t3:
-            st.subheader("Manutenção do Portal")
-            if st.button("🗑 Limpar Chat da Live"):
-                executar_query("DELETE FROM chat_live"); st.success("Chat limpo!"); st.rerun()
-            if st.button("🗑 Limpar Pedidos de Oração"):
-                executar_query("DELETE FROM oracoes"); st.success("Pedidos limpos!"); st.rerun()
-
-        with t4:
-            res_r = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-            nova_r = st.text_input("URL da Rádio", value=res_r.iloc[0]['valor'] if not res_r.empty else "")
-            if st.button("Salvar Rádio"):
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": nova_r})
-                st.success("Salvo!"); st.rerun()
-
-    # --- RESTANTE DAS PÁGINAS (Mural, Bíblia, Orações, Ouvidoria) ---
+    # --- MURAL ---
     elif escolha == "📢 Mural Ágape":
         pd_data = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
         if not pd_data.empty:
@@ -158,17 +117,55 @@ else:
             img = f'<img src="{r["img_url"]}" class="aviso-img">' if r['img_url'] else ""
             st.markdown(f'<div class="mural-card">{img}<h3>{r["titulo"]}</h3><p>{r["conteudo"]}</p></div>', unsafe_allow_html=True)
 
-    elif escolha == "📻 Rádio Gospel":
-        st.title("📻 Rádio Ágape Online")
-        conf = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-        url_radio = conf.iloc[0]['valor'] if not conf.empty else "https://zeno.fm"
-        st.markdown(f"""<div style='background:white; padding:40px; border-radius:20px; text-align:center; border:1px solid #eee;'>
-            <h2 style='color:#1e3a8a;'>Sintonizando a Benção</h2>
-            <audio id="player"><source src="{url_radio}" type="audio/mpeg"></audio>
-            <div><button class="radio-btn-play" onclick="document.getElementById('player').play()">▶️ OUVIR</button>
-            <button class="radio-btn-pause" onclick="document.getElementById('player').pause()">⏸️ PARAR</button></div>
-        </div>""", unsafe_allow_html=True)
+    # --- AO VIVO ---
+    elif escolha == "📺 Ao Vivo":
+        l_url = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_url'")
+        l_stat = consultar_db("SELECT valor FROM configuracoes WHERE chave='live_ativa'")
+        if not l_stat.empty and l_stat.iloc[0]['valor'] == 'Sim':
+            embed = l_url.iloc[0]['valor'].replace("watch?v=", "embed/")
+            st.markdown(f'<iframe width="100%" height="500" src="{embed}" frameborder="0" allowfullscreen></iframe>', unsafe_allow_html=True)
+            with st.form("chat"):
+                mc = st.text_input("Chat")
+                if st.form_submit_button("Enviar"):
+                    executar_query("INSERT INTO chat_live (nome, mensagem, hora) VALUES (:n, :m, :h)", {"n": u['nome'], "m": mc, "h": datetime.now().strftime("%H:%M")})
+                    st.rerun()
+            for _, m in consultar_db("SELECT * FROM chat_live ORDER BY id DESC LIMIT 10").iterrows():
+                st.markdown(f"**{m['nome']}**: {m['mensagem']}")
+        else: st.info("Sem live ativa.")
 
+    # --- ADMIN ---
+    elif escolha == "⚙️ Admin":
+        st.title("⚙️ Administração")
+        t1, t2, t3, t4, t5 = st.tabs(["💰 Finanças", "👥 Membros", "🛠 Limpeza", "📻 Rádio/Live", "📢 Mural"])
+        with t1:
+            with st.form("fin"):
+                c, v, t = st.text_input("Código Membro"), st.number_input("Valor"), st.selectbox("Tipo", ["Dízimo", "Oferta"])
+                if st.form_submit_button("Lançar"):
+                    executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)", {"d": datetime.now().strftime("%d/%m/%Y"), "c":c, "v":v, "t":t})
+                    st.success("Lançado!")
+        with t2:
+            df_m = consultar_db("SELECT nome, email, codigo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
+            st.dataframe(df_m, use_container_width=True)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df_m.to_excel(wr, index=False)
+            st.download_button("📥 Baixar Excel", buf.getvalue(), "membros_agape.xlsx")
+        with t3:
+            if st.button("🗑 Limpar Chat"): executar_query("DELETE FROM chat_live"); st.rerun()
+            if st.button("🗑 Limpar Orações"): executar_query("DELETE FROM oracoes"); st.rerun()
+        with t4:
+            res_r = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
+            nova_r = st.text_input("URL Rádio", value=res_r.iloc[0]['valor'] if not res_r.empty else "")
+            if st.button("Salvar Rádio"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": nova_r}); st.rerun()
+        with t5:
+            with st.form("av"):
+                ti, co, f = st.text_input("Título"), st.text_area("Mensagem"), st.file_uploader("Foto", type=['jpg', 'png'])
+                if st.form_submit_button("Postar"):
+                    img_b = f"data:image/png;base64,{base64.b64encode(f.getvalue()).decode()}" if f else ""
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t, :c, :d, :i)", {"t":ti, "c":co, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_b})
+                    st.success("Postado!"); st.rerun()
+
+    # --- BÍBLIA ---
     elif escolha == "📖 Bíblia":
         livros = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not livros.empty:
@@ -177,13 +174,13 @@ else:
             for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":cap}).iterrows():
                 st.markdown(f"**{v['versiculo']}** {v['texto']}")
 
+    # --- ORAÇÕES / OUVIDORIA ---
     elif escolha == "🙏 Orações":
         with st.form("ora"):
             msg = st.text_area("Seu pedido")
             if st.form_submit_button("Enviar"):
                 executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n":u['nome'],"p":msg,"d":datetime.now().strftime("%d/%m/%Y")})
                 st.success("Enviado!")
-
     elif escolha == "📣 Ouvidoria":
         with st.form("ouv"):
             m = st.text_area("Mensagem")
