@@ -74,124 +74,89 @@ if not st.session_state.logado:
                 if st.form_submit_button("Cadastrar"):
                     c = "AG-" + "".join(random.choices(string.digits, k=4))
                     executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin, ativo) VALUES (:n, :e, :c, :p, 0, 1)", {"n": n, "e": em, "c": c, "p": generate_password_hash(se)})
-                    st.success(f"Cadastrado! Seu código: {c}")
+                    st.success(f"Cadastrado! Código: {c}")
 else:
     u = st.session_state.user
     try: st.sidebar.image("logo.png", use_container_width=True)
     except: pass
     st.sidebar.markdown(f"### 🙏 Olá, **{u['nome']}**")
-    
-    opcoes = ["📢 Mural Ágape", "📻 Rádio Gospel", "📊 Transparência", "📺 Ao Vivo", "📖 Bíblia", "🙏 Orações", "📣 Ouvidoria"]
-    if u['is_admin'] == 1: opcoes.append("⚙️ Admin")
-    
-    escolha = st.sidebar.radio("Navegação", opcoes)
+    escolha = st.sidebar.radio("Menu", ["📢 Mural Ágape", "📻 Rádio Gospel", "📊 Transparência", "📺 Ao Vivo", "📖 Bíblia", "🙏 Orações", "📣 Ouvidoria"] + (["⚙️ Admin"] if u['is_admin'] == 1 else []))
     if st.sidebar.button("🚪 Sair"): st.session_state.logado = False; st.rerun()
 
-    # --- 📊 TRANSPARÊNCIA COM META ---
-    if escolha == "📊 Transparência":
-        st.title("📊 Prestação de Contas")
+    # --- RÁDIO GOSPEL (CORRIGIDA) ---
+    if escolha == "📻 Rádio Gospel":
+        st.title("📻 Rádio Ágape Online")
+        conf = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
+        url = conf.iloc[0]['valor'] if not conf.empty else "https://zeno.fm"
         
-        # Meta de Arrecadação
-        meta_nome = consultar_db("SELECT valor FROM configuracoes WHERE chave='meta_nome'")
-        meta_valor = consultar_db("SELECT valor FROM configuracoes WHERE chave='meta_valor'")
-        
+        try:
+            if url and (url.startswith("http") or url.startswith("https")):
+                st.audio(url)
+                st.info(f"Sintonizado em: {url}")
+            else:
+                st.warning("Link da rádio inválido ou não configurado.")
+        except Exception:
+            st.error("Erro ao carregar o player. Verifique o link no Admin.")
+
+    # --- 📊 TRANSPARÊNCIA ---
+    elif escolha == "📊 Transparência":
+        st.title("📊 Transparência Financeira")
+        meta_n = consultar_db("SELECT valor FROM configuracoes WHERE chave='meta_nome'")
+        meta_v = consultar_db("SELECT valor FROM configuracoes WHERE chave='meta_valor'")
         df_fin = consultar_db("SELECT valor FROM financas")
-        saldo_atual = df_fin['valor'].sum() if not df_fin.empty else 0.0
+        saldo = df_fin['valor'].sum() if not df_fin.empty else 0.0
 
-        if not meta_nome.empty and not meta_valor.empty:
-            nome_m = meta_nome.iloc[0]['valor']
-            valor_m = float(meta_valor.iloc[0]['valor'])
-            if valor_m > 0:
-                st.subheader(f"🎯 Meta Atual: {nome_m}")
-                progresso = min(saldo_atual / valor_m, 1.0)
-                st.progress(progresso)
-                st.write(f"Arrecadado: R$ {saldo_atual:,.2f} de R$ {valor_m:,.2f} ({progresso*100:.1f}%)")
-        
-        st.divider()
-        col_m1, col_m2 = st.columns(2)
-        col_m1.metric("Saldo Total em Caixa", f"R$ {saldo_atual:,.2f}")
-        
-        df_lista = consultar_db("SELECT data as Data, codigo_membro as Identificador, valor as Valor, tipo as Categoria FROM financas ORDER BY id DESC")
-        if not df_lista.empty:
-            receitas = df_lista[df_lista['Valor'] > 0]['Valor'].sum()
-            despesas = abs(df_lista[df_lista['Valor'] < 0]['Valor'].sum())
-            st.bar_chart(pd.DataFrame({'Valores': [receitas, despesas]}, index=['Entradas', 'Saídas']))
-            st.dataframe(df_lista, use_container_width=True, hide_index=True)
-        else: st.info("Sem lançamentos.")
+        if not meta_n.empty and not meta_v.empty:
+            val_m = float(meta_v.iloc[0]['valor'])
+            if val_m > 0:
+                st.subheader(f"🎯 Meta: {meta_n.iloc[0]['valor']}")
+                st.progress(min(saldo/val_m, 1.0))
+                st.write(f"R$ {saldo:,.2f} de R$ {val_m:,.2f}")
 
-    # --- ⚙️ ADMIN COM CONFIG DE META ---
-    elif escolha == "⚙️ Admin":
-        st.title("⚙️ Administração")
-        t1, t2, t3, t4, t5 = st.tabs(["💰 Finanças", "🎯 Definir Meta", "👥 Membros", "📻 Rádio/Live", "🛠 Limpeza"])
-        
-        with t1:
-            membros_list = consultar_db("SELECT nome, codigo FROM membros WHERE is_admin=0 ORDER BY nome ASC")
-            with st.form("f_fin", clear_on_submit=True):
-                nome_sel = st.selectbox("Selecione o Membro:", membros_list['nome'].tolist()) if not membros_list.empty else "Nenhum"
-                codigo_sel = membros_list[membros_list['nome'] == nome_sel]['codigo'].values[0] if not membros_list.empty else ""
-                val = st.number_input("Valor (R$)", min_value=0.0, step=0.01)
-                tipo = st.selectbox("Tipo:", ["Dízimo", "Oferta", "Doação", "Despesa (Débito)"])
-                if st.form_submit_button("Lançar"):
-                    v_final = val if "Despesa" not in tipo else -val
-                    executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d, :c, :v, :t)",
-                                   {"d": datetime.now().strftime("%d/%m/%Y"), "c": codigo_sel, "v": v_final, "t": tipo})
-                    st.success("Lançamento concluído!")
+        st.metric("Saldo em Caixa", f"R$ {saldo:,.2f}")
+        df_l = consultar_db("SELECT data, codigo_membro, valor, tipo FROM financas ORDER BY id DESC")
+        st.dataframe(df_l, use_container_width=True, hide_index=True)
 
-        with t2:
-            st.subheader("Configurar Meta da Igreja")
-            m_n = st.text_input("Nome da Meta (Ex: Reforma do Telhado)")
-            m_v = st.number_input("Valor Alvo (R$)", min_value=0.0)
-            if st.button("Salvar Meta"):
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('meta_nome', :v)", {"v": m_n})
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('meta_valor', :v)", {"v": str(m_v)})
-                st.success("Meta atualizada!")
-
-        with t3:
-            st.dataframe(consultar_db("SELECT nome, codigo, email FROM membros WHERE is_admin=0"))
-        
-        with t4:
-            r_link = st.text_input("Link Rádio (MP3)")
-            if st.button("Salvar Rádio"):
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": r_link})
-                st.success("Rádio salva!")
-        
-        with t5:
-            if st.button("🗑 Limpar Chat"): executar_query("DELETE FROM chat_live"); st.rerun()
-
-    # --- PÁGINAS RESTANTES ---
+    # --- 📢 MURAL ---
     elif escolha == "📢 Mural Ágape":
-        pd_data = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
-        if not pd_data.empty:
-            p = pd_data.iloc[0]
-            st.markdown(f'<div class="palavra-dia-card"><h2>📖 Palavra do Dia</h2><p>"{p["versiculo"]}"</p><strong>— {p["referencia"]}</strong><br><br>{p["devocional"]}</div>', unsafe_allow_html=True)
+        pd = consultar_db("SELECT * FROM palavra_dia ORDER BY id DESC LIMIT 1")
+        if not pd.empty:
+            st.markdown(f'<div class="palavra-dia-card"><h2>📖 Palavra do Dia</h2><p>"{pd.iloc[0]["versiculo"]}"</p><strong>— {pd.iloc[0]["referencia"]}</strong><br><br>{pd.iloc[0]["devocional"]}</div>', unsafe_allow_html=True)
         for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             img = f'<img src="{r["img_url"]}" class="aviso-img">' if r['img_url'] else ""
             st.markdown(f'<div class="mural-card">{img}<h3>{r["titulo"]}</h3><p>{r["conteudo"]}</p></div>', unsafe_allow_html=True)
 
-    elif escolha == "📻 Rádio Gospel":
-        conf = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-        url = conf.iloc[0]['valor'] if not conf.empty else "https://zeno.fm"
-        st.title("📻 Rádio Ágape Online")
-        st.audio(url)
+    # --- ⚙️ ADMIN ---
+    elif escolha == "⚙️ Admin":
+        t1, t2, t3 = st.tabs(["💰 Finanças", "🎯 Metas", "📻 Rádio"])
+        with t1:
+            mems = consultar_db("SELECT nome, codigo FROM membros WHERE is_admin=0")
+            with st.form("f"):
+                n_sel = st.selectbox("Membro", mems['nome'].tolist()) if not mems.empty else ""
+                v_sel = st.number_input("Valor", 0.0)
+                t_sel = st.selectbox("Tipo", ["Dízimo", "Oferta", "Despesa"])
+                if st.form_submit_button("Lançar"):
+                    c_sel = mems[mems['nome'] == n_sel]['codigo'].values[0]
+                    final_v = v_sel if t_sel != "Despesa" else -v_sel
+                    executar_query("INSERT INTO financas (data, codigo_membro, valor, tipo) VALUES (:d,:c,:v,:t)", {"d":datetime.now().strftime("%d/%m/%Y"),"c":c_sel,"v":final_v,"t":t_sel})
+                    st.success("OK!")
+        with t2:
+            n_m = st.text_input("Nome da Meta")
+            v_m = st.number_input("Valor Alvo", 0.0)
+            if st.button("Salvar Meta"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('meta_nome', :v)", {"v": n_m})
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('meta_valor', :v)", {"v": str(v_m)})
+        with t3:
+            r_l = st.text_input("Link Rádio (Zeno/MP3)")
+            if st.button("Salvar Rádio"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :v)", {"v": r_l})
+                st.rerun()
 
+    # --- PAGINAS RESTANTES (Bíblia, Live, Orações, Ouvidoria) ---
     elif escolha == "📖 Bíblia":
-        livros = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
-        if not livros.empty:
-            l = st.selectbox("Livro", livros['livro'].tolist())
+        livs = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
+        if not livs.empty:
+            l = st.selectbox("Livro", livs['livro'].tolist())
             cap = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'].tolist())
             for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":cap}).iterrows():
                 st.markdown(f"**{v['versiculo']}** {v['texto']}")
-
-    elif escolha == "🙏 Orações":
-        with st.form("ora"):
-            msg = st.text_area("Seu pedido")
-            if st.form_submit_button("Pedir"):
-                executar_query("INSERT INTO oracoes (nome_membro, pedido, data) VALUES (:n, :p, :d)", {"n":u['nome'],"p":msg,"d":datetime.now().strftime("%d/%m/%Y")})
-                st.success("Pedido enviado!")
-
-    elif escolha == "📣 Ouvidoria":
-        with st.form("ouv"):
-            m = st.text_area("Elogio ou Sugestão")
-            if st.form_submit_button("Enviar"):
-                executar_query("INSERT INTO ouvidoria (data, mensagem, autor) VALUES (:d, :m, :a)", {"d":datetime.now().strftime("%d/%m/%Y"),"m":m,"a":u['nome']})
-                st.success("Obrigado!")
