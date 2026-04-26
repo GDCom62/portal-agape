@@ -16,22 +16,18 @@ st.markdown("""
     .card-flutuante {
         background-color: white; padding: 25px; border-radius: 20px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 12px;
-        border-left: 10px solid #1e3a8a;
+        border-left: 5px solid #1e3a8a;
     }
     .versiculo-card {
         background-color: white; padding: 15px 20px; border-radius: 20px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 10px;
         border: 1px solid #eef2ff;
     }
-    .notificacao {
-        color: white; background-color: #ef4444; padding: 2px 8px;
-        border-radius: 10px; font-size: 0.8em; font-weight: bold;
-    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///portal_agape_v26.db", pool_pre_ping=True)
+engine = create_engine("sqlite:///portal_agape_oficial.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
