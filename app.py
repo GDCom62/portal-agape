@@ -16,18 +16,22 @@ st.markdown("""
     .card-flutuante {
         background-color: white; padding: 25px; border-radius: 20px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 12px;
-        border-left: 5px solid #1e3a8a;
+        border-left: 10px solid #1e3a8a;
     }
     .versiculo-card {
         background-color: white; padding: 15px 20px; border-radius: 20px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 10px;
         border: 1px solid #eef2ff;
     }
+    .notificacao {
+        color: white; background-color: #ef4444; padding: 2px 8px;
+        border-radius: 10px; font-size: 0.8em; font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///portal_agape_v25.db", pool_pre_ping=True)
+engine = create_engine("sqlite:///portal_agape_v26.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
@@ -40,8 +44,7 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, UNIQUE(livro, capitulo, versiculo))')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS recados (id INTEGER PRIMARY KEY, de_nome TEXT, para_nome TEXT, mensagem TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (id INTEGER PRIMARY KEY, chave TEXT UNIQUE, valor TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS recados (id INTEGER PRIMARY KEY, de_nome TEXT, para_nome TEXT, mensagem TEXT, data TEXT, lido INTEGER DEFAULT 0)')
     
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
@@ -83,12 +86,19 @@ if not st.session_state.logado:
 # --- 4. ÁREA LOGADA ---
 else:
     u = st.session_state.user
+    
+    # Verificar recados não lidos para a notificação
+    total_n_lidos = consultar_db("SELECT COUNT(*) as total FROM recados WHERE para_nome = :eu AND lido = 0", {"eu": u['nome']}).iloc[0]['total']
+    label_batepapo = f"🎥 Bate-papo & Vídeo {'🔴' if total_n_lidos > 0 else ''}"
+
     with st.sidebar:
         logo_central(120)
         st.markdown(f"<p style='text-align: center;'>🙏 Olá, <b>{u['nome']}</b></p>", unsafe_allow_html=True)
-        menu = st.sidebar.radio("Navegação", ["📢 Mural", "📖 Bíblia", "🎥 Bate-papo & Vídeo", "💰 Financeiro"])
+        menu = st.sidebar.radio("Navegação", ["📢 Mural", "📖 Bíblia", label_batepapo, "💰 Financeiro"])
         admin_mode = st.sidebar.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
-        if st.sidebar.button("Sair"): st.session_state.logado = False; st.rerun()
+        if st.sidebar.button("Sair", use_container_width=True): 
+            st.session_state.logado = False
+            st.rerun()
 
     if admin_mode:
         st.title("⚙️ Painel Administrador")
@@ -124,8 +134,12 @@ else:
             for _, a in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
                 st.markdown(f'<div class="card-flutuante"><b>📌 {a["titulo"]}</b><br><small>{a["data"]}</small><br>{a["conteudo"]}</div>', unsafe_allow_html=True)
 
-        elif menu == "🎥 Bate-papo & Vídeo":
+        elif menu == label_batepapo:
             st.title("🎥 Comunicação Direta")
+            
+            # Marcar todos como lidos ao entrar na página
+            executar_query("UPDATE recados SET lido = 1 WHERE para_nome = :eu", {"eu": u['nome']})
+            
             membros = consultar_db("SELECT nome FROM membros WHERE nome != :eu", {"eu": u['nome']})
             contato = st.selectbox("Escolha um membro para conversar:", ["Selecione..."] + list(membros['nome']))
             
@@ -138,14 +152,15 @@ else:
                             executar_query("INSERT INTO recados (de_nome, para_nome, mensagem, data) VALUES (:d,:p,:m,:dt)", {"d":u['nome'], "p":contato, "m":msg, "dt":datetime.now().strftime("%H:%M")})
                             st.success("Recado enviado!")
                 with tab_call:
-                    sala_id = f"Agape_{min(u['nome'], contato)}_{max(u['nome'], contato)}".replace(" ", "")
+                    nomes = sorted([u['nome'], contato])
+                    sala_id = f"Agape_{nomes[0]}_{nomes[1]}".replace(" ", "")
                     st.markdown(f'<iframe src="https://jit.si{sala_id}" allow="camera; microphone; fullscreen; display-capture; autoplay" style="height:600px; width:100%; border-radius:20px; border:0;"></iframe>', unsafe_allow_html=True)
 
             st.divider()
-            st.subheader("📩 Meus Recados Recebidos")
+            st.subheader("📩 Recados Recebidos")
             meus_recados = consultar_db("SELECT * FROM recados WHERE para_nome = :eu ORDER BY id DESC", {"eu": u['nome']})
             for _, r in meus_recados.iterrows():
-                st.warning(f"**{r['de_nome']}** ({r['data']}): {r['mensagem']}")
+                st.warning(f"**De: {r['de_nome']}** ({r['data']})\n\n{r['mensagem']}")
 
         elif menu == "📖 Bíblia":
             st.title("📖 Bíblia Sagrada")
@@ -157,5 +172,6 @@ else:
                     st.markdown(f'<div class="versiculo-card"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
 
         elif menu == "💰 Financeiro":
-            st.title("💰 Transparência")
-            st.table(consultar_db("SELECT descricao as Descrição, valor as Valor, tipo as Tipo, data as Data FROM financeiro"))
+            st.title("💰 Transparência Financeira")
+            df_fin = consultar_db("SELECT descricao as Descrição, valor as Valor, tipo as Tipo, data as Data FROM financeiro")
+            st.table(df_fin)
