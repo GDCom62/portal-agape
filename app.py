@@ -5,22 +5,23 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import random, string, json, base64
 
-# --- CONFIGURAÇÃO DA LOGO (COLOQUE O LINK DA SUA IMAGEM AQUI) ---
-URL_LOGO = "https://imgur.com" # Exemplo de link, troque pelo seu!
+# --- CONFIGURAÇÃO DA LOGO ---
+# O arquivo deve estar na raiz do seu GitHub com este nome exato
+URL_LOGO = "logo.png" 
 
 # --- 1. CONFIGURAÇÃO E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-st.markdown(f"""
+st.markdown("""
     <style>
-    .stApp {{ background-color: #f8fafc; }}
-    [data-testid="stSidebar"] {{ background-color: #ffffff; border-right: 1px solid #e2e8f0; }}
-    h1, h2, h3 {{ color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }}
-    .mural-card {{ background-color: white; padding: 25px; border-radius: 15px; border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }}
-    .bible-card {{ background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #3b82f6; margin-bottom: 10px; }}
-    .explicacao {{ background: #eef2ff; padding: 15px; border-radius: 10px; border: 1px dashed #3b82f6; font-style: italic; margin-top: 10px; }}
-    .live-container {{ position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.2); margin-bottom: 20px; }}
-    .live-container iframe {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }}
+    .stApp { background-color: #f8fafc; }
+    [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e2e8f0; }
+    h1, h2, h3 { color: #1e3a8a !important; font-family: 'Segoe UI', sans-serif; }
+    .mural-card { background-color: white; padding: 25px; border-radius: 15px; border-top: 5px solid #1e3a8a; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .bible-card { background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #3b82f6; margin-bottom: 10px; }
+    .explicacao { background: #eef2ff; padding: 15px; border-radius: 10px; border: 1px dashed #3b82f6; font-style: italic; margin-top: 10px; }
+    .live-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.2); margin-bottom: 20px; }
+    .live-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,9 +54,10 @@ if 'logado' not in st.session_state: st.session_state.logado = False
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # LOGO NO LOGIN
-        st.image(URL_LOGO, use_container_width=True)
-        st.markdown("<h2 style='text-align: center;'>Portal Ágape</h2>", unsafe_allow_html=True)
+        try:
+            st.image(URL_LOGO, use_container_width=True)
+        except:
+            st.title("⛪ Portal Ágape")
         
         tab_l, tab_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with tab_l:
@@ -79,10 +81,13 @@ if not st.session_state.logado:
 # --- 4. ÁREA LOGADA ---
 else:
     u = st.session_state.user
-    # LOGO NA BARRA LATERAL
-    st.sidebar.image(URL_LOGO, use_container_width=True)
+    # Logo na barra lateral
+    try:
+        st.sidebar.image(URL_LOGO, use_container_width=True)
+    except:
+        st.sidebar.title("⛪ Portal Ágape")
+        
     st.sidebar.markdown(f"### 🙏 Olá, **{u['nome']}**")
-    
     menu = st.sidebar.radio("Navegação", ["📢 Mural", "📖 Bíblia", "📺 Ao Vivo", "🎶 Playlist Ágape", "🙏 Sala de Oração"])
     
     if u['is_admin'] == 1:
@@ -104,7 +109,7 @@ else:
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 arq = st.file_uploader("Imagem", type=['jpg','png'])
                 if st.form_submit_button("Postar"):
-                    img = f"data:image/png;base64,{{base64.b64encode(arq.getvalue()).decode()}}" if arq else ""
+                    img = f"data:image/png;base64,{base64.b64encode(arq.getvalue()).decode()}" if arq else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, data, img_url) VALUES (:t,:c,:d,:i)", {"t":tit,"c":cont,"d":datetime.now().strftime("%d/%m/%Y"),"i":img})
                     st.success("Postado!")
 
@@ -120,7 +125,7 @@ else:
             for _, m in musicas.iterrows():
                 col_a, col_b = st.columns([3, 1])
                 col_a.write(f"🎵 {m['nome']}")
-                if col_b.button("🗑️", key=f"rm_{m['id']}"):
+                if col_b.button("Remover", key=f"rm_{m['id']}"):
                     executar_query("DELETE FROM playlist WHERE id=:id", {"id": m['id']})
                     st.rerun()
 
@@ -136,14 +141,12 @@ else:
         elif menu == "🎶 Playlist Ágape":
             st.title("🎶 Playlist de Adoração")
             busca = st.text_input("🔍 Buscar louvor pelo nome...")
-            query = "SELECT * FROM playlist WHERE nome LIKE :b ORDER BY id DESC"
-            playlist = consultar_db(query, {"b": f"%{busca}%"})
+            playlist = consultar_db("SELECT * FROM playlist WHERE nome LIKE :b ORDER BY id DESC", {"b": f"%{busca}%"})
             
             if not playlist.empty:
-                escolha = st.selectbox("Selecione o louvor para tocar:", playlist['nome'])
-                row = playlist[playlist['nome'] == escolha].iloc[0]
-                st.video(row['url'])
-                st.info(f"Tocando agora: {row['nome']}")
+                escolha = st.selectbox("Selecione o louvor:", playlist['nome'])
+                url_final = playlist[playlist['nome'] == escolha]['url'].values[0]
+                st.video(url_final)
             else:
                 st.warning("Nenhum louvor encontrado.")
 
@@ -158,10 +161,8 @@ else:
                     st.markdown(f"<div class='bible-card'>{v['versiculo']}. {v['texto']}</div>", unsafe_allow_html=True)
                     if v['explicacao']: st.markdown(f"<div class='explicacao'>{v['explicacao']}</div>", unsafe_allow_html=True)
             else:
-                st.info("Bíblia ainda não importada.")
+                st.info("Bíblia ainda não importada pelo administrador.")
 
         elif menu == "📺 Ao Vivo":
             st.title("📺 Culto Online")
-            st.info("Acompanhe nossa transmissão ao vivo abaixo.")
             st.markdown('<div class="live-container"><iframe src="https://youtube.com"></iframe></div>', unsafe_allow_html=True)
-
