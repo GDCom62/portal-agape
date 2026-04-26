@@ -3,24 +3,30 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, json, base64, os
+import random, string, json, os
 
-# --- 1. CONFIGURAÇÃO ---
+# --- 1. CONFIGURAÇÕES E ESTILO ---
 URL_LOGO = "logo.png" 
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Estilos CSS
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; }
     h1, h2, h3 { color: #1e3a8a !important; text-align: center; }
-    .versiculo-card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 12px; }
-    .radio-box { background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); padding: 30px; border-radius: 30px; text-align: center; color: white; }
+    .card-flutuante {
+        background-color: white; padding: 20px; border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 12px;
+        border-left: 5px solid #1e3a8a;
+    }
+    .radio-box {
+        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        padding: 25px; border-radius: 30px; text-align: center; color: white;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS (v24) ---
-engine = create_engine("sqlite:///agape_v24.db", pool_pre_ping=True)
+# --- 2. BANCO DE DADOS (Nome fixo para evitar perdas) ---
+engine = create_engine("sqlite:///portal_agape_oficial.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
@@ -35,6 +41,7 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS configuracoes (id INTEGER PRIMARY KEY, chave TEXT UNIQUE, valor TEXT)')
     
+    # Recriar Admin Padrão
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
@@ -48,7 +55,7 @@ if not st.session_state.logado:
     _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
         if os.path.exists(URL_LOGO): st.image(URL_LOGO, width=180)
-        else: st.title("⛪ Portal Ágape")
+        st.title("⛪ Portal Ágape")
         t_l, t_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with t_l:
             with st.form("login"):
@@ -58,54 +65,77 @@ if not st.session_state.logado:
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                         st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
                         st.rerun()
-                    st.error("Credenciais inválidas.")
-
-# --- 4. ÁREA LOGADA ---
+                    st.error("Credenciais incorretas.")
 else:
     u = st.session_state.user
-    if os.path.exists(URL_LOGO): st.sidebar.image(URL_LOGO, width=120)
-    
-    # MENU COM TODAS AS OPÇÕES
-    menu = st.sidebar.radio("Navegação", ["📢 Mural", "📖 Bíblia", "📻 Rádio Ágape", "🎥 Reunião & Chat", "📺 Ao Vivo", "💰 Financeiro"])
+    st.sidebar.image(URL_LOGO, width=100) if os.path.exists(URL_LOGO) else None
+    menu = st.sidebar.radio("Navegação", ["📢 Mural", "📖 Bíblia", "📻 Rádio", "🎥 Reunião & Chat", "💰 Financeiro", "📺 Live"])
     admin_mode = st.sidebar.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
     if st.sidebar.button("Sair"): st.session_state.logado = False; st.rerun()
 
+    # --- ÁREA ADMIN ---
     if admin_mode:
         st.title("⚙️ Painel Administrador")
-        tab1, tab2, tab3 = st.tabs(["📢 Avisos", "📻 Config Rádio/Live", "💰 Financeiro"])
-        with tab2:
-            r_url = st.text_input("Link da Rádio (Streaming .mp3)")
-            v_id = st.text_input("ID do YouTube (Live)")
-            if st.button("Gravar Configurações"):
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :r)", {"r": r_url})
-                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_id', :v)", {"v": v_id})
+        t1, t2, t3, t4 = st.tabs(["📢 Avisos", "📖 Importar Bíblia", "📻 Configs", "💰 Lançar"])
+        
+        with t2:
+            arq = st.file_uploader("Subir arquivo da Bíblia (JSON)", type=['json'])
+            if arq and st.button("🚀 Importar Agora"):
+                dados = json.load(arq)
+                for liv in dados:
+                    for ic, cap in enumerate(liv.get('chapters', [])):
+                        for iv, txt in enumerate(cap):
+                            executar_query("INSERT OR IGNORE INTO biblia (livro, capitulo, versiculo, texto) VALUES (:l,:c,:v,:t)", 
+                                          {"l":liv['name'], "c":ic+1, "v":iv+1, "t":txt})
+                st.success("Bíblia Carregada!")
+
+        with t3:
+            r_url = st.text_input("URL da Rádio (.mp3)")
+            v_id = st.text_input("ID do Vídeo YouTube")
+            if st.button("Salvar"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('radio_url', :r)", {"r":r_url})
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('live_id', :v)", {"v":v_id})
                 st.success("Salvo!")
 
+        with t4:
+            with st.form("f_fin"):
+                d, v, t = st.text_input("Descrição"), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
+                if st.form_submit_button("Registrar"):
+                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", 
+                                  {"d":d,"v":v,"t":t,"dt":datetime.now().strftime("%d/%m/%Y")})
+                    st.success("Lançado!")
+
+    # --- ÁREA MEMBRO ---
     else:
-        if menu == "📻 Rádio Ágape":
-            st.title("📻 Rádio Ágape")
-            res = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
-            url = res.iloc[0]['valor'] if not res.empty else ""
-            if url:
-                st.markdown(f"""
-                <div class="radio-box">
-                    <h3>No Ar: Louvor e Adoração</h3>
-                    <audio controls autoplay style="width: 100%;"><source src="{url}" type="audio/mpeg"></audio>
-                </div>
-                """, unsafe_allow_html=True)
-            else: st.warning("Rádio não configurada no Admin.")
-
-        elif menu == "🎥 Reunião & Chat":
-            st.title("🎥 Sala de Reunião e Bate-papo")
-            # Sala fixa para a igreja
-            st.markdown(f'<iframe src="https://jit.si" allow="camera; microphone; fullscreen; display-capture; autoplay" style="height:650px; width:100%; border-radius:20px; border:0;"></iframe>', unsafe_allow_html=True)
-
-        elif menu == "📢 Mural":
-            st.title("📢 Mural")
-            # Palavra aleatória
+        if menu == "📢 Mural":
+            st.title("📢 Mural Ágape")
+            # PALAVRA DO DIA AUTOMÁTICA
             bib = consultar_db("SELECT livro, capitulo, versiculo, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
             if not bib.empty:
-                st.info(f"✨ **Palavra do Dia**: {bib.iloc[0]['livro']} {bib.iloc[0]['capitulo']}:{bib.iloc[0]['versiculo']}\n\n{bib.iloc[0]['texto']}")
+                st.markdown(f'<div class="card-flutuante"><h4>✨ Palavra do Dia</h4><b>{bib.iloc[0]["livro"]} {bib.iloc[0]["capitulo"]}:{bib.iloc[0]["versiculo"]}</b><br><i>"{bib.iloc[0]["texto"]}"</i></div>', unsafe_allow_html=True)
             
             for _, a in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-                st.markdown(f'<div class="versiculo-card"><b>{a["titulo"]}</b><br>{a["conteudo"]}</div>', unsafe_allow_html=True)
+                st.info(f"**{a['titulo']}**: {a['conteudo']}")
+
+        elif menu == "📖 Bíblia":
+            st.title("📖 Bíblia")
+            livros = consultar_db("SELECT DISTINCT livro FROM biblia")
+            if not livros.empty:
+                l = st.selectbox("Livro", livros['livro'])
+                c = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'])
+                for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":c}).iterrows():
+                    st.markdown(f'<div class="card-flutuante"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
+
+        elif menu == "🎥 Reunião & Chat":
+            st.title("🎥 Bate-papo e Vídeo")
+            st.markdown(f'<iframe src="https://jit.si" allow="camera; microphone; fullscreen; display-capture; autoplay" style="height:600px; width:100%; border-radius:20px; border:0;"></iframe>', unsafe_allow_html=True)
+
+        elif menu == "💰 Financeiro":
+            st.title("💰 Transparência")
+            st.table(consultar_db("SELECT descricao as Descrição, valor as Valor, tipo as Tipo, data as Data FROM financeiro"))
+
+        elif menu == "📻 Rádio":
+            st.title("📻 Rádio Ágape")
+            res = consultar_db("SELECT valor FROM configuracoes WHERE chave='radio_url'")
+            if not res.empty:
+                st.markdown(f'<div class="radio-box"><audio controls autoplay style="width:100%"><source src="{res.iloc[0]["valor"]}" type="audio/mpeg"></audio></div>', unsafe_allow_html=True)
