@@ -18,13 +18,12 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px;
         border-left: 8px solid #1e3a8a;
     }
-    .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: bold; }
-    .pix-box { background-color: #eef2ff; padding: 15px; border-radius: 15px; border: 2px dashed #1e3a8a; text-align: center; }
+    .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: bold; background-color: #1e3a8a; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS ---
-engine = create_engine("sqlite:///agape_v51.db", pool_pre_ping=True)
+# --- 2. BANCO DE DADOS (v52) ---
+engine = create_engine("sqlite:///agape_v52.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
@@ -52,7 +51,7 @@ def logo_central(largura):
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
 
-# --- 3. SESSÃO LOGIN ---
+# --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
 if not st.session_state.logado:
@@ -68,7 +67,7 @@ if not st.session_state.logado:
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                         st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
                         st.rerun()
-                    st.error("Credenciais incorretas.")
+                    st.error("Dados incorretos.")
         with t_c:
             with st.form("cad", clear_on_submit=True):
                 n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
@@ -76,7 +75,7 @@ if not st.session_state.logado:
                     if n and em and se:
                         c = "AG-" + "".join(random.choices(string.digits, k=4))
                         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n,:e,:c,:p,0)", {"n":n,"e":em,"c":c,"p":generate_password_hash(se)})
-                        st.success(f"Conta criada! Código: {c}")
+                        st.success(f"Sucesso! Código: {c}")
 
 # --- 4. ÁREA LOGADA ---
 else:
@@ -90,9 +89,9 @@ else:
 
     if admin_mode:
         st.title("⚙️ Painel do Administrador")
-        t1, t2, t3, t4, t5 = st.tabs(["📢 Mural", "📖 Bíblia", "🎶 Louvores", "💰 Lançar", "🎁 Config Pix"])
+        t_mural, t_biblia, t_louvor, t_fin, t_pix = st.tabs(["📢 Mural", "📖 Bíblia", "🎶 Louvores", "💰 Financeiro", "🎁 Config Pix"])
         
-        with t1:
+        with t_mural:
             with st.form("f_aviso", clear_on_submit=True):
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 foto = st.file_uploader("Foto", type=['png','jpg','jpeg'])
@@ -101,40 +100,42 @@ else:
                     executar_query("INSERT INTO avisos (titulo, conteudo, data, img_data) VALUES (:t,:c,:d,:i)", {"t":tit,"c":cont,"d":datetime.now().strftime("%d/%m/%Y"),"i":img})
                     st.success("Postado!")
 
-        with t4:
-            st.subheader("Registrar Movimentação Financeira")
+        with t_louvor:
+            with st.form("f_louvor", clear_on_submit=True):
+                tl, ll = st.text_input("Título do Louvor"), st.text_input("Link YouTube")
+                if st.form_submit_button("Cadastrar Louvor"):
+                    executar_query("INSERT INTO louvores (titulo, link) VALUES (:t, :l)", {"t":tl, "l":ll})
+                    st.success("Louvor adicionado!")
+
+        with t_fin:
+            st.subheader("Registrar Movimentação")
             with st.form("f_fin", clear_on_submit=True):
-                d, v, t = st.text_input("Descrição"), st.number_input("Valor R$", min_value=0.0), st.selectbox("Tipo", ["Entrada", "Saída"])
-                if st.form_submit_button("Lançar Agora"):
-                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d,"v":v,"t":t,"dt":datetime.now().strftime("%d/%m/%Y")})
-                    st.success("Lançamento concluído!")
+                desc, valor, tipo = st.text_input("Descrição"), st.number_input("Valor R$", min_value=0.0), st.selectbox("Tipo", ["Entrada", "Saída"])
+                if st.form_submit_button("Salvar Lançamento"):
+                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":desc,"v":valor,"t":tipo,"dt":datetime.now().strftime("%d/%m/%Y")})
+                    st.success("Lançamento registrado!")
 
-        with t5:
-            with st.form("f_pix"):
-                c, b = st.text_input("Chave PIX"), st.text_input("Favorecido")
-                qr = st.file_uploader("Imagem QR Code", type=['png','jpg'])
-                if st.form_submit_button("Salvar Chave"):
-                    qr_b = base64.b64encode(qr.read()).decode() if qr else ""
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_chave', :v)", {"v": c})
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_banco', :v)", {"v": b})
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_qr', :v)", {"v": qr_b})
-                    st.success("Dados salvos!")
-
-    else: # VISÃO DO MEMBRO
+    else:
         if menu == "💰 Financeiro":
             st.title("💰 Transparência Financeira")
-            df = consultar_db("SELECT descricao as Descrição, valor as Valor, tipo as Tipo, data as Data FROM financeiro")
+            df = consultar_db("SELECT descricao, valor, tipo, data FROM financeiro")
             if not df.empty:
-                r = df[df['Tipo'] == 'Entrada']['Valor'].sum()
-                p = df[df['Tipo'] == 'Saída']['Valor'].sum()
+                # CÁLCULOS CRÍTICOS
+                ativo = df[df['tipo'] == 'Entrada']['valor'].sum()
+                passivo = df[df['tipo'] == 'Saída']['valor'].sum()
+                saldo = ativo - passivo
+                
+                # EXIBIÇÃO DOS CARDS
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Receitas", f"R$ {r:,.2f}")
-                c2.metric("Despesas", f"R$ {p:,.2f}")
-                c3.metric("Saldo em Caixa", f"R$ {r-p:,.2f}")
+                c1.metric("Receitas (Ativo)", f"R$ {ativo:,.2f}")
+                c2.metric("Despesas (Passivo)", f"R$ {passivo:,.2f}")
+                c3.metric("Saldo Total", f"R$ {saldo:,.2f}")
+                
                 st.divider()
+                st.subheader("📋 Histórico Detalhado")
                 st.dataframe(df, use_container_width=True)
             else:
-                st.info("Nenhum lançamento registrado.")
+                st.info("Nenhum dado financeiro encontrado.")
 
         elif menu == "📢 Mural":
             st.title("📢 Mural Ágape")
@@ -142,21 +143,19 @@ else:
                 st.markdown(f'<div class="card-flutuante"><h3>{a["titulo"]}</h3><p>{a["conteudo"]}</p></div>', unsafe_allow_html=True)
                 if a['img_data']: st.image(f"data:image/png;base64,{a['img_data']}", use_container_width=True)
 
-        elif menu == "🎁 Doações":
-            st.title("🎁 Dízimos e Ofertas")
-            p_c = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_chave'")
-            if not p_c.empty:
-                st.markdown(f'<div class="pix-box"><b>Chave PIX:</b> {p_c.iloc[0]["valor"]}</div>', unsafe_allow_html=True)
-                p_q = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_qr'")
-                if not p_q.empty and p_q.iloc[0]['valor']:
-                    st.image(f"data:image/png;base64,{p_q.iloc[0]['valor']}", width=300)
-            else: st.info("Dados não configurados.")
-
         elif menu == "🎶 Louvores":
             st.title("🎶 Louvores")
             louvores = consultar_db("SELECT * FROM louvores ORDER BY id DESC")
             for _, l in louvores.iterrows():
-                if str(l['link']).startswith("http"):
-                    st.markdown(f'<div class="card-flutuante"><b>{l["titulo"]}</b></div>', unsafe_allow_html=True)
-                    try: st.video(l['link'])
-                    except: st.error("Erro no vídeo.")
+                st.markdown(f'<div class="card-flutuante"><b>{l["titulo"]}</b></div>', unsafe_allow_html=True)
+                st.video(l['link'])
+
+        elif menu == "📖 Bíblia":
+            st.title("📖 Bíblia Sagrada")
+            livros = consultar_db("SELECT DISTINCT livro FROM biblia")
+            if not livros.empty:
+                l_s = st.selectbox("Livro", livros['livro'])
+                c_s = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l_s})['capitulo'])
+                vers = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l_s, "c":c_s})
+                for _, v in vers.iterrows():
+                    st.markdown(f'<div class="card-flutuante"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
