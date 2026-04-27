@@ -23,8 +23,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS (v48) ---
-engine = create_engine("sqlite:///agape_v48.db", pool_pre_ping=True)
+# --- 2. BANCO DE DADOS (v50) ---
+engine = create_engine("sqlite:///agape_v50.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
@@ -74,99 +74,109 @@ if not st.session_state.logado:
             with st.form("cad", clear_on_submit=True):
                 n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
                 if st.form_submit_button("Criar Minha Conta"):
-                    c = "AG-" + "".join(random.choices(string.digits, k=4))
-                    executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n, :e, :c, :p, 0)", {"n":n,"e":em,"c":c,"p":generate_password_hash(se)})
-                    st.success(f"Conta criada! Código: {c}")
+                    if n and em and se:
+                        try:
+                            c = "AG-" + "".join(random.choices(string.digits, k=4))
+                            executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n, :e, :c, :p, 0)", {"n":n,"e":em,"c":c,"p":generate_password_hash(se)})
+                            st.success(f"Conta criada! Faça login na aba 'Entrar'.")
+                        except: st.error("E-mail já cadastrado.")
 
 # --- 4. ÁREA LOGADA ---
 else:
     u = st.session_state.user
     with st.sidebar:
         logo_central(100)
-        st.markdown(f"<p style='text-align: center;'>🙏 Olá, <b>{u['nome']}</b></p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>🙏 <b>{u['nome']}</b></p>", unsafe_allow_html=True)
         menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎶 Louvores", "🎥 Bate-papo", "💰 Financeiro", "🎁 Doações"])
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
     if admin_mode:
-        st.title("⚙️ Painel Administrador")
-        t1, t2, t3, t4, t5 = st.tabs(["📢 Mural", "📖 Bíblia", "🎶 Louvores", "💰 Finanças", "🎁 Config Pix"])
+        st.title("⚙️ Administração")
+        tabs = st.tabs(["📢 Mural", "📖 Bíblia", "🎶 Louvores", "💰 Financeiro", "🎁 Config Pix"])
         
-        with t1:
+        with tabs[0]: # Mural
             with st.form("f_aviso", clear_on_submit=True):
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 foto = st.file_uploader("Foto", type=['png','jpg','jpeg'])
                 if st.form_submit_button("Publicar"):
-                    img_b64 = base64.b64encode(foto.read()).decode() if foto else ""
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_data) VALUES (:t, :c, :d, :i)", 
-                                  {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_b64})
+                    img = base64.b64encode(foto.read()).decode() if foto else ""
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data, img_data) VALUES (:t,:c,:d,:i)", {"t":tit,"c":cont,"d":datetime.now().strftime("%d/%m/%Y"),"i":img})
                     st.success("Postado!")
-        with t3:
+        
+        with tabs[2]: # Louvores
             with st.form("f_louvor", clear_on_submit=True):
-                tit_l, link_l = st.text_input("Título do Louvor"), st.text_input("Link YouTube")
+                t_l, l_l = st.text_input("Título do Louvor"), st.text_input("Link YouTube (http...)")
                 if st.form_submit_button("Adicionar Louvor"):
-                    executar_query("INSERT INTO louvores (titulo, link) VALUES (:t, :l)", {"t":tit_l, "l":link_l})
-                    st.success("Adicionado!")
-        with t5:
+                    if str(l_l).startswith("http"):
+                        executar_query("INSERT INTO louvores (titulo, link) VALUES (:t, :l)", {"t":t_l, "l":l_l})
+                        st.success("Adicionado!")
+                    else: st.error("O link deve começar com http")
+
+        with tabs[4]: # PIX
             with st.form("f_pix"):
-                chave = st.text_input("Chave PIX da Igreja")
-                banco = st.text_input("Banco/Favorecido")
-                qr = st.file_uploader("Upload do QR Code (Imagem)", type=['png','jpg'])
-                if st.form_submit_button("Salvar Dados PIX"):
-                    qr_b64 = base64.b64encode(qr.read()).decode() if qr else ""
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_chave', :v)", {"v": chave})
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_banco', :v)", {"v": banco})
-                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_qr', :v)", {"v": qr_b64})
+                c, b = st.text_input("Chave PIX"), st.text_input("Banco/Favorecido")
+                qr = st.file_uploader("QR Code", type=['png','jpg'])
+                if st.form_submit_button("Salvar Dados"):
+                    qr_b = base64.b64encode(qr.read()).decode() if qr else ""
+                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_chave', :v)", {"v": c})
+                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_banco', :v)", {"v": b})
+                    executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('pix_qr', :v)", {"v": qr_b})
                     st.success("Dados de doação atualizados!")
 
-    else:
+    else: # VISÃO DO MEMBRO
         if menu == "📢 Mural":
             st.title("📢 Mural Ágape")
             for _, a in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
                 st.markdown(f'<div class="card-flutuante"><h3>{a["titulo"]}</h3><p>{a["conteudo"]}</p></div>', unsafe_allow_html=True)
                 if a['img_data']: st.image(f"data:image/png;base64,{a['img_data']}", use_container_width=True)
 
-        elif menu == "🎁 Doações":
-            st.title("🎁 Dízimos e Ofertas")
-            pix_c = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_chave'")
-            pix_b = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_banco'")
-            pix_q = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_qr'")
-            
-            if not pix_c.empty:
-                st.markdown(f"""
-                <div class="pix-box">
-                    <h4>Escaneie ou Copie a Chave PIX</h4>
-                    <p><b>Chave:</b> {pix_c.iloc[0]['valor']}</p>
-                    <p><b>Favorecido:</b> {pix_b.iloc[0]['valor']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if not pix_q.empty and pix_q.iloc[0]['valor']:
-                    st.image(f"data:image/png;base64,{pix_q.iloc[0]['valor']}", width=300)
-            else: st.info("Dados de doação não configurados pelo administrador.")
-
         elif menu == "🎶 Louvores":
-            st.title("🎶 Momentos de Louvor")
+            st.title("🎶 Louvores")
             louvores = consultar_db("SELECT * FROM louvores ORDER BY id DESC")
             for _, l in louvores.iterrows():
-                with st.container():
+                link = str(l['link']).strip()
+                if link.startswith("http"):
                     st.markdown(f'<div class="card-flutuante"><b>{l["titulo"]}</b></div>', unsafe_allow_html=True)
-                    st.video(l['link'])
+                    try: st.video(link)
+                    except: st.error(f"Erro ao carregar vídeo: {l['titulo']}")
+
+        elif menu == "🎁 Doações":
+            st.title("🎁 Doações")
+            p_c = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_chave'")
+            if not p_c.empty:
+                st.markdown(f'<div class="pix-box"><b>Chave PIX:</b> {p_c.iloc[0]["valor"]}</div>', unsafe_allow_html=True)
+                p_q = consultar_db("SELECT valor FROM configuracoes WHERE chave='pix_qr'")
+                if not p_q.empty and p_q.iloc[0]['valor']:
+                    st.image(f"data:image/png;base64,{p_q.iloc[0]['valor']}", width=300)
+            else: st.info("Dados PIX não configurados.")
 
         elif menu == "💰 Financeiro":
-            st.title("💰 Transparência")
+            st.title("💰 Financeiro")
             df = consultar_db("SELECT * FROM financeiro")
             if not df.empty:
-                rec = df[df['tipo'] == 'Entrada']['valor'].sum()
-                pas = df[df['tipo'] == 'Saída']['valor'].sum()
-                st.metric("Saldo Atual", f"R$ {rec - pas:,.2f}", delta=f"Rec: R$ {rec:,.2f}")
-                st.table(df)
+                r = df[df['tipo'] == 'Entrada']['valor'].sum()
+                p = df[df['tipo'] == 'Saída']['valor'].sum()
+                st.metric("Saldo", f"R$ {r-p:,.2f}", delta=f"Receita: R$ {r:,.2f}")
+                st.dataframe(df, use_container_width=True)
 
         elif menu == "📖 Bíblia":
-            # (Mantido o código de bíblia em colunas conforme versões anteriores)
             st.title("📖 Bíblia")
             livros = consultar_db("SELECT DISTINCT livro FROM biblia")
             if not livros.empty:
-                l = st.selectbox("Livro", livros['livro'])
-                c = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'])
-                for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":c}).iterrows():
+                l_s = st.selectbox("Livro", livros['livro'])
+                c_s = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l_s})['capitulo'])
+                vers = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l_s, "c":c_s})
+                for _, v in vers.iterrows():
                     st.markdown(f'<div class="card-flutuante"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
+
+        elif menu == "🎥 Bate-papo":
+            st.title("🎥 Bate-papo")
+            membros = consultar_db("SELECT nome FROM membros WHERE nome != :eu", {"eu": u['nome']})
+            contato = st.selectbox("Escolha alguém:", ["Selecione..."] + list(membros['nome']))
+            if contato != "Selecione...":
+                n1 = re.sub(r'[^a-zA-Z0-9]', '', u['nome']).lower()[:10]
+                n2 = re.sub(r'[^a-zA-Z0-9]', '', contato).lower()[:10]
+                url = f"https://jit.si_{min(n1,n2)}_{max(n1,n2)}"
+                st.link_button("🟢 INICIAR CHAMADA", url)
+                st.markdown(f'<iframe src="{url}" allow="camera; microphone; fullscreen" style="height:500px; width:100%; border:0; border-radius:20px;"></iframe>', unsafe_allow_html=True)
