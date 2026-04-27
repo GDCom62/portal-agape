@@ -14,16 +14,16 @@ st.markdown("""
     .stApp { background-color: #f8fafc; }
     h1, h2, h3 { color: #1e3a8a !important; text-align: center; }
     .card-flutuante {
-        background-color: white; padding: 25px; border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px;
+        background-color: white; padding: 20px; border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px;
         border-left: 8px solid #1e3a8a;
     }
     .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS (v43) ---
-engine = create_engine("sqlite:///agape_v43.db", pool_pre_ping=True)
+# --- 2. BANCO DE DADOS (v45) ---
+engine = create_engine("sqlite:///agape_v45.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
     with engine.begin() as conn: conn.execute(text(sql), params)
@@ -93,9 +93,9 @@ else:
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 foto = st.file_uploader("Foto", type=['png','jpg','jpeg'])
                 if st.form_submit_button("Publicar Aviso"):
-                    img_base64 = base64.b64encode(foto.read()).decode() if foto else ""
+                    img_b64 = base64.b64encode(foto.read()).decode() if foto else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, data, img_data) VALUES (:t, :c, :d, :i)", 
-                                  {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_base64})
+                                  {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y"), "i":img_b64})
                     st.success("Postado!")
         with t2:
             arq = st.file_uploader("Subir acf.json", type=['json'])
@@ -121,43 +121,43 @@ else:
                 st.markdown(f'<div class="card-flutuante"><h4>✨ Palavra do Dia</h4><b>{bib.iloc[0]["livro"]} {bib.iloc[0]["capitulo"]}:{bib.iloc[0]["versiculo"]}</b><br><i>"{bib.iloc[0]["texto"]}"</i></div>', unsafe_allow_html=True)
             for _, a in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
                 st.markdown(f'<div class="card-flutuante"><h3>{a["titulo"]}</h3><small>{a["data"]}</small><br>{a["conteudo"]}</div>', unsafe_allow_html=True)
-                if a['img_data']: st.image(f"data:image/png;base64,{a['img_data']}")
+                if a['img_data']: st.image(f"data:image/png;base64,{a['img_data']}", use_container_width=True)
+
+        elif menu == "📖 Bíblia":
+            st.title("📖 Bíblia Sagrada")
+            col_filtros, col_texto = st.columns([1, 2])
+            livros_df = consultar_db("SELECT DISTINCT livro FROM biblia")
+            if not livros_df.empty:
+                with col_filtros:
+                    l_sel = st.selectbox("Livro", livros_df['livro'])
+                    caps = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l_sel})
+                    c_sel = st.selectbox("Capítulo", caps['capitulo'])
+                with col_texto:
+                    vers = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l_sel, "c":c_sel})
+                    for _, v in vers.iterrows():
+                        st.markdown(f'<div class="card-flutuante"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
+            else: st.info("Bíblia vazia. Importe no Admin.")
 
         elif menu == "🎥 Bate-papo & Vídeo":
             st.title("🎥 Comunicação")
             membros = consultar_db("SELECT nome FROM membros WHERE nome != :eu", {"eu": u['nome']})
             contato = st.selectbox("Com quem falar?", ["Selecione..."] + list(membros['nome']))
-            
             if contato != "Selecione...":
-                tab_text, tab_video = st.tabs(["💬 Chat Escrito", "📽️ Chamada de Vídeo"])
-                with tab_text:
+                t1, t2 = st.tabs(["💬 Chat Escrito", "📽️ Vídeo"])
+                with t1:
                     with st.form("f_chat", clear_on_submit=True):
                         msg = st.text_area(f"Escreva para {contato}:")
-                        if st.form_submit_button("Enviar Mensagem"):
-                            executar_query("INSERT INTO recados (de_nome, para_nome, mensagem, data) VALUES (:d,:p,:m,:dt)", 
-                                          {"d":u['nome'], "p":contato, "m":msg, "dt":datetime.now().strftime("%H:%M")})
-                            st.success("Enviada!")
-                    st.subheader("Conversas Recentes")
-                    recados = consultar_db("SELECT * FROM recados WHERE (para_nome=:eu AND de_nome=:ct) OR (para_nome=:ct AND de_nome=:eu) ORDER BY id DESC", {"eu": u['nome'], "ct": contato})
-                    for _, r in recados.iterrows():
-                        st.info(f"**{r['de_nome']}**: {r['mensagem']}")
-                with tab_video:
+                        if st.form_submit_button("Enviar"):
+                            executar_query("INSERT INTO recados (de_nome, para_nome, mensagem, data) VALUES (:d,:p,:m,:dt)", {"d":u['nome'], "p":contato, "m":msg, "dt":datetime.now().strftime("%H:%M")})
+                    rec = consultar_db("SELECT * FROM recados WHERE (para_nome=:eu AND de_nome=:ct) OR (para_nome=:ct AND de_nome=:eu) ORDER BY id DESC", {"eu":u['nome'], "ct":contato})
+                    for _, r in rec.iterrows(): st.info(f"**{r['de_nome']}**: {r['mensagem']}")
+                with t2:
                     n1 = re.sub(r'\W+', '', u['nome']).lower()[:10]
                     n2 = re.sub(r'\W+', '', contato).lower()[:10]
                     sala_id = f"Agape_{min(n1, n2)}_{max(n1, n2)}"
-                    st.link_button("🟢 INICIAR VÍDEO EM TELA CHEIA", f"https://jit.si{sala_id}")
+                    st.link_button("🟢 ABRIR VÍDEO EM TELA CHEIA", f"https://jit.si{sala_id}")
                     st.markdown(f'<iframe src="https://jit.si{sala_id}" allow="camera; microphone; fullscreen" style="height:500px; width:100%; border:0; border-radius:20px;"></iframe>', unsafe_allow_html=True)
 
-        elif menu == "📖 Bíblia":
-            st.title("📖 Bíblia")
-            livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-            if not livros.empty:
-                l = st.selectbox("Livro", livros['livro'])
-                c = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro=:l", {"l":l})['capitulo'])
-                for _, v in consultar_db("SELECT versiculo, texto FROM biblia WHERE livro=:l AND capitulo=:c", {"l":l, "c":c}).iterrows():
-                    st.markdown(f'<div class="card-flutuante"><b>{v["versiculo"]}.</b> {v["texto"]}</div>', unsafe_allow_html=True)
-
         elif menu == "💰 Financeiro":
-            st.title("💰 Transparência")
-            df = consultar_db("SELECT descricao, valor, tipo, data FROM financeiro")
-            st.dataframe(df, use_container_width=True)
+            st.title("💰 Financeiro")
+            st.dataframe(consultar_db("SELECT descricao, valor, tipo, data FROM financeiro"), width='stretch')
