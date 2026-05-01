@@ -75,18 +75,25 @@ else:
         menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎥 Bate-papo", "💰 Financeiro"])
         
         if menu == "📖 Bíblia":
-            tam_fonte = st.select_slider("Tamanho da Letra", options=range(18, 32, 2), value=22)
-        else: tam_fonte = 18
+            tam_fonte = st.select_slider("Tamanho da Letra", options=range(18, 36, 2), value=24)
+        else: tam_fonte = 20
 
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
+    # CSS Global Atualizado
     st.markdown(f"""
         <style>
         .stApp {{ background-color: #f8fafc; }}
-        .card-mural {{ background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid #1e3a8a; }}
-        .caixa-leitura {{ background: white; padding: 25px; border-radius: 10px; border: 1px solid #ddd; height: 600px; overflow-y: auto; font-size: {tam_fonte}px !important; line-height: 1.7; font-family: serif; }}
-        .chat-bubble {{ padding: 10px; border-radius: 15px; margin-bottom: 10px; max-width: 80%; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }}
+        /* Estilo do Mural */
+        .card-mural {{ background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border-left: 8px solid #1e3a8a; }}
+        .card-mural h4 {{ color: #1e3a8a !important; font-size: 26px !important; margin-bottom: 10px; }}
+        .card-mural p {{ font-size: 22px !important; color: #334155; line-height: 1.6; }}
+        /* Estilo da Bíblia */
+        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 1px solid #ddd; height: 600px; overflow-y: auto; font-size: {tam_fonte}px !important; line-height: 1.8; font-family: serif; color: #1e3a8a !important; }}
+        .num-verso {{ color: #64748b; font-weight: bold; font-size: 0.7em; margin-right: 8px; }}
+        /* Estilo do Chat */
+        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 10px; max-width: 80%; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); font-size: 18px; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -101,7 +108,6 @@ else:
     elif menu == "📢 Mural":
         st.title("📢 Mural Ágape")
         
-        # PALAVRA DO DIA AUTOMÁTICA (Busca aleatória no banco)
         if 'palavra_gerada' not in st.session_state:
             res_p = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
             if not res_p.empty:
@@ -119,7 +125,9 @@ else:
         st.title("📖 Bíblia Sagrada")
         
         # Importação (Verifica se está vazia)
-        total_v = consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total']
+        total_v_res = consultar_db("SELECT COUNT(*) as total FROM biblia")
+        total_v = total_v_res.iloc[0]['total'] if not total_v_res.empty else 0
+
         if total_v < 10 and os.path.exists("acf.json"):
             with st.spinner("Importando Bíblia..."):
                 try:
@@ -142,7 +150,7 @@ else:
                 c_sel = st.selectbox("Capítulo", caps_db['cap'])
             with col_txt:
                 versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_sel, "c":c_sel})
-                texto_html = "".join([f"<p><b>{v['ver']}</b> {v['texto']}</p>" for _, v in versos.iterrows()])
+                texto_html = "".join([f"<p><span class='num-verso'>{v['ver']}</span> {v['texto']}</p>" for _, v in versos.iterrows()])
                 st.markdown(f'<div class="caixa-leitura">{texto_html}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Bate-papo":
