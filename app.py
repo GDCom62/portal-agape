@@ -22,6 +22,7 @@ st.markdown("""
         padding: 10px; border-radius: 15px; margin-bottom: 10px; max-width: 75%;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05); font-family: sans-serif;
     }
+    .metric-card { background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -36,9 +37,11 @@ def consultar_db(sql, params={}):
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER)')
-    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT, img_data TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, codigo_doador TEXT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, nome TEXT, texto TEXT, data TEXT)')
+    # Tabela para a Palavra do Dia
+    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)')
     
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
@@ -90,25 +93,31 @@ else:
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t_m, t_f, t_chat = st.tabs(["📢 Mural", "💰 Finanças", "💬 Chat"])
+        t_m, t_f, t_chat = st.tabs(["📢 Mural & Bíblia", "💰 Finanças", "💬 Chat"])
         
         with t_m:
-            st.subheader("Novo Aviso no Mural")
+            st.subheader("Palavra do Dia")
+            palavra_atual = consultar_db("SELECT valor FROM configuracoes WHERE chave='palavra_dia'")
+            txt_palavra = st.text_area("Texto Bíblico", palavra_atual.iloc[0]['valor'] if not palavra_atual.empty else "")
+            if st.button("Atualizar Palavra"):
+                executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('palavra_dia', :v)", {"v": txt_palavra})
+                st.success("Bíblia atualizada!")
+            
+            st.divider()
+            st.subheader("Novo Aviso")
             with st.form("mural_form", clear_on_submit=True):
-                tit = st.text_input("Título")
-                cont = st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", 
-                                  {"t": tit, "c": cont, "d": datetime.now().strftime("%d/%m/%Y")})
-                    st.success("Publicado!")
+                tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
+                if st.form_submit_button("Publicar Aviso"):
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t": tit, "c": cont, "d": datetime.now().strftime("%d/%m/%Y")})
+                    st.rerun()
 
         with t_f:
-            st.subheader("Registrar Movimentação")
             with st.form("f_fin", clear_on_submit=True):
-                cod = st.text_input("Código do Membro")
+                c1, c2, c3 = st.columns(3)
+                cod = c1.text_input("Cód. Membro")
+                val = c2.number_input("Valor", min_value=0.0)
+                tipo = c3.selectbox("Tipo", ["Entrada", "Saída"])
                 desc = st.text_input("Descrição")
-                val = st.number_input("Valor", min_value=0.0)
-                tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
                                   {"c":cod if cod else "IGREJA", "d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%Y-%m-%d")})
@@ -121,10 +130,15 @@ else:
 
     else:
         if menu == "📢 Mural":
-            st.title("📢 Mural de Avisos")
+            st.title("📢 Mural Ágape")
+            # Palavra do Dia
+            palavra = consultar_db("SELECT valor FROM configuracoes WHERE chave='palavra_dia'")
+            if not palavra.empty:
+                st.info(f"📖 **Palavra do Dia:**\n\n{palavra.iloc[0]['valor']}")
+            
             avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
             for _, av in avisos.iterrows():
-                st.markdown(f"""<div class="card-flutuante"><h4>{av['titulo']}</h4><p>{av['conteudo']}</p><small>{av['data']}</small></div>""", unsafe_allow_html=True)
+                st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
 
         elif menu == "🎥 Bate-papo":
             st.title("🎥 Bate-papo")
@@ -145,5 +159,15 @@ else:
 
         elif menu == "💰 Financeiro":
             st.title("💰 Financeiro")
-            df = consultar_db("SELECT * FROM financeiro WHERE codigo_doador = :c OR :a = 1", {"c": u['codigo'], "a": u['is_admin']})
-            st.dataframe(df, use_container_width=True)
+            df = consultar_db("SELECT * FROM financeiro")
+            if not df.empty:
+                ent = df[df['tipo']=='Entrada']['valor'].sum()
+                sai = df[df['tipo']=='Saída']['valor'].sum()
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Entradas", f"R$ {ent:,.2f}")
+                c2.metric("Saídas", f"R$ {sai:,.2f}")
+                c3.metric("Saldo", f"R$ {ent-sai:,.2f}", delta=ent-sai)
+                st.divider()
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info("Sem registros.")
