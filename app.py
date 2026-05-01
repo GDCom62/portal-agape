@@ -31,7 +31,6 @@ def init_db():
 
 init_db()
 
-# Função para exibir o Logo com segurança
 def exibir_logo(largura=150):
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
@@ -76,13 +75,12 @@ else:
         menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎥 Bate-papo", "💰 Financeiro"])
         
         if menu == "📖 Bíblia":
-            tam_fonte = st.select_slider("Tamanho da Letra", options=[16, 18, 20, 22, 24, 26, 28, 30], value=20)
+            tam_fonte = st.select_slider("Tamanho da Letra", options=range(18, 32, 2), value=22)
         else: tam_fonte = 18
 
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
-    # CSS Global
     st.markdown(f"""
         <style>
         .stApp {{ background-color: #f8fafc; }}
@@ -94,44 +92,24 @@ else:
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t1, t2 = st.tabs(["📢 Mural & Palavra", "💰 Finanças"])
-        with t1:
-            st.subheader("Definir Palavra do Dia")
-            l_list = consultar_db("SELECT DISTINCT livro FROM biblia")
-            if not l_list.empty:
-                col1, col2, col3 = st.columns(3)
-                l_p = col1.selectbox("Livro", l_list['livro'])
-                c_p = col2.number_input("Capítulo", min_value=1, value=1)
-                v_p = col3.number_input("Versículo", min_value=1, value=1)
-                if st.button("Definir como Palavra do Dia"):
-                    v_txt = consultar_db("SELECT texto FROM biblia WHERE livro=:l AND cap=:c AND ver=:v", {"l":l_p, "c":c_p, "v":v_p})
-                    if not v_txt.empty:
-                        texto_final = f'"{v_txt.iloc[0]["texto"]}" ({l_p} {c_p}:{v_p})'
-                        executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('palavra_dia', :v)", {"v": texto_final})
-                        st.success("Palavra do Dia atualizada!")
-            
-            st.divider()
-            with st.form("novo_aviso"):
-                tit, cont = st.text_input("Título Aviso"), st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar Aviso"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y")})
-                    st.rerun()
-
-        with t2:
-            with st.form("fin_admin"):
-                c1, c2 = st.columns(2); cod_m = c1.text_input("Cód. Membro"); val_m = c2.number_input("Valor", min_value=0.0)
-                tipo_m = st.selectbox("Tipo", ["Entrada", "Saída"]); desc_m = st.text_input("Descrição")
-                if st.form_submit_button("Lançar"):
-                    executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
-                                  {"c":cod_m, "d":desc_m, "v":val_m, "t":tipo_m, "dt":datetime.now().strftime("%Y-%m-%d")})
-                    st.success("Lançado!")
+        with st.form("novo_aviso"):
+            tit, cont = st.text_input("Título Aviso"), st.text_area("Conteúdo")
+            if st.form_submit_button("Publicar Aviso"):
+                executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y")})
+                st.rerun()
 
     elif menu == "📢 Mural":
         st.title("📢 Mural Ágape")
-        # Exibir Palavra do Dia
-        palavra = consultar_db("SELECT valor FROM configuracoes WHERE chave='palavra_dia'")
-        if not palavra.empty:
-            st.info(f"📖 **PALAVRA DO DIA**\n\n{palavra.iloc[0]['valor']}")
+        
+        # PALAVRA DO DIA AUTOMÁTICA (Busca aleatória no banco)
+        if 'palavra_gerada' not in st.session_state:
+            res_p = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
+            if not res_p.empty:
+                p = res_p.iloc[0]
+                st.session_state.palavra_gerada = f'"{p["texto"]}" ({p["livro"]} {p["cap"]}:{p["ver"]})'
+        
+        if 'palavra_gerada' in st.session_state:
+            st.info(f"📖 **PALAVRA DO DIA**\n\n{st.session_state.palavra_gerada}")
         
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
@@ -139,8 +117,10 @@ else:
 
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
-        # Carregamento do ACF.json (igual ao anterior)
-        if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0,0] < 10 and os.path.exists("acf.json"):
+        
+        # Importação (Verifica se está vazia)
+        total_v = consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total']
+        if total_v < 10 and os.path.exists("acf.json"):
             with st.spinner("Importando Bíblia..."):
                 try:
                     with open("acf.json", "r", encoding="utf-8-sig") as f:
@@ -151,13 +131,13 @@ else:
                                 for n_ver, texto in enumerate(cap):
                                     executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":nome_l, "c":n_cap+1, "v":n_ver+1, "t":str(texto)})
                     st.rerun()
-                except Exception as e: st.error(f"Erro no JSON: {e}")
+                except Exception as e: st.error(f"Erro: {e}")
 
-        col_nav, col_txt = st.columns([0.3, 0.7])
         livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not livros_db.empty:
+            col_nav, col_txt = st.columns([0.3, 0.7])
             with col_nav:
-                l_sel = st.selectbox("Livro", livros_db['livro'])
+                l_sel = st.selectbox("Escolha o Livro", livros_db['livro'])
                 caps_db = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l ORDER BY cap ASC", {"l":l_sel})
                 c_sel = st.selectbox("Capítulo", caps_db['cap'])
             with col_txt:
@@ -166,8 +146,7 @@ else:
                 st.markdown(f'<div class="caixa-leitura">{texto_html}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Bate-papo":
-        st.title("💬 Bate-papo")
-        # ... (Mantido seu código de chat com anexo)
+        st.title("💬 Bate-papo Interno")
         membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
         contato = st.selectbox("Enviar para:", ["Todos"] + list(membros['nome']))
         area = st.container(height=400)
