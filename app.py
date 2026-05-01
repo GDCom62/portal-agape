@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, os, base64, json, io
+import random, string, os, base64, json, io, re
 
 # --- 1. CONFIGURAÇÕES E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -19,17 +19,14 @@ def consultar_db(sql, params={}):
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER)')
-    # Tabela avisos com coluna para imagem
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, img_data TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, codigo_doador TEXT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     
-    # Verificação de colunas para mensagens
-    try: consultar_db("SELECT para_user FROM mensagens LIMIT 1")
-    except:
-        executar_query('DROP TABLE IF EXISTS mensagens')
-        executar_query('CREATE TABLE mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
+    # Garantir que a coluna img_data existe no Mural (evita erro de banco antigo)
+    try: consultar_db("SELECT img_data FROM avisos LIMIT 1")
+    except: executar_query("ALTER TABLE avisos ADD COLUMN img_data TEXT")
 
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
@@ -85,8 +82,6 @@ else:
         .stApp {{ background-color: #f8fafc; }}
         .caixa-leitura {{ background: white; padding: 25px; border-radius: 10px; border: 1px solid #ddd; height: 600px; overflow-y: auto; font-size: {tam_fonte}px !important; line-height: 1.7; color: #1e3a8a !important; font-family: serif; }}
         .card-mural {{ background: white; padding: 25px; border-radius: 15px; border-left: 8px solid #1e3a8a; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }}
-        .card-mural h4 {{ font-size: 26px !important; color: #1e3a8a; margin-bottom: 10px; }}
-        .card-mural p {{ font-size: 22px !important; }}
     </style>""", unsafe_allow_html=True)
 
     if admin_mode:
@@ -94,67 +89,60 @@ else:
         t_m, t_f = st.tabs(["📢 Mural", "💰 Financeiro"])
         with t_m:
             with st.form("admin_mural", clear_on_submit=True):
-                tit, cont = st.text_input("Título do Aviso"), st.text_area("Conteúdo")
-                arq_img = st.file_uploader("Adicionar Foto ao Mural", type=['jpg', 'png', 'jpeg'])
-                if st.form_submit_button("Publicar no Mural"):
-                    b64_img = base64.b64encode(arq_img.read()).decode() if arq_img else ""
+                tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
+                arq_img = st.file_uploader("Adicionar Foto", type=['jpg', 'png', 'jpeg'])
+                if st.form_submit_button("Publicar"):
+                    b64 = base64.b64encode(arq_img.read()).decode() if arq_img else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", 
-                                  {"t":tit, "c":cont, "i":b64_img, "d":datetime.now().strftime("%d/%m/%Y")})
-                    st.success("Aviso publicado!")
-
+                                  {"t":tit, "c":cont, "i":b64, "d":datetime.now().strftime("%d/%m/%Y")})
+                    st.success("Postado!")
         with t_f:
-            with st.form("admin_fin", clear_on_submit=True):
+            with st.form("admin_fin"):
                 c1, c2 = st.columns(2); cod = c1.text_input("Cód. Membro"); val = c2.number_input("Valor", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"]); desc = st.text_input("Descrição")
-                if st.form_submit_button("Registrar Financeiro"):
+                if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
                                   {"c":cod, "d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%Y-%m-%d")})
-                    st.success("Lançado!")
+                    st.success("Registrado!")
 
     elif menu == "📢 Mural":
-        st.title("📢 Mural de Avisos")
+        st.title("📢 Mural Ágape")
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
-            with st.container():
-                st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
-                if av['img_data']:
-                    st.image(base64.b64decode(av['img_data']), use_column_width=True)
+            st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+            if av['img_data']: st.image(base64.b64decode(av['img_data']), use_column_width=True)
 
     elif menu == "🎥 Bate-papo":
         st.title("💬 Bate-papo")
-        col_list, col_chat = st.columns([0.3, 0.7])
-        with col_list:
+        col_l, col_c = st.columns([0.3, 0.7])
+        with col_l:
             membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
-            dest = st.radio("Enviar para:", ["Todos (Grupo)"] + list(membros['nome']))
-        
-        with col_chat:
-            chat_container = st.container(height=400)
+            dest = st.radio("Para:", ["Todos (Grupo)"] + list(membros['nome']))
+        with col_c:
+            chat_area = st.container(height=400)
             msgs = consultar_db("SELECT * FROM mensagens ORDER BY id ASC")
-            with chat_container:
+            with chat_area:
                 for _, r in msgs.iterrows():
-                    is_me = r['de_user'] == u['nome']
-                    align, color = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
-                    st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{color}; padding:10px; border-radius:10px; margin-bottom:5px; max-width:80%; border:1px solid #ddd;"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
-                    if r['anexo_data']: st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"chat_{r['id']}")
-
-            with st.form("chat_form", clear_on_submit=True):
-                msg_txt = st.text_input("Mensagem")
-                ca1, ca2 = st.columns([0.7, 0.3])
-                arq = ca1.file_uploader("Anexo", type=['pdf','jpg','png'])
-                # Sala de Vídeo Jitsi
-                nome_sala = f"Agape_{u['nome'].replace(' ','')}_{dest.replace(' ','')}"
-                ca2.link_button("🎥 Vídeo", f"https://jit.si{nome_sala}", use_container_width=True)
+                    eu = r['de_user'] == u['nome']
+                    align, cor = ("flex-end", "#dcf8c6") if eu else ("flex-start", "#ffffff")
+                    st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{cor}; padding:10px; border-radius:10px; margin-bottom:5px; max-width:80%; border:1px solid #ddd;"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
+            
+            with st.form("chat_f", clear_on_submit=True):
+                msg_t = st.text_input("Mensagem")
+                c1, c2 = st.columns([0.7, 0.3])
+                arq = c1.file_uploader("Anexo", type=['pdf','jpg','png'])
+                # LIMPEZA DO LINK DE VÍDEO
+                sala = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
+                c2.link_button("🎥 Vídeo", f"https://jit.si{sala}", use_container_width=True)
                 if st.form_submit_button("Enviar"):
                     b64, n_arq = "", ""
                     if arq: n_arq, b64 = arq.name, base64.b64encode(arq.read()).decode()
                     executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
-                                  {"d":u['nome'], "p":dest, "t":msg_txt, "an":n_arq, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
+                                  {"d":u['nome'], "p":dest, "t":msg_t, "an":n_arq, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
     elif menu == "📖 Bíblia":
-        # ... (Bloco da Bíblia com importação e 2 colunas mantido igual)
-        st.title("📖 Bíblia Sagrada")
-        # (Importação ACF se necessário...)
+        # ... (Mantido o código da bíblia em duas colunas)
         livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not livros.empty:
             c1, c2 = st.columns([0.3, 0.7])
@@ -173,7 +161,6 @@ else:
                 st.markdown(f'<div class="caixa-leitura">{txt}</div>', unsafe_allow_html=True)
 
     elif menu == "💰 Financeiro":
-        st.title("💰 Financeiro")
         df = consultar_db("SELECT * FROM financeiro")
         if not df.empty:
             e, s = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
