@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import random, string, os, base64, json, io
 
-# --- 1. CONFIGURAÇÕES E ESTILO ---
+# --- 1. CONFIGURAÇÕES ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. BANCO DE DADOS ---
@@ -18,27 +18,32 @@ def consultar_db(sql, params={}):
     with engine.connect() as conn: return pd.read_sql_query(text(sql), conn, params=params)
 
 def init_db():
+    # Tabelas Base
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, codigo_doador TEXT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)')
     
+    # Reset ou Criação da Tabela de Mensagens para evitar o KeyError
+    try:
+        consultar_db("SELECT de_user FROM mensagens LIMIT 1")
+    except:
+        executar_query('DROP TABLE IF EXISTS mensagens')
+        executar_query('CREATE TABLE mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
+
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
 
 init_db()
 
-# Função para exibir o Logo
 def exibir_logo(largura=150):
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<h1 style="text-align:center; color:#1e3a8a;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
+        st.markdown(f'<h1 style="text-align:center; color:#1e3a8a; margin:0;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
 
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
@@ -76,16 +81,14 @@ else:
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
-    st.markdown(f"""
-        <style>
+    st.markdown(f"""<style>
         .stApp {{ background-color: #f8fafc; }}
         .caixa-leitura {{ background: white; padding: 25px; border-radius: 10px; border: 1px solid #ddd; height: 600px; overflow-y: auto; font-size: {tam_fonte}px !important; line-height: 1.7; color: #1e3a8a !important; font-family: serif; }}
         .card-mural {{ background: white; padding: 20px; border-radius: 15px; border-left: 8px solid #1e3a8a; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }}
-        </style>
-    """, unsafe_allow_html=True)
+    </style>""", unsafe_allow_html=True)
 
     if admin_mode:
-        st.title("⚙️ Painel de Controle Admin")
+        st.title("⚙️ Administração")
         t_m, t_f = st.tabs(["📢 Mural", "💰 Financeiro"])
         with t_m:
             with st.form("admin_mural"):
@@ -106,7 +109,7 @@ else:
         st.title("📢 Mural Ágape")
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
-            st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p style="font-size:1.1em;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
 
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
@@ -122,31 +125,28 @@ else:
             with c2:
                 q = "SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c"
                 p = {"l":l_s, "c":c_s}
-                if v_s != "Todos":
-                    q += " AND ver=:v"; p["v"] = v_s
+                if v_s != "Todos": q += " AND ver=:v"; p["v"] = v_s
                 res = consultar_db(q + " ORDER BY ver ASC", p)
                 txt = "".join([f"<p><b>{v['ver']}</b> {v['texto']}</p>" for _, v in res.iterrows()])
                 st.markdown(f'<div class="caixa-leitura">{txt}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Bate-papo":
-        st.title("💬 Bate-papo & Arquivos")
+        st.title("💬 Bate-papo")
         membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
         contato = st.selectbox("Enviar para:", ["Todos"] + list(membros['nome']))
-        
         chat_box = st.container(height=400)
         msgs = consultar_db("SELECT * FROM mensagens ORDER BY id ASC")
         with chat_box:
             for _, r in msgs.iterrows():
                 is_me = r['de_user'] == u['nome']
                 align, color = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
-                st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{color}; padding:10px; border-radius:10px; margin-bottom:5px; max-width:80%; shadow: 2px 2px 5px rgba(0,0,0,0.1);"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{color}; padding:10px; border-radius:10px; margin-bottom:5px; max-width:80%;"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
                 if r['anexo_data']: st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"chat_{r['id']}")
-
         with st.form("f_chat", clear_on_submit=True):
             msg_txt = st.text_input("Sua mensagem")
             ca1, ca2 = st.columns([0.7, 0.3])
             arq = ca1.file_uploader("Anexo", type=['pdf','jpg','png'])
-            ca2.markdown(f"<br><a href='https://jit.si_{u['nome']}' target='_blank'><button style='width:100%; height:45px; background:#1e3a8a; color:white; border:none; border-radius:5px; cursor:pointer;'>🎥 Vídeo Chamada</button></a>", unsafe_allow_html=True)
+            ca2.markdown(f"<br><a href='https://jit.si_{u['nome']}' target='_blank'><button style='width:100%; height:45px; background:#1e3a8a; color:white; border:none; border-radius:5px; cursor:pointer;'>🎥 Vídeo</button></a>", unsafe_allow_html=True)
             if st.form_submit_button("Enviar"):
                 b64, n_arq = "", ""
                 if arq: n_arq, b64 = arq.name, base64.b64encode(arq.read()).decode()
