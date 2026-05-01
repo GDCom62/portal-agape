@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, os, base64, io
+import random, string, os, base64, json, io
 
 # --- 1. CONFIGURAÇÕES E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -19,6 +19,11 @@ st.markdown("""
     .chat-bubble {
         padding: 10px; border-radius: 15px; margin-bottom: 10px; max-width: 80%;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+    .caixa-leitura {
+        background: white; padding: 25px; border-radius: 10px; 
+        border: 1px solid #ddd; height: 600px; overflow-y: auto;
+        font-size: 18px; line-height: 1.6;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -42,16 +47,6 @@ def init_db():
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
-
-    # Bíblia Automática
-    if consultar_db("SELECT id FROM biblia LIMIT 1").empty:
-        versos = [
-            {"l":"Gênesis", "c":1, "v":1, "t":"No princípio criou Deus o céu e a terra."},
-            {"l":"Salmos", "c":23, "v":1, "t":"O Senhor é o meu pastor, nada me faltará."},
-            {"l":"João", "c":3, "v":16, "t":"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito."}
-        ]
-        for item in versos:
-            executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l, :c, :v, :t)", item)
 
 init_db()
 
@@ -92,85 +87,94 @@ else:
 
     if admin_mode:
         st.title("⚙️ Administração")
-        tab1, tab2 = st.tabs(["📢 Mural", "💰 Finanças"])
-        with tab1:
+        t1, t2 = st.tabs(["📢 Mural", "💰 Finanças"])
+        with t1:
             with st.form("novo_aviso"):
                 tit, cont = st.text_input("Título Aviso"), st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar Mural"):
-                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit,"c":cont,"d":datetime.now().strftime("%d/%m/%Y")})
+                if st.form_submit_button("Publicar"):
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.success("Postado!")
-        with tab2:
+        with t2:
             with st.form("fin_admin"):
-                c1, c2 = st.columns(2)
-                cod_m = c1.text_input("Cód. Membro")
-                val_m = c2.number_input("Valor", min_value=0.0)
-                tipo_m = st.selectbox("Tipo", ["Entrada", "Saída"])
-                desc_m = st.text_input("Descrição")
+                c1, c2 = st.columns(2); cod_m = c1.text_input("Cód. Membro"); val_m = c2.number_input("Valor", min_value=0.0)
+                tipo_m = st.selectbox("Tipo", ["Entrada", "Saída"]); desc_m = st.text_input("Descrição")
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
                                   {"c":cod_m, "d":desc_m, "v":val_m, "t":tipo_m, "dt":datetime.now().strftime("%Y-%m-%d")})
-                    st.success("Sucesso!")
+                    st.success("Lançado!")
 
-    else:
-        if menu == "📢 Mural":
-            st.title("📢 Mural")
-            avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-            for _, av in avisos.iterrows():
-                st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
-
-        elif menu == "🎥 Bate-papo":
-            st.title("💬 Bate-papo & Arquivos")
-            membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
-            contato = st.selectbox("Conversar com:", ["Todos"] + list(membros['nome']))
-            
-            area = st.container(height=400)
-            msgs = consultar_db("SELECT * FROM mensagens ORDER BY id ASC")
-            with area:
-                for _, row in msgs.iterrows():
-                    is_me = row['de_user'] == u['nome']
-                    align, color = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
-                    st.markdown(f'<div style="display: flex; flex-direction: column; align-items: {align};"><div class="chat-bubble" style="background-color: {color};"><b>{row["de_user"]}</b><br>{row["texto"]}</div></div>', unsafe_allow_html=True)
-                    if row['anexo_data']:
-                        st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=f"btn_{row['id']}")
-
-            with st.form("envio_chat", clear_on_submit=True):
-                txt_msg = st.text_input("Mensagem")
-                arq = st.file_uploader("Anexar (PDF, Imagem)", type=['pdf', 'jpg', 'png'])
-                if st.form_submit_button("Enviar"):
-                    b64, nome = "", ""
-                    if arq:
-                        nome = arq.name
-                        b64 = base64.b64encode(arq.read()).decode()
-                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
-                                  {"d":u['nome'], "p":contato, "t":txt_msg, "an":nome, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
+    elif menu == "📖 Bíblia":
+        st.title("📖 Bíblia Sagrada")
+        
+        # Importação Automática do acf.json
+        if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total'] < 10:
+            if os.path.exists("acf.json"):
+                try:
+                    with open("acf.json", "r", encoding="utf-8") as f:
+                        dados = json.load(f)
+                        for livro in dados:
+                            nome_l = livro.get('name', livro.get('abrev'))
+                            for n_cap, cap in enumerate(livro['chapters']):
+                                for n_ver, texto in enumerate(cap):
+                                    executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", 
+                                                  {"l":nome_l, "c":n_cap+1, "v":n_ver+1, "t":texto})
                     st.rerun()
+                except: st.error("Erro ao carregar acf.json")
 
-        elif menu == "📖 Bíblia":
-            st.title("📖 Bíblia Sagrada")
-            livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-            if not livros.empty:
-                l_sel = st.selectbox("Livro", livros['livro'])
-                caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})
-                c_sel = st.selectbox("Capítulo", caps['cap'])
-                versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_sel, "c":c_sel})
-                for _, v in versos.iterrows():
-                    st.write(f"**{v['ver']}** {v['texto']}")
+        col_nav, col_txt = st.columns([0.3, 0.7])
+        with col_nav:
+            livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
+            if not livros_db.empty:
+                l_sel = st.selectbox("Livro", livros_db['livro'])
+                caps_db = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})
+                c_sel = st.selectbox("Capítulo", caps_db['cap'])
+            else: st.warning("Bíblia vazia. Coloque o arquivo acf.json na pasta.")
+        
+        with col_txt:
+            if livros_db.empty == False:
+                versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_sel, "c":c_sel})
+                texto_html = "".join([f"<b>{v['ver']}</b> {v['texto']}<br><br>" for _, v in versos.iterrows()])
+                st.markdown(f'<div class="caixa-leitura">{texto_html}</div>', unsafe_allow_html=True)
 
-        elif menu == "💰 Financeiro":
-            st.title("💰 Financeiro")
-            df = consultar_db("SELECT * FROM financeiro")
-            if not df.empty:
-                ent, sai = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Receitas", f"R$ {ent:,.2f}")
-                c2.metric("Despesas", f"R$ {sai:,.2f}")
-                c3.metric("Saldo Atual", f"R$ {ent-sai:,.2f}")
-                
-                # Exportar Excel
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Financeiro')
-                st.download_button(label="📥 Baixar Relatório Excel", data=output.getvalue(), file_name="financeiro_agape.xlsx")
-                
-                st.dataframe(df, use_container_width=True)
-            else: st.info("Sem registros.")
+    elif menu == "🎥 Bate-papo":
+        st.title("💬 Bate-papo")
+        membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
+        contato = st.selectbox("Enviar para:", ["Todos"] + list(membros['nome']))
+        
+        area = st.container(height=400)
+        msgs = consultar_db("SELECT * FROM mensagens ORDER BY id ASC")
+        with area:
+            for _, row in msgs.iterrows():
+                is_me = row['de_user'] == u['nome']
+                align, color = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
+                st.markdown(f'<div style="display: flex; flex-direction: column; align-items: {align};"><div class="chat-bubble" style="background-color: {color};"><b>{row["de_user"]}</b><br>{row["texto"]}</div></div>', unsafe_allow_html=True)
+                if row['anexo_data']:
+                    st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=row['id'])
+
+        with st.form("envio", clear_on_submit=True):
+            t_msg = st.text_input("Sua mensagem")
+            arq = st.file_uploader("Anexo", type=['pdf','jpg','png'])
+            if st.form_submit_button("Enviar"):
+                b64, nome = "", ""
+                if arq: nome, b64 = arq.name, base64.b64encode(arq.read()).decode()
+                executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
+                              {"d":u['nome'], "p":contato, "t":t_msg, "an":nome, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
+                st.rerun()
+
+    elif menu == "💰 Financeiro":
+        st.title("💰 Financeiro")
+        df = consultar_db("SELECT * FROM financeiro")
+        if not df.empty:
+            ent, sai = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
+            c1, c2, c3 = st.columns(3); c1.metric("Receitas", f"R$ {ent:,.2f}"); c2.metric("Despesas", f"R$ {sai:,.2f}"); c3.metric("Saldo", f"R$ {ent-sai:,.2f}")
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Financeiro')
+            st.download_button(label="📥 Baixar Excel", data=output.getvalue(), file_name="financeiro.xlsx")
+            st.dataframe(df, use_container_width=True)
+
+    elif menu == "📢 Mural":
+        st.title("📢 Mural")
+        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, av in avisos.iterrows():
+            st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
