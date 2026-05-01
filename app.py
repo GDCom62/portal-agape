@@ -24,7 +24,7 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     
-    # Garantir que a coluna img_data existe no Mural (evita erro de banco antigo)
+    # Manutenção de colunas
     try: consultar_db("SELECT img_data FROM avisos LIMIT 1")
     except: executar_query("ALTER TABLE avisos ADD COLUMN img_data TEXT")
 
@@ -92,7 +92,7 @@ else:
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 arq_img = st.file_uploader("Adicionar Foto", type=['jpg', 'png', 'jpeg'])
                 if st.form_submit_button("Publicar"):
-                    b64 = base64.b64encode(arq_img.read()).decode() if arq_img else ""
+                    b64 = base64.b64encode(arq_img.read()).decode() if arq_img else None
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", 
                                   {"t":tit, "c":cont, "i":b64, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.success("Postado!")
@@ -110,7 +110,10 @@ else:
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
-            if av['img_data']: st.image(base64.b64decode(av['img_data']), use_column_width=True)
+            if av['img_data'] and av['img_data'] != "":
+                try:
+                    st.image(base64.b64decode(av['img_data']), use_container_width=True)
+                except: pass
 
     elif menu == "🎥 Bate-papo":
         st.title("💬 Bate-papo")
@@ -129,20 +132,20 @@ else:
             
             with st.form("chat_f", clear_on_submit=True):
                 msg_t = st.text_input("Mensagem")
-                c1, c2 = st.columns([0.7, 0.3])
-                arq = c1.file_uploader("Anexo", type=['pdf','jpg','png'])
-                # LIMPEZA DO LINK DE VÍDEO
+                ca1, ca2 = st.columns([0.7, 0.3])
+                arq = ca1.file_uploader("Anexo", type=['pdf','jpg','png'])
                 sala = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
-                c2.link_button("🎥 Vídeo", f"https://jit.si{sala}", use_container_width=True)
+                ca2.link_button("🎥 Vídeo", f"https://jit.si{sala}", use_container_width=True)
                 if st.form_submit_button("Enviar"):
-                    b64, n_arq = "", ""
-                    if arq: n_arq, b64 = arq.name, base64.b64encode(arq.read()).decode()
+                    b64, n_arq = None, None
+                    if arq: 
+                        n_arq = arq.name
+                        b64 = base64.b64encode(arq.read()).decode()
                     executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
                                   {"d":u['nome'], "p":dest, "t":msg_t, "an":n_arq, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
     elif menu == "📖 Bíblia":
-        # ... (Mantido o código da bíblia em duas colunas)
         livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not livros.empty:
             c1, c2 = st.columns([0.3, 0.7])
