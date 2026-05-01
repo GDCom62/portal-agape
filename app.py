@@ -80,24 +80,27 @@ if not st.session_state.logado:
 else:
     u = st.session_state.user
     with st.sidebar:
-        st.markdown(f"### 🙏 {u['nome']}")
+        st.markdown(f"### 🙏 Olá, {u['nome']}")
         menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎥 Bate-papo", "💰 Financeiro"])
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t1, t2 = st.tabs(["📢 Mural", "💰 Finanças"])
-        with t1:
+        tab1, tab2 = st.tabs(["📢 Mural", "💰 Finanças"])
+        with tab1:
             with st.form("novo_aviso"):
                 tit, cont = st.text_input("Título Aviso"), st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar"):
+                if st.form_submit_button("Publicar Mural"):
                     executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.success("Postado!")
-        with t2:
+        with tab2:
             with st.form("fin_admin"):
-                c1, c2 = st.columns(2); cod_m = c1.text_input("Cód. Membro"); val_m = c2.number_input("Valor", min_value=0.0)
-                tipo_m = st.selectbox("Tipo", ["Entrada", "Saída"]); desc_m = st.text_input("Descrição")
+                c1, c2 = st.columns(2)
+                cod_m = c1.text_input("Cód. Membro")
+                val_m = c2.number_input("Valor", min_value=0.0)
+                tipo_m = st.selectbox("Tipo", ["Entrada", "Saída"])
+                desc_m = st.text_input("Descrição")
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
                                   {"c":cod_m, "d":desc_m, "v":val_m, "t":tipo_m, "dt":datetime.now().strftime("%Y-%m-%d")})
@@ -106,34 +109,35 @@ else:
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
         
-        # Importação Automática do acf.json
+        # Importação Automática do acf.json se o banco estiver vazio
         if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total'] < 10:
             if os.path.exists("acf.json"):
-                try:
-                    with open("acf.json", "r", encoding="utf-8") as f:
-                        dados = json.load(f)
-                        for livro in dados:
-                            nome_l = livro.get('name', livro.get('abrev'))
-                            for n_cap, cap in enumerate(livro['chapters']):
-                                for n_ver, texto in enumerate(cap):
-                                    executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", 
-                                                  {"l":nome_l, "c":n_cap+1, "v":n_ver+1, "t":texto})
-                    st.rerun()
-                except: st.error("Erro ao carregar acf.json")
+                with st.spinner("Carregando Bíblia Inteira... aguarde."):
+                    try:
+                        with open("acf.json", "r", encoding="utf-8") as f:
+                            dados = json.load(f)
+                            for livro in dados:
+                                nome_l = livro.get('name', livro.get('abrev'))
+                                for n_cap, cap in enumerate(livro['chapters']):
+                                    for n_ver, texto in enumerate(cap):
+                                        executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", 
+                                                      {"l":nome_l, "c":n_cap+1, "v":n_ver+1, "t":str(texto)})
+                        st.rerun()
+                    except Exception as e: st.error(f"Erro no JSON: {e}")
+            else: st.warning("Arquivo acf.json não encontrado.")
 
         col_nav, col_txt = st.columns([0.3, 0.7])
-        with col_nav:
-            livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
-            if not livros_db.empty:
-                l_sel = st.selectbox("Livro", livros_db['livro'])
-                caps_db = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})
-                c_sel = st.selectbox("Capítulo", caps_db['cap'])
-            else: st.warning("Bíblia vazia. Coloque o arquivo acf.json na pasta.")
+        livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
         
-        with col_txt:
-            if livros_db.empty == False:
+        if not livros_db.empty:
+            with col_nav:
+                l_sel = st.selectbox("Livro", livros_db['livro'])
+                caps_db = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l ORDER BY cap ASC", {"l":l_sel})
+                c_sel = st.selectbox("Capítulo", caps_db['cap'])
+            
+            with col_txt:
                 versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_sel, "c":c_sel})
-                texto_html = "".join([f"<b>{v['ver']}</b> {v['texto']}<br><br>" for _, v in versos.iterrows()])
+                texto_html = "".join([f"<p><b>{v['ver']}</b> {v['texto']}</p>" for _, v in versos.iterrows()])
                 st.markdown(f'<div class="caixa-leitura">{texto_html}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Bate-papo":
@@ -149,11 +153,11 @@ else:
                 align, color = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
                 st.markdown(f'<div style="display: flex; flex-direction: column; align-items: {align};"><div class="chat-bubble" style="background-color: {color};"><b>{row["de_user"]}</b><br>{row["texto"]}</div></div>', unsafe_allow_html=True)
                 if row['anexo_data']:
-                    st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=row['id'])
+                    st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=f"chat_{row['id']}")
 
-        with st.form("envio", clear_on_submit=True):
-            t_msg = st.text_input("Sua mensagem")
-            arq = st.file_uploader("Anexo", type=['pdf','jpg','png'])
+        with st.form("envio_chat", clear_on_submit=True):
+            t_msg = st.text_input("Mensagem")
+            arq = st.file_uploader("Anexo (Imagem/PDF)", type=['pdf','jpg','png','docx'])
             if st.form_submit_button("Enviar"):
                 b64, nome = "", ""
                 if arq: nome, b64 = arq.name, base64.b64encode(arq.read()).decode()
@@ -170,11 +174,12 @@ else:
             
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Financeiro')
-            st.download_button(label="📥 Baixar Excel", data=output.getvalue(), file_name="financeiro.xlsx")
+            st.download_button(label="📥 Baixar Excel", data=output.getvalue(), file_name="financeiro_agape.xlsx")
             st.dataframe(df, use_container_width=True)
+        else: st.info("Sem registros.")
 
     elif menu == "📢 Mural":
-        st.title("📢 Mural")
+        st.title("📢 Mural de Avisos")
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
