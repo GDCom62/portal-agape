@@ -23,11 +23,22 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, codigo_doador TEXT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)')
+    
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
 
 init_db()
+
+# Função para exibir o Logo com segurança
+def exibir_logo(largura=150):
+    if os.path.exists("logo.png"):
+        with open("logo.png", "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+            st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<h1 style="text-align:center;">⛪</h1>', unsafe_allow_html=True)
 
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
@@ -35,7 +46,8 @@ if 'logado' not in st.session_state: st.session_state.logado = False
 if not st.session_state.logado:
     _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
-        st.title("⛪ Portal Ágape")
+        exibir_logo(180)
+        st.title("Portal Ágape")
         t_l, t_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with t_l:
             with st.form("login"):
@@ -59,43 +71,52 @@ if not st.session_state.logado:
 else:
     u = st.session_state.user
     with st.sidebar:
-        st.markdown(f"### 🙏 Olá, {u['nome']}")
+        exibir_logo(100)
+        st.markdown(f"<p style='text-align:center;'>🙏 <b>{u['nome']}</b></p>", unsafe_allow_html=True)
         menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎥 Bate-papo", "💰 Financeiro"])
         
-        # SELETOR DE FONTE PARA A BÍBLIA
         if menu == "📖 Bíblia":
-            st.divider()
-            tamanho_fonte = st.select_slider("Tamanho da Letra", options=[18, 20, 22, 24, 26, 28, 30], value=22)
-        else:
-            tamanho_fonte = 18
+            tam_fonte = st.select_slider("Tamanho da Letra", options=[16, 18, 20, 22, 24, 26, 28, 30], value=20)
+        else: tam_fonte = 18
 
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
-    # CSS Dinâmico
+    # CSS Global
     st.markdown(f"""
         <style>
         .stApp {{ background-color: #f8fafc; }}
-        .caixa-leitura {{
-            background: white; padding: 30px; border-radius: 10px; border: 1px solid #ddd;
-            height: 600px; overflow-y: auto; font-size: {tamanho_fonte}px !important;
-            line-height: 1.8; font-family: 'Georgia', serif; color: #2c3e50;
-        }}
-        .num-verso {{ color: #1e3a8a; font-weight: bold; font-size: 0.8em; margin-right: 8px; }}
-        .card-flutuante {{ background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid #1e3a8a; }}
+        .card-mural {{ background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid #1e3a8a; }}
+        .caixa-leitura {{ background: white; padding: 25px; border-radius: 10px; border: 1px solid #ddd; height: 600px; overflow-y: auto; font-size: {tam_fonte}px !important; line-height: 1.7; font-family: serif; }}
         .chat-bubble {{ padding: 10px; border-radius: 15px; margin-bottom: 10px; max-width: 80%; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }}
         </style>
     """, unsafe_allow_html=True)
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t1, t2 = st.tabs(["📢 Mural", "💰 Finanças"])
+        t1, t2 = st.tabs(["📢 Mural & Palavra", "💰 Finanças"])
         with t1:
+            st.subheader("Definir Palavra do Dia")
+            l_list = consultar_db("SELECT DISTINCT livro FROM biblia")
+            if not l_list.empty:
+                col1, col2, col3 = st.columns(3)
+                l_p = col1.selectbox("Livro", l_list['livro'])
+                c_p = col2.number_input("Capítulo", min_value=1, value=1)
+                v_p = col3.number_input("Versículo", min_value=1, value=1)
+                if st.button("Definir como Palavra do Dia"):
+                    v_txt = consultar_db("SELECT texto FROM biblia WHERE livro=:l AND cap=:c AND ver=:v", {"l":l_p, "c":c_p, "v":v_p})
+                    if not v_txt.empty:
+                        texto_final = f'"{v_txt.iloc[0]["texto"]}" ({l_p} {c_p}:{v_p})'
+                        executar_query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('palavra_dia', :v)", {"v": texto_final})
+                        st.success("Palavra do Dia atualizada!")
+            
+            st.divider()
             with st.form("novo_aviso"):
                 tit, cont = st.text_input("Título Aviso"), st.text_area("Conteúdo")
-                if st.form_submit_button("Publicar Mural"):
+                if st.form_submit_button("Publicar Aviso"):
                     executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t,:c,:d)", {"t":tit, "c":cont, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
+
         with t2:
             with st.form("fin_admin"):
                 c1, c2 = st.columns(2); cod_m = c1.text_input("Cód. Membro"); val_m = c2.number_input("Valor", min_value=0.0)
@@ -105,11 +126,22 @@ else:
                                   {"c":cod_m, "d":desc_m, "v":val_m, "t":tipo_m, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.success("Lançado!")
 
+    elif menu == "📢 Mural":
+        st.title("📢 Mural Ágape")
+        # Exibir Palavra do Dia
+        palavra = consultar_db("SELECT valor FROM configuracoes WHERE chave='palavra_dia'")
+        if not palavra.empty:
+            st.info(f"📖 **PALAVRA DO DIA**\n\n{palavra.iloc[0]['valor']}")
+        
+        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, av in avisos.iterrows():
+            st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
-        total_v = consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total']
-        if total_v < 10 and os.path.exists("acf.json"):
-            with st.spinner("Importando Bíblia Inteira..."):
+        # Carregamento do ACF.json (igual ao anterior)
+        if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0,0] < 10 and os.path.exists("acf.json"):
+            with st.spinner("Importando Bíblia..."):
                 try:
                     with open("acf.json", "r", encoding="utf-8-sig") as f:
                         dados = json.load(f)
@@ -119,7 +151,7 @@ else:
                                 for n_ver, texto in enumerate(cap):
                                     executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":nome_l, "c":n_cap+1, "v":n_ver+1, "t":str(texto)})
                     st.rerun()
-                except Exception as e: st.error(f"Erro: {e}")
+                except Exception as e: st.error(f"Erro no JSON: {e}")
 
         col_nav, col_txt = st.columns([0.3, 0.7])
         livros_db = consultar_db("SELECT DISTINCT livro FROM biblia")
@@ -130,11 +162,12 @@ else:
                 c_sel = st.selectbox("Capítulo", caps_db['cap'])
             with col_txt:
                 versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_sel, "c":c_sel})
-                texto_html = "".join([f"<p><span class='num-verso'>{v['ver']}</span> {v['texto']}</p>" for _, v in versos.iterrows()])
+                texto_html = "".join([f"<p><b>{v['ver']}</b> {v['texto']}</p>" for _, v in versos.iterrows()])
                 st.markdown(f'<div class="caixa-leitura">{texto_html}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Bate-papo":
         st.title("💬 Bate-papo")
+        # ... (Mantido seu código de chat com anexo)
         membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n":u['nome']})
         contato = st.selectbox("Enviar para:", ["Todos"] + list(membros['nome']))
         area = st.container(height=400)
@@ -165,9 +198,3 @@ else:
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Financeiro')
             st.download_button(label="📥 Baixar Excel", data=output.getvalue(), file_name="financeiro.xlsx")
             st.dataframe(df, use_container_width=True)
-
-    elif menu == "📢 Mural":
-        st.title("📢 Mural")
-        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        for _, av in avisos.iterrows():
-            st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
