@@ -86,7 +86,7 @@ else:
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t_m, t_f = st.tabs(["📢 Mural", "💰 Financeiro"])
+        t_m, t_f, t_chat = st.tabs(["📢 Mural", "💰 Financeiro", "💬 Chat"])
         with t_m:
             st.subheader("Novo Aviso")
             with st.form("admin_mural", clear_on_submit=True):
@@ -94,40 +94,41 @@ else:
                 arq_img = st.file_uploader("Foto (opcional)", type=['jpg', 'png', 'jpeg'])
                 if st.form_submit_button("Publicar"):
                     b64 = base64.b64encode(arq_img.read()).decode() if arq_img else None
-                    executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", 
-                                  {"t":tit, "c":cont, "i":b64, "d":datetime.now().strftime("%d/%m/%Y")})
+                    executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":b64, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.success("Postado!")
             st.divider()
-            st.subheader("Excluir Avisos")
             avs = consultar_db("SELECT id, titulo FROM avisos ORDER BY id DESC")
             for _, row in avs.iterrows():
                 if st.button(f"🗑️ {row['titulo']}", key=f"del_av_{row['id']}"):
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id": row['id']})
                     st.rerun()
-
         with t_f:
             st.subheader("Novo Lançamento")
             with st.form("admin_fin", clear_on_submit=True):
                 c1, c2 = st.columns(2); cod = c1.text_input("Cód. Membro"); val = c2.number_input("Valor", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"]); desc = st.text_input("Descrição")
                 if st.form_submit_button("Lançar"):
-                    executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
-                                  {"c":cod, "d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%Y-%m-%d")})
+                    executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", {"c":cod, "d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.success("Lançado!")
             st.divider()
-            st.subheader("Excluir Lançamentos")
             fin_d = consultar_db("SELECT id, descricao, valor FROM financeiro ORDER BY id DESC")
             for _, row in fin_d.iterrows():
                 if st.button(f"🗑️ {row['descricao']} - R$ {row['valor']}", key=f"del_fin_{row['id']}"):
                     executar_query("DELETE FROM financeiro WHERE id=:id", {"id": row['id']})
                     st.rerun()
+        with t_chat:
+            st.warning("Atenção: Isso apagará todas as mensagens do portal.")
+            if st.button("🧨 LIMPAR TODO O CHAT"):
+                executar_query("DELETE FROM mensagens")
+                st.success("Chat limpo!")
+                st.rerun()
 
     elif menu == "📢 Mural":
         st.title("📢 Mural Ágape")
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
-            if av['img_data']:
+            if av['img_data'] and isinstance(av['img_data'], str):
                 try: st.image(base64.b64decode(av['img_data']), width=400)
                 except: pass
 
@@ -154,17 +155,21 @@ else:
                     eu = r['de_user'] == u['nome']
                     align, cor = ("flex-end", "#dcf8c6") if eu else ("flex-start", "#ffffff")
                     st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{cor}; padding:10px; border-radius:10px; margin-bottom:5px; max-width:85%; border:1px solid #ddd;"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
-                    if r['anexo_data']:
-                        st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"dl_{r['id']}")
+                    # PROTEÇÃO DE ERRO: Só tenta decodificar se existir dado real
+                    if r['anexo_data'] and isinstance(r['anexo_data'], str) and len(r['anexo_data']) > 0:
+                        try:
+                            st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"dl_{r['id']}")
+                        except: pass
 
             with st.form("f_chat", clear_on_submit=True):
                 msg_t = st.text_input("Mensagem")
                 arq = st.file_uploader("Anexo", type=['pdf','jpg','png','docx','xlsx'])
                 if st.form_submit_button("Enviar 🚀"):
                     b64, n_arq = "", ""
-                    if arq: n_arq, b64 = arq.name, base64.b64encode(arq.read()).decode()
-                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
-                                  {"d":u['nome'], "p":dest, "t":msg_t, "an":n_arq, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
+                    if arq: 
+                        n_arq = arq.name
+                        b64 = base64.b64encode(arq.read()).decode()
+                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", {"d":u['nome'], "p":dest, "t":msg_t, "an":n_arq, "ad":b64, "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
     elif menu == "📖 Bíblia":
@@ -175,8 +180,7 @@ else:
                 l_s = st.selectbox("Livro", livros['livro'])
                 caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l ORDER BY cap ASC", {"l":l_s})
                 c_s = st.selectbox("Capítulo", caps['cap'])
-                vers = consultar_db("SELECT ver FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_s, "c":c_s})
-                v_s = st.selectbox("Versículo", ["Todos"] + list(vers['ver']))
+                v_s = st.selectbox("Versículo", ["Todos"] + list(consultar_db("SELECT ver FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver ASC", {"l":l_s, "c":c_s})['ver']))
             with c2:
                 q = "SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c"
                 p = {"l":l_s, "c":c_s}
