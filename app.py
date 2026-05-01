@@ -24,7 +24,6 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     
-    # Manutenção de colunas
     try: consultar_db("SELECT img_data FROM avisos LIMIT 1")
     except: executar_query("ALTER TABLE avisos ADD COLUMN img_data TEXT")
 
@@ -86,8 +85,10 @@ else:
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t_m, t_f = st.tabs(["📢 Mural", "💰 Financeiro"])
+        t_m, t_f = st.tabs(["📢 Gerenciar Mural", "💰 Gerenciar Financeiro"])
+        
         with t_m:
+            st.subheader("Novo Aviso")
             with st.form("admin_mural", clear_on_submit=True):
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 arq_img = st.file_uploader("Adicionar Foto", type=['jpg', 'png', 'jpeg'])
@@ -96,7 +97,19 @@ else:
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", 
                                   {"t":tit, "c":cont, "i":b64, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.success("Postado!")
+            
+            st.divider()
+            st.subheader("🗑️ Apagar Avisos")
+            avisos_adm = consultar_db("SELECT id, titulo, data FROM avisos ORDER BY id DESC")
+            for _, row in avisos_adm.iterrows():
+                col_info, col_btn = st.columns([0.8, 0.2])
+                col_info.write(f"**{row['titulo']}** ({row['data']})")
+                if col_btn.button("Excluir", key=f"del_av_{row['id']}"):
+                    executar_query("DELETE FROM avisos WHERE id=:id", {"id": row['id']})
+                    st.rerun()
+
         with t_f:
+            st.subheader("Novo Lançamento")
             with st.form("admin_fin"):
                 c1, c2 = st.columns(2); cod = c1.text_input("Cód. Membro"); val = c2.number_input("Valor", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"]); desc = st.text_input("Descrição")
@@ -104,6 +117,17 @@ else:
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
                                   {"c":cod, "d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.success("Registrado!")
+            
+            st.divider()
+            st.subheader("🗑️ Gerenciar Lançamentos")
+            fin_adm = consultar_db("SELECT id, descricao, valor, tipo, data FROM financeiro ORDER BY id DESC")
+            for _, row in fin_adm.iterrows():
+                col_info, col_btn = st.columns([0.8, 0.2])
+                cor_tipo = "🟢" if row['tipo'] == "Entrada" else "🔴"
+                col_info.write(f"{cor_tipo} **{row['descricao']}** - R$ {row['valor']:.2f} ({row['data']})")
+                if col_btn.button("Excluir", key=f"del_fin_{row['id']}"):
+                    executar_query("DELETE FROM financeiro WHERE id=:id", {"id": row['id']})
+                    st.rerun()
 
     elif menu == "📢 Mural":
         st.title("📢 Mural Ágape")
@@ -111,8 +135,7 @@ else:
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-mural"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data'] and av['img_data'] != "":
-                try:
-                    st.image(base64.b64decode(av['img_data']), use_container_width=True)
+                try: st.image(base64.b64decode(av['img_data']), use_container_width=True)
                 except: pass
 
     elif menu == "🎥 Bate-papo":
@@ -164,6 +187,7 @@ else:
                 st.markdown(f'<div class="caixa-leitura">{txt}</div>', unsafe_allow_html=True)
 
     elif menu == "💰 Financeiro":
+        st.title("💰 Financeiro")
         df = consultar_db("SELECT * FROM financeiro")
         if not df.empty:
             e, s = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
