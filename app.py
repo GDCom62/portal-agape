@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, json, os, base64, re
+import random, string, os, base64
 
 # --- 1. CONFIGURAÇÕES E ESTILO ---
 URL_LOGO = "logo.png" 
@@ -13,16 +13,14 @@ st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; }
     h1, h2, h3 { color: #1e3a8a !important; text-align: center; }
-    .card-flutuante {
-        background-color: white; padding: 20px; border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px;
-        border-left: 8px solid #1e3a8a;
+    .chat-bubble {
+        padding: 10px; border-radius: 15px; margin-bottom: 10px; max-width: 70%;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05); font-family: sans-serif;
     }
-    .pix-box { background-color: #f0f9ff; padding: 20px; border-radius: 15px; border: 2px dashed #0369a1; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS (v60) ---
+# --- 2. BANCO DE DADOS ---
 engine = create_engine("sqlite:///agape_v60.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
@@ -33,12 +31,10 @@ def consultar_db(sql, params={}):
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, codigo TEXT, senha TEXT, is_admin INTEGER)')
-    executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT, UNIQUE(livro, capitulo, versiculo))')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, data TEXT, img_data TEXT)')
-    # Coluna data alterada para formato ISO no registro
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, codigo_doador TEXT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY, titulo TEXT, link TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS configuracoes (id INTEGER PRIMARY KEY, chave TEXT UNIQUE, valor TEXT)')
+    # NOVA TABELA DE MENSAGENS
+    executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, nome TEXT, texto TEXT, data TEXT)')
     
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
@@ -84,73 +80,73 @@ else:
     with st.sidebar:
         logo_central(100)
         st.markdown(f"<p style='text-align: center;'>🙏 <b>{u['nome']}</b><br><small>Cód: {u['codigo']}</small></p>", unsafe_allow_html=True)
-        menu = st.radio("Menu", ["📢 Mural", "📖 Bíblia", "🎶 Louvores", "🎥 Bate-papo", "💰 Financeiro", "🎁 Doações"])
+        menu = st.radio("Menu", ["📢 Mural", "🎥 Bate-papo", "💰 Financeiro", "🎁 Doações"])
         admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.logado = False; st.rerun()
 
     if admin_mode:
         st.title("⚙️ Administração")
-        t_m, t_b, t_l, t_f, t_p = st.tabs(["📢 Mural", "📖 Bíblia", "🎶 Louvores", "💰 Finanças", "🎁 Pix"])
+        t_f, t_chat = st.tabs(["💰 Finanças", "💬 Gestão Chat"])
         
         with t_f:
-            st.subheader("Registrar Movimentação")
             with st.form("f_fin", clear_on_submit=True):
-                cod = st.text_input("Código do Membro", placeholder="Ex: AG-1234")
+                cod = st.text_input("Código do Membro")
                 desc = st.text_input("Descrição")
                 valor = st.number_input("Valor R$", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-                data_lanca = st.date_input("Data do Lançamento", datetime.now())
+                data_l = st.date_input("Data", datetime.now())
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (codigo_doador, descricao, valor, tipo, data) VALUES (:c,:d,:v,:t,:dt)", 
-                                  {"c":cod if cod else "IGREJA", "d":desc, "v":valor, "t":tipo, "dt":data_lanca.strftime("%Y-%m-%d")})
+                                  {"c":cod if cod else "IGREJA", "d":desc, "v":valor, "t":tipo, "dt":data_l.strftime("%Y-%m-%d")})
                     st.success("Lançado!")
-
-        # ... (Mantendo as outras abas de Admin: Mural, Bíblia, Louvores, Pix)
+        
+        with t_chat:
+            st.warning("Cuidado: Esta ação não pode ser desfeita.")
+            if st.button("Limpar Todo o Histórico do Chat"):
+                executar_query("DELETE FROM mensagens")
+                st.success("Chat limpo com sucesso!")
+                st.rerun()
 
     else:
-        if menu == "💰 Financeiro":
-            st.title("💰 Balanço Financeiro")
+        if menu == "🎥 Bate-papo":
+            st.title("🎥 Bate-papo Interno")
             
-            # Busca todos os dados e trata a data
-            df = consultar_db("SELECT codigo_doador as 'Cód.', descricao as Descrição, valor as Valor, tipo as Tipo, data as Data FROM financeiro")
+            # Container de rolagem automática
+            chat_container = st.container(height=450)
             
+            # Carregar mensagens
+            df_msg = consultar_db("SELECT nome, texto, data FROM mensagens ORDER BY id ASC")
+            
+            with chat_container:
+                for _, row in df_msg.iterrows():
+                    is_me = row['nome'] == u['nome']
+                    align = "flex-end" if is_me else "flex-start"
+                    color = "#dcf8c6" if is_me else "#ffffff"
+                    
+                    st.markdown(f"""
+                        <div style="display: flex; flex-direction: column; align-items: {align};">
+                            <div class="chat-bubble" style="background-color: {color};">
+                                <small style="color: #555; font-weight: bold;">{row['nome']}</small><br>
+                                {row['texto']}<br>
+                                <div style="text-align: right; font-size: 9px; color: #888; margin-top: 5px;">{row['data']}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            # Input fixo na base
+            with st.form("enviar_msg", clear_on_submit=True):
+                c1, c2 = st.columns([0.85, 0.15])
+                txt = c1.text_input("Mensagem", label_visibility="collapsed", placeholder="Digite sua mensagem...")
+                if c2.form_submit_button("Enviar") and txt:
+                    hora = datetime.now().strftime("%H:%M")
+                    executar_query("INSERT INTO mensagens (nome, texto, data) VALUES (:n, :t, :d)",
+                                  {"n": u['nome'], "t": txt, "d": hora})
+                    st.rerun()
+
+        elif menu == "💰 Financeiro":
+            st.title("💰 Balanço")
+            df = consultar_db("SELECT * FROM financeiro")
             if not df.empty:
-                df['Data'] = pd.to_datetime(df['Data'])
-                
-                # --- FILTROS ---
-                col_f1, col_f2 = st.columns(2)
-                anos = sorted(df['Data'].dt.year.unique(), reverse=True)
-                ano_sel = col_f1.selectbox("Filtrar por Ano", ["Todos"] + list(anos))
-                
-                meses_nomes = {1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho', 
-                               7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'}
-                
-                mes_sel = col_f2.selectbox("Filtrar por Mês", ["Todos"] + list(meses_nomes.values()))
-
-                # Aplicação do Filtro
-                df_filtrado = df.copy()
-                if ano_sel != "Todos":
-                    df_filtrado = df_filtrado[df_filtrado['Data'].dt.year == int(ano_sel)]
-                
-                if mes_sel != "Todos":
-                    mes_num = [k for k, v in meses_nomes.items() if v == mes_sel][0]
-                    df_filtrado = df_filtrado[df_filtrado['Data'].dt.month == mes_num]
-
-                # --- EXIBIÇÃO ---
-                r = df_filtrado[df_filtrado['Tipo'] == 'Entrada']['Valor'].sum()
-                p = df_filtrado[df_filtrado['Tipo'] == 'Saída']['Valor'].sum()
-                
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Receitas", f"R$ {r:,.2f}")
-                c2.metric("Despesas", f"R$ {p:,.2f}")
-                c3.metric("Saldo do Período", f"R$ {r-p:,.2f}")
-                
-                st.divider()
-                # Formata data para exibição brasileira na tabela
-                df_exibir = df_filtrado.copy()
-                df_exibir['Data'] = df_exibir['Data'].dt.strftime('%d/%m/%Y')
-                st.dataframe(df_exibir, use_container_width=True)
+                st.dataframe(df, use_container_width=True)
             else:
-                st.info("Sem registros financeiros.")
-
-        # ... (Mural, Bíblia, Louvores, Doações mantidos)
+                st.info("Sem registros.")
