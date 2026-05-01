@@ -109,12 +109,13 @@ else:
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
         
-        # Importação Automática do acf.json se o banco estiver vazio
-        if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total'] < 10:
+        # IMPORTAÇÃO COM CORREÇÃO UTF-8-SIG
+        total_v = consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total']
+        if total_v < 10:
             if os.path.exists("acf.json"):
-                with st.spinner("Carregando Bíblia Inteira... aguarde."):
+                with st.spinner("Importando Bíblia Inteira... aguarde."):
                     try:
-                        with open("acf.json", "r", encoding="utf-8") as f:
+                        with open("acf.json", "r", encoding="utf-8-sig") as f: # CORREÇÃO AQUI
                             dados = json.load(f)
                             for livro in dados:
                                 nome_l = livro.get('name', livro.get('abrev'))
@@ -156,8 +157,8 @@ else:
                     st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=f"chat_{row['id']}")
 
         with st.form("envio_chat", clear_on_submit=True):
-            t_msg = st.text_input("Mensagem")
-            arq = st.file_uploader("Anexo (Imagem/PDF)", type=['pdf','jpg','png','docx'])
+            t_msg = st.text_input("Sua mensagem")
+            arq = st.file_uploader("Anexo", type=['pdf','jpg','png'])
             if st.form_submit_button("Enviar"):
                 b64, nome = "", ""
                 if arq: nome, b64 = arq.name, base64.b64encode(arq.read()).decode()
@@ -179,7 +180,7 @@ else:
         else: st.info("Sem registros.")
 
     elif menu == "📢 Mural":
-        st.title("📢 Mural de Avisos")
+        st.title("📢 Mural")
         avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-flutuante"><h4>{av["titulo"]}</h4><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
