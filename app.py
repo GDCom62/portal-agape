@@ -80,6 +80,7 @@ else:
         .card-mural {{ background: white; padding: 25px; border-radius: 15px; border-left: 10px solid #1e3a8a; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; color: black; }}
         .palavra-do-dia {{ background-color: #e0f2fe; padding: 30px; border-radius: 20px; border: 2px solid #0369a1; text-align: center; margin-bottom: 30px; }}
         .palavra-texto {{ font-size: 30px !important; color: #0369a1 !important; font-family: serif; font-style: italic; font-weight: bold; }}
+        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: black !important; border: 1px solid #ddd; font-weight: 500; }}
     </style>""", unsafe_allow_html=True)
 
     if admin_mode:
@@ -88,20 +89,17 @@ else:
         with tm:
             st.subheader("Gerenciar Avisos")
             with st.form("f_mural", clear_on_submit=True):
-                tit = st.text_input("Título")
-                cont = st.text_area("Conteúdo")
+                tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
                 if st.form_submit_button("Publicar"):
                     img = base64.b64encode(foto.read()).decode() if foto else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
-            
-            st.divider()
             avisos_list = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
             for _, r in avisos_list.iterrows():
                 col_i, col_b = st.columns([0.8, 0.2])
                 col_i.write(f"**{r['titulo']}**")
-                if col_b.button("🗑️ Excluir", key=f"del_av_{r['id']}"):
+                if col_b.button("🗑️", key=f"del_av_{r['id']}"):
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
 
         with tf:
@@ -112,8 +110,6 @@ else:
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d_f, "v":v_f, "t":t_f, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.rerun()
-            
-            st.divider()
             fin_list = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
             for _, r in fin_list.iterrows():
                 col_i, col_b = st.columns([0.8, 0.2])
@@ -123,38 +119,64 @@ else:
 
     elif menu == "📢 Mural":
         st.title("📢 Mural Ágape")
-        # Palavra do Dia Automática (Sorteia uma por sessão)
         if 'palavra_dia' not in st.session_state:
             p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if not p_res.empty:
-                st.session_state.palavra_dia = p_res.iloc[0]
-        
+            if not p_res.empty: st.session_state.palavra_dia = p_res.iloc[0]
         if 'palavra_dia' in st.session_state:
             p = st.session_state.palavra_dia
             st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#0369a1;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
-
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=500)
 
     elif menu == "🎥 Bate-papo":
-        st.title("💬 Bate-papo & Reunião")
-        st.link_button("🎥 ENTRAR NA VÍDEO CHAMADA", "https://jit.si", use_container_width=True)
-        st.divider()
-        chat_box = st.container(height=400)
-        msgs = consultar_db("SELECT * FROM mensagens ORDER BY id ASC")
-        with chat_box:
-            for _, r in msgs.iterrows():
-                me = r['de_user'] == u['nome']
-                align, cor = ("flex-end", "#dcf8c6") if me else ("flex-start", "#ffffff")
-                st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div style="background:{cor}; padding:12px; border-radius:15px; margin-bottom:5px; max-width:80%; color:black; border:1px solid #ddd;"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
+        st.title("💬 Bate-papo da Comunidade")
         
-        with st.form("chat_f", clear_on_submit=True):
-            txt, arq = st.text_input("Sua mensagem"), st.file_uploader("Anexo")
-            if st.form_submit_button("Enviar"):
-                b64 = base64.b64encode(arq.read()).decode() if arq else ""
-                executar_query("INSERT INTO mensagens (de_user, texto, anexo_data, anexo_nome) VALUES (:d,:t,:ad,:an)", {"d":u['nome'], "t":txt, "ad":b64, "an":arq.name if arq else ""})
-                st.rerun()
+        col_membros, col_conversa = st.columns([0.3, 0.7])
+        
+        with col_membros:
+            st.subheader("👥 Membros")
+            todos_membros = consultar_db("SELECT nome FROM membros WHERE nome != :n", {"n": u['nome']})
+            contato_selecionado = st.radio("Conversar com:", ["Todos (Grupo)"] + list(todos_membros['nome']))
+            
+            st.divider()
+            # RESOLUÇÃO VÍDEO: Sala única baseada no par de usuários ou no grupo
+            sala_id = "AgapeGeral" if contato_selecionado == "Todos (Grupo)" else "".join(sorted([u['nome'], contato_selecionado])).replace(" ", "")
+            url_video = f"https://jit.si_{sala_id}"
+            st.link_button("🎥 Chamar no Vídeo", url_video, use_container_width=True)
+            st.caption("Abre em nova aba via Jitsi Meet")
+
+        with col_conversa:
+            st.subheader(f"🗨️ {contato_selecionado}")
+            chat_placeholder = st.container(height=450)
+            
+            # Filtro de Mensagens: Se for grupo mostra todos, se for membro mostra apenas o privado
+            if contato_selecionado == "Todos (Grupo)":
+                query_msg = "SELECT * FROM mensagens WHERE para_user = 'Todos (Grupo)' ORDER BY id ASC"
+                df_msg = consultar_db(query_msg)
+            else:
+                query_msg = "SELECT * FROM mensagens WHERE (de_user = :u AND para_user = :c) OR (de_user = :c AND para_user = :u) ORDER BY id ASC"
+                df_msg = consultar_db(query_msg, {"u": u['nome'], "c": contato_selecionado})
+            
+            with chat_placeholder:
+                for _, row in df_msg.iterrows():
+                    is_me = row['de_user'] == u['nome']
+                    align, cor = ("flex-end", "#dcf8c6") if is_me else ("flex-start", "#ffffff")
+                    st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div class="chat-bubble" style="background:{cor};"><b>{row["de_user"]}</b><br>{row["texto"]}</div></div>', unsafe_allow_html=True)
+                    if row['anexo_data']:
+                        try:
+                            st.download_button(label=f"📁 {row['anexo_nome']}", data=base64.b64decode(row['anexo_data']), file_name=row['anexo_nome'], key=f"dl_{row['id']}")
+                        except: pass
+
+            with st.form("envio_chat", clear_on_submit=True):
+                txt_input = st.text_input("Mensagem")
+                arq_input = st.file_uploader("Anexo", type=['pdf','jpg','png','docx'])
+                if st.form_submit_button("Enviar"):
+                    if txt_input or arq_input:
+                        b64_data = base64.b64encode(arq_input.read()).decode() if arq_input else ""
+                        executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_nome, anexo_data, data) VALUES (:d,:p,:t,:an,:ad,:dt)", 
+                                      {"d":u['nome'], "p":contato_selecionado, "t":txt_input, "an":arq_input.name if arq_input else "", "ad":b64_data, "dt":datetime.now().strftime("%H:%M")})
+                        st.rerun()
 
     elif menu == "💰 Financeiro":
         st.title("💰 Financeiro")
@@ -166,18 +188,6 @@ else:
 
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
-        # Importação do acf.json se necessário
-        if consultar_db("SELECT COUNT(*) as total FROM biblia").iloc[0]['total'] < 10 and os.path.exists("acf.json"):
-            with st.spinner("Importando Bíblia..."):
-                with open("acf.json", "r", encoding="utf-8-sig") as f:
-                    dados = json.load(f)
-                    for livro in dados:
-                        n_l = livro.get('name', 'Livro')
-                        for n_c, cap in enumerate(livro['chapters']):
-                            for n_v, txt in enumerate(cap):
-                                executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":n_l,"c":n_c+1,"v":n_v+1,"t":str(txt)})
-                st.rerun()
-
         l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not l_db.empty:
             c1, c2 = st.columns([0.3, 0.7])
