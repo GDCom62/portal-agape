@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, os, base64, json, io, re
+import random, string, os, base64, json, io, re, unicodedata
 
 # --- 1. CONFIGURAÇÕES E ESTILO DIVINO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -13,7 +13,6 @@ def aplicar_estilo_divino(tam_fonte):
         <style>
         .stApp {{ background: #fdfbf0; }}
         h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-weight: bold; font-family: 'Georgia', serif; }}
-        /* Forçando contraste preto em todos os textos */
         p, span, label, li, .stMarkdown, .stSelectbox label {{ 
             color: #000000 !important; 
             font-weight: 600 !important; 
@@ -21,8 +20,8 @@ def aplicar_estilo_divino(tam_fonte):
         .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); color: #000 !important; }}
         .palavra-do-dia {{ background: #fff3ad; padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
         .palavra-texto {{ font-size: 32px !important; color: #1e3a8a !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
-        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: #000 !important; font-family: serif; }}
-        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: #000 !important; border: 1px solid #ccc; font-size: 18px; font-weight: 500; }}
+        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black !important; font-family: serif; }}
+        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: black !important; border: 1px solid #ccc; font-size: 18px; font-weight: 500; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -47,6 +46,20 @@ def init_db():
 
 init_db()
 
+# Função para exibir o Logo
+def exibir_logo(largura=150):
+    if os.path.exists("logo.png"):
+        with open("logo.png", "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+            st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<h1 style="text-align:center; color:#b8860b; margin-bottom:0;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
+
+# Função para limpar nomes para o link do vídeo
+def limpar_nome_link(texto):
+    texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode('utf-8')
+    return re.sub(r'\W+', '', texto)
+
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
@@ -54,12 +67,12 @@ if not st.session_state.logado:
     aplicar_estilo_divino(22)
     _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
-        st.markdown("<h1>⛪ ÁGAPE</h1>", unsafe_allow_html=True)
-        t_l, t_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
+        exibir_logo(180)
+        t_l, t_c = st.tabs(["✨ Entrar", "📝 Cadastro"])
         with t_l:
             with st.form("login"):
                 e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
-                if st.form_submit_button("Acessar", use_container_width=True):
+                if st.form_submit_button("Acessar Portal", use_container_width=True):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                         st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
@@ -67,7 +80,7 @@ if not st.session_state.logado:
                     st.error("Credenciais incorretas.")
         with t_c:
             with st.form("cad"):
-                n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
+                n, em, se = st.text_input("Nome Completo"), st.text_input("E-mail"), st.text_input("Senha", type="password")
                 if st.form_submit_button("Criar Conta"):
                     c = "AG-" + "".join(random.choices(string.digits, k=4))
                     executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n,:e,:c,:p,0)", {"n":n,"e":em,"c":c,"p":generate_password_hash(se)})
@@ -77,9 +90,10 @@ if not st.session_state.logado:
 else:
     u = st.session_state.user
     with st.sidebar:
-        st.markdown(f"### 🙏 {u['nome']}")
-        menu = st.radio("Caminho", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
-        tam_fonte = st.select_slider("Tamanho da Letra", options=range(18, 48, 2), value=24)
+        exibir_logo(100)
+        st.markdown(f"<h3 style='text-align:center; color:#b8860b;'>🙏 {u['nome']}</h3>", unsafe_allow_html=True)
+        menu = st.radio("Menu", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
+        tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
         admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
@@ -91,13 +105,13 @@ else:
         with tm:
             with st.form("f_mural", clear_on_submit=True):
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
-                foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
-                if st.form_submit_button("Publicar"):
+                foto = st.file_uploader("Adicionar Foto", type=['jpg','png','jpeg'])
+                if st.form_submit_button("Publicar Aviso"):
                     img = base64.b64encode(foto.read()).decode() if foto else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
             for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Excluir Aviso: {r['titulo']}", key=f"del_av_{r['id']}"):
+                if st.button(f"🗑️ Excluir: {r['titulo']}", key=f"del_av_{r['id']}"):
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
         with tf:
             with st.form("f_fin"):
@@ -106,7 +120,7 @@ else:
                     executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.rerun()
             for _, r in consultar_db("SELECT * FROM financeiro ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Apagar: R$ {r['valor']} - {r['descricao']}", key=f"df_{r['id']}"):
+                if st.button(f"🗑️ Apagar R${r['valor']} - {r['descricao']}", key=f"df_{r['id']}"):
                     executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
 
     elif menu == "📢 Mural da Fé":
@@ -118,7 +132,7 @@ else:
             p = st.session_state.palavra_dia
             st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b; font-size:22px;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:20px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
 
     elif menu == "🎥 Comunhão":
@@ -130,9 +144,9 @@ else:
             dest = st.radio("Conversar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
             st.divider()
             
-            # --- VÍDEO CONFIGURADO COM A BARRA CORRETA / ---
-            sala_limpa = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
-            url_v = f"https://jit.si{sala_limpa}#config.prejoinPageEnabled=false&config.startWithAudioMuted=true"
+            # --- VÍDEO CORRIGIDO (COM BARRA / E SEM ACENTOS) ---
+            sala_id = f"Agape{limpar_nome_link(u['nome'])}{limpar_nome_link(dest)}"
+            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
             
             st.subheader("📹 Câmera")
             st.components.v1.html(f"""
@@ -143,7 +157,7 @@ else:
 
         with c2:
             st.subheader(f"🗨️ {dest}")
-            chat = st.container(height=400)
+            chat = st.container(height=450)
             if dest == "Todos (Grupo)":
                 df_msg = consultar_db("SELECT * FROM mensagens WHERE para_user = 'Todos (Grupo)' ORDER BY id ASC")
             elif admin_mode:
@@ -153,11 +167,8 @@ else:
             with chat:
                 for _, r in df_msg.iterrows():
                     me = r['de_user'] == u['nome']
-                    align, cor = ("flex-end", "#fff9c4") if me else ("flex-start", "#ffffff")
+                    align, cor = ("flex-end", "#dcf8c6") if me else ("flex-start", "#ffffff")
                     st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div class="chat-bubble" style="background:{cor};"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
-                    if r['anexo_data']:
-                        try: st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"dl_{r['id']}")
-                        except: pass
             with st.form("chat_f", clear_on_submit=True):
                 txt, arq = st.text_input("Mensagem"), st.file_uploader("Anexo")
                 if st.form_submit_button("Enviar"):
