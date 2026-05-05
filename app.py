@@ -13,8 +13,11 @@ def aplicar_estilo_divino(tam_fonte):
         <style>
         .stApp {{ background: #fdfbf0; }}
         h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-weight: bold; font-family: 'Georgia', serif; }}
-        p, span, label, li, .stMarkdown {{ color: #000000 !important; font-weight: 600 !important; }}
-        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }}
+        p, span, label, li, .stMarkdown, .stSelectbox label {{ 
+            color: #000000 !important; 
+            font-weight: 600 !important; 
+        }}
+        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); color: #000 !important; }}
         .palavra-do-dia {{ background: #fff3ad; padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
         .palavra-texto {{ font-size: 32px !important; color: #1e3a8a !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
         .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black !important; font-family: serif; }}
@@ -51,7 +54,7 @@ def exibir_logo(largura=150):
     else: st.markdown(f'<h1 style="text-align:center; color:#b8860b;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
 
 def limpar_nome_video(texto):
-    texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode('utf-8')
+    texto = unicodedata.normalize('NFD', str(texto)).encode('ascii', 'ignore').decode('utf-8')
     return re.sub(r'\W+', '', texto)
 
 # --- 3. LOGIN ---
@@ -66,7 +69,7 @@ if not st.session_state.logado:
         with t_l:
             with st.form("login"):
                 e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
-                if st.form_submit_button("Acessar"):
+                if st.form_submit_button("Acessar", use_container_width=True):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                         st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
@@ -78,7 +81,7 @@ if not st.session_state.logado:
                 if st.form_submit_button("Criar Conta"):
                     c = "AG-" + "".join(random.choices(string.digits, k=4))
                     executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES (:n,:e,:c,:p,0)", {"n":n,"e":em,"c":c,"p":generate_password_hash(se)})
-                    st.success(f"Criada! Código: {c}")
+                    st.success(f"Conta criada! Código: {c}")
 
 # --- 4. ÁREA LOGADA ---
 else:
@@ -87,36 +90,82 @@ else:
         exibir_logo(80)
         st.markdown(f"### 🙏 {u['nome']}")
         menu = st.radio("Caminho", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
-        tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
-        admin_mode = st.checkbox("⚙️ Modo Admin (Supervisão)") if u['is_admin'] == 1 else False
+        tam_fonte = st.select_slider("Tamanho Fonte", options=range(18, 48, 2), value=24)
+        admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     aplicar_estilo_divino(tam_fonte)
 
-    if menu == "🎥 Comunhão":
+    # --- MENU: MURAL ---
+    if menu == "📢 Mural da Fé":
+        st.title("📢 Mural da Fé")
+        if admin_mode:
+            with st.expander("➕ Publicar Novo Aviso"):
+                with st.form("f_mural", clear_on_submit=True):
+                    tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
+                    foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
+                    if st.form_submit_button("Publicar"):
+                        img = base64.b64encode(foto.read()).decode() if foto else ""
+                        executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
+                        st.rerun()
+
+        # Palavra do Dia Automática
+        p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
+        if not p_res.empty:
+            p = p_res.iloc[0]
+            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b; font-size:22px;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
+        
+        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+        for _, av in avisos.iterrows():
+            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:20px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+            if av['img_data']: st.image(base64.b64decode(av['img_data']), width=300)
+            if admin_mode:
+                if st.button(f"🗑️ Excluir {av['titulo']}", key=f"del_av_{av['id']}"):
+                    executar_query("DELETE FROM avisos WHERE id=:id", {"id":av['id']}); st.rerun()
+
+    # --- MENU: BÍBLIA ---
+    elif menu == "📖 Bíblia Sagrada":
+        st.title("📖 Bíblia Sagrada")
+        if consultar_db("SELECT COUNT(*) as t FROM biblia").iloc[0]['t'] < 10 and os.path.exists("acf.json"):
+            with st.spinner("Carregando Escrituras..."):
+                with open("acf.json", "r", encoding="utf-8-sig") as f:
+                    dados = json.load(f)
+                    for livro in dados:
+                        for n_cap, cap in enumerate(livro['chapters']):
+                            for n_ver, texto in enumerate(cap):
+                                executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":livro['name'],"c":n_cap+1,"v":n_ver+1,"t":str(texto)})
+            st.rerun()
+        
+        l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
+        if not l_db.empty:
+            cc1, cc2 = st.columns([0.3, 0.7])
+            l_s = cc1.selectbox("Livro", l_db['livro'])
+            c_s = cc1.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_s})['cap'])
+            txts = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_s, "c":c_s})
+            txt_h = "".join([f"<p><span style='color:#b8860b; font-weight:bold;'>{v['ver']}</span> {v['texto']}</p>" for _, v in txts.iterrows()])
+            cc2.markdown(f'<div class="caixa-leitura">{txt_h}</div>', unsafe_allow_html=True)
+
+    # --- MENU: COMUNHÃO ---
+    elif menu == "🎥 Comunhão":
         st.title("💬 Espaço de Comunhão")
-        c1, c2 = st.columns([0.3, 0.7])
+        c1, c2 = st.columns([0.4, 0.6])
         with c1:
-            st.subheader("👥 Membros")
-            if st.button("🔄 Atualizar Lista"): st.rerun()
-            
+            st.subheader("👥 Irmãos")
             m_db = consultar_db("SELECT nome FROM membros ORDER BY nome ASC")
-            # Remove o próprio usuário da lista de contatos
-            outros_membros = [n for n in m_db['nome'] if n != u['nome']]
-            
-            dest = st.radio("Conversar com:", ["Todos (Grupo)"] + outros_membros, key="chat_dest")
+            outros = [n for n in m_db['nome'] if n != u['nome']]
+            dest = st.radio("Escolha com quem conversar:", ["Todos (Grupo)"] + outros, key="chat_dest")
             
             st.divider()
-            # SALA DE VÍDEO - CORREÇÃO DA BARRA "/"
-            nome_sala = f"Agape{limpar_nome_video(u['nome'])}{limpar_nome_video(dest)}"
-            url_v = f"https://jit.si{nome_sala}#config.prejoinPageEnabled=false"
+            # SALA DE VÍDEO CORRIGIDA COM BARRA /
+            sala_id = f"Agape{limpar_nome_video(u['nome'])}{limpar_nome_video(dest)}"
+            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
             
             st.write("📹 **Vídeo Chamada**")
             st.components.v1.html(f"""
                 <iframe src="{url_v}" allow="camera; microphone; fullscreen; display-capture; autoplay" 
-                style="height: 350px; width: 100%; border: 3px solid #b8860b; border-radius: 15px; background: black;"></iframe>
-            """, height=370)
-            st.link_button("🚀 Abrir Vídeo em Nova Aba", url_v, use_container_width=True)
+                style="height: 380px; width: 100%; border: 3px solid #b8860b; border-radius: 15px; background: black;"></iframe>
+            """, height=400)
+            st.link_button("🚀 Abrir Vídeo em Tela Cheia", url_v, use_container_width=True)
 
         with c2:
             st.subheader(f"🗨️ {dest}")
@@ -126,7 +175,7 @@ else:
             elif admin_mode:
                 df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user = :c OR para_user = :c) AND para_user != 'Todos (Grupo)' ORDER BY id ASC", {"c": dest})
             else:
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:d) OR (de_user=:d AND para_user=:u) ORDER BY id ASC", {"u": u['nome'], "d": dest})
+                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:c) OR (de_user=:c AND para_user=:u) ORDER BY id ASC", {"u": u['nome'], "c": dest})
             
             with chat:
                 for _, r in df_msg.iterrows():
@@ -142,34 +191,22 @@ else:
                                   {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
-    elif menu == "📢 Mural da Fé":
-        st.title("📢 Mural da Fé")
-        if 'palavra_gerada' not in st.session_state:
-            p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if not p_res.empty: st.session_state.palavra_gerada = p_res.iloc[0]
-        if 'palavra_gerada' in st.session_state:
-            p = st.session_state.palavra_gerada
-            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
+    # --- MENU: TESOURARIA ---
+    elif menu == "💰 Tesouraria":
+        st.title("💰 Tesouraria")
+        if admin_mode:
+            with st.form("f_fin"):
+                d_f, v_f, t_f = st.text_input("Desc."), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
+                if st.form_submit_button("Lançar"):
+                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d_f, "v":v_f, "t":t_f, "dt":datetime.now().strftime("%Y-%m-%d")})
+                    st.rerun()
         
-        for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:20px;">{av["conteudo"]}</p></div>', unsafe_allow_html=True)
-            if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
-
-    elif menu == "📖 Bíblia Sagrada":
-        # (Carga ACF automática e Exibição mantidos)
-        l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
-        if not l_db.empty:
-            cc1, cc2 = st.columns([0.3, 0.7])
-            l_s = cc1.selectbox("Livro", l_db['livro'])
-            c_s = cc1.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_s})['cap'])
-            txts = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_s, "c":c_s})
-            txt_h = "".join([f"<p><span style='color:#b8860b; font-weight:bold;'>{v['ver']}</span> {v['texto']}</p>" for _, v in txts.iterrows()])
-            cc2.markdown(f'<div class="caixa-leitura">{txt_h}</div>', unsafe_allow_html=True)
-
-    elif menu == "💰 Tesouraria" and admin_mode:
-        st.title("⚙️ Gerenciar Tesouraria")
-        with st.form("f_fin"):
-            d, v, t = st.text_input("Descrição"), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
-            if st.form_submit_button("Lançar"):
-                executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
-                st.rerun()
+        df = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
+        if not df.empty:
+            e, s = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
+            st.metric("Saldo Abençoado", f"R$ {e-s:,.2f}")
+            st.dataframe(df, use_container_width=True)
+            if admin_mode:
+                for _, r in df.iterrows():
+                    if st.button(f"🗑️ Apagar {r['descricao']} (R${r['valor']})", key=f"dfin_{r['id']}"):
+                        executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
