@@ -15,8 +15,8 @@ def aplicar_estilo_divino(tam_fonte):
         h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-family: 'Georgia', serif; }}
         .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(184, 134, 11, 0.1); color: black; }}
         .palavra-do-dia {{ background: linear-gradient(135deg, #fffcf0 0%, #fff3ad 100%); padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
-        .palavra-texto {{ font-size: 32px !important; color: #0369a1 !important; font-family: serif; font-style: italic; font-weight: bold; }}
-        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border-left: 15px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black; border: 1px solid #eee; }}
+        .palavra-texto {{ font-size: 32px !important; color: #0369a1 !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
+        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border-left: 15px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }}
         .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: black !important; border: 1px solid #eee; font-size: 18px; }}
         </style>
     """, unsafe_allow_html=True)
@@ -82,8 +82,8 @@ else:
         exibir_logo(80)
         st.markdown(f"### 🙏 {u['nome']}")
         menu = st.radio("Caminho", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
-        tam_fonte = st.select_slider("Tamanho da Letra", options=range(18, 48, 2), value=24)
-        admin_mode = st.checkbox("⚙️ Modo Supervisor") if u['is_admin'] == 1 else False
+        tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
+        admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     aplicar_estilo_divino(tam_fonte)
@@ -92,36 +92,33 @@ else:
         st.title("⚙️ Administração")
         tm, tf = st.tabs(["📢 Mural", "💰 Financeiro"])
         with tm:
-            avisos_existentes = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-            opcao = st.selectbox("Ação", ["Novo Aviso"] + [f"Editar: {r['titulo']}" for _, r in avisos_existentes.iterrows()])
             with st.form("f_mural", clear_on_submit=True):
-                tit = st.text_input("Título")
-                cont = st.text_area("Conteúdo")
+                tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                 foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
-                if st.form_submit_button("Salvar no Mural"):
+                if st.form_submit_button("Publicar"):
                     img = base64.b64encode(foto.read()).decode() if foto else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
-            for _, r in avisos_existentes.iterrows():
-                if st.button(f"🗑️ Excluir: {r['titulo']}", key=f"del_av_{r['id']}"):
+            for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
+                if st.button(f"🗑️ Excluir Aviso: {r['titulo']}", key=f"del_av_{r['id']}"):
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
         with tf:
             with st.form("f_fin"):
-                d, v, t = st.text_input("Desc."), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
+                d, v, t = st.text_input("Descrição"), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.rerun()
             for _, r in consultar_db("SELECT * FROM financeiro ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Apagar R${r['valor']} - {r['descricao']}", key=f"df_{r['id']}"):
+                if st.button(f"🗑️ Apagar Lançamento: {r['descricao']} (R$ {r['valor']})", key=f"df_{r['id']}"):
                     executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
 
     elif menu == "📢 Mural da Fé":
         st.title("📢 Mural da Fé")
-        if 'palavra_gerada' not in st.session_state:
+        if 'palavra_dia' not in st.session_state:
             p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if not p_res.empty: st.session_state.palavra_gerada = p_res.iloc[0]
-        if 'palavra_gerada' in st.session_state:
-            p = st.session_state.palavra_gerada
+            if not p_res.empty: st.session_state.palavra_dia = p_res.iloc[0]
+        if 'palavra_dia' in st.session_state:
+            p = st.session_state.palavra_dia
             st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b; font-size:22px;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
@@ -131,12 +128,12 @@ else:
         st.title("💬 Espaço de Comunhão")
         c1, c2 = st.columns([0.3, 0.7])
         with c1:
-            st.subheader("👥 Irmãos")
+            st.subheader("👥 Membros")
             m_db = consultar_db("SELECT nome FROM membros WHERE nome != :n ORDER BY nome ASC", {"n": u['nome']})
-            dest = st.radio("Falar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
+            dest = st.radio("Conversar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
             st.divider()
-            sala_id = "Geral" if dest == "Todos (Grupo)" else "".join(sorted([u['nome'], dest])).replace(" ", "")
-            url_video = f"https://jit.si_{sala_id}#config.prejoinPageEnabled=false&config.defaultLanguage='ptBR'&config.startWithAudioMuted=true"
+            sala_id = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
+            url_video = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=true"
             st.link_button(f"🎥 Vídeo com {dest}", url_video, use_container_width=True)
             if admin_mode: st.warning("👁️ Supervisor Ativo: Histórico de " + dest)
 
@@ -161,8 +158,7 @@ else:
                 txt, arq = st.text_input("Mensagem"), st.file_uploader("Anexo")
                 if st.form_submit_button("Enviar"):
                     b64 = base64.b64encode(arq.read()).decode() if arq else ""
-                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_data, anexo_nome, data) VALUES (:d,:p,:t,:ad,:an,:dt)", 
-                                  {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
+                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_data, anexo_nome, data) VALUES (:d,:p,:t,:ad,:an,:dt)", {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
     elif menu == "📖 Bíblia Sagrada":
