@@ -11,45 +11,14 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 def aplicar_estilo_divino(tam_fonte):
     st.markdown(f"""
         <style>
-        .stApp {{ background: #fdfbf0; }} /* Fundo Marfim Suave */
-        
-        /* Títulos em Dourado Forte */
+        .stApp {{ background: #fdfbf0; }}
         h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-weight: bold; }}
-        
-        /* Textos Gerais - Sempre Escuros para Contraste */
-        p, span, label, .stMarkdown {{ color: #1a1a1a !important; font-weight: 500; }}
-
-        /* Cards do Mural */
-        .card-mural {{ 
-            background: white; padding: 20px; border-radius: 15px; 
-            border: 2px solid #ffd700; margin-bottom: 15px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05); 
-            color: #000000 !important; 
-        }}
-        .card-mural h3 {{ color: #1e3a8a !important; text-align: left; }}
-
-        /* Palavra do Dia */
-        .palavra-do-dia {{ 
-            background: #fff3ad; padding: 30px; border-radius: 20px; 
-            border: 3px double #b8860b; text-align: center; margin-bottom: 30px; 
-        }}
-        .palavra-texto {{ 
-            font-size: 32px !important; color: #1e3a8a !important; 
-            font-family: serif; font-style: italic; font-weight: bold; 
-        }}
-
-        /* Bíblia - Texto Preto no Branco */
-        .caixa-leitura {{ 
-            background: white; padding: 30px; border-radius: 10px; 
-            border: 2px solid #b8860b; font-size: {tam_fonte}px !important; 
-            line-height: 1.7; color: #000000 !important; font-family: serif; 
-        }}
-
-        /* Chat - Cores de Contraste */
-        .chat-bubble {{ 
-            padding: 12px; border-radius: 15px; margin-bottom: 8px; 
-            color: #000000 !important; border: 1px solid #ccc; font-size: 18px; 
-        }}
+        p, span, label, li, .stMarkdown {{ color: #000000 !important; font-weight: 600 !important; }}
+        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); color: #000 !important; }}
+        .palavra-do-dia {{ background: #fff3ad; padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
+        .palavra-texto {{ font-size: 32px !important; color: #1e3a8a !important; font-family: serif; font-style: italic; font-weight: bold; }}
+        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: #000 !important; font-family: serif; }}
+        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: #000 !important; border: 1px solid #ccc; font-size: 18px; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -107,36 +76,12 @@ else:
         st.markdown(f"<h3 style='text-align:left;'>🙏 {u['nome']}</h3>", unsafe_allow_html=True)
         menu = st.radio("Menu", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
         tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
-        admin_mode = st.checkbox("Modo Admin") if u['is_admin'] == 1 else False
+        admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     aplicar_estilo_divino(tam_fonte)
 
-    if admin_mode and menu != "🎥 Comunhão":
-        st.title("⚙️ Administração")
-        tm, tf = st.tabs(["📢 Mural", "💰 Financeiro"])
-        with tm:
-            with st.form("f_mural", clear_on_submit=True):
-                tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
-                foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
-                if st.form_submit_button("Publicar"):
-                    img = base64.b64encode(foto.read()).decode() if foto else ""
-                    executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
-                    st.rerun()
-            for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Excluir Aviso: {r['titulo']}", key=f"del_{r['id']}"):
-                    executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
-        with tf:
-            with st.form("f_fin"):
-                d, v, t = st.text_input("Descrição"), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
-                if st.form_submit_button("Lançar"):
-                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
-                    st.rerun()
-            for _, r in consultar_db("SELECT * FROM financeiro ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Apagar {r['descricao']}", key=f"df_{r['id']}"):
-                    executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
-
-    elif menu == "📢 Mural da Fé":
+    if menu == "📢 Mural da Fé":
         st.title("📢 Mural da Fé")
         if 'palavra_dia' not in st.session_state:
             p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
@@ -145,7 +90,7 @@ else:
             p = st.session_state.palavra_dia
             st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px; color:black;">{av["conteudo"]}</p><small style="color:gray;">{av["data"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p>{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
 
     elif menu == "🎥 Comunhão":
@@ -153,19 +98,27 @@ else:
         c1, c2 = st.columns([0.3, 0.7])
         with c1:
             m_db = consultar_db("SELECT nome FROM membros WHERE nome != :n ORDER BY nome ASC", {"n": u['nome']})
-            dest = st.radio("Conversar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
+            dest = st.radio("Falar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
             st.divider()
-            # VÍDEO - NOME DE SALA LIMPO
+            
+            # --- VÍDEO INTEGRADO (IFRAME) ---
             sala_id = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
             url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
-            st.link_button("🎥 ENTRAR NA CÂMERA", url_v, use_container_width=True)
-            st.write("---")
-            st.write("Link Direto (clique se o botão falhar):")
-            st.markdown(f"[CLIQUE AQUI PARA ABRIR]({url_v})")
+            
+            st.subheader("📹 Câmera")
+            st.warning("⚠️ Ao abrir o vídeo abaixo, clique em 'Permitir' no navegador.")
+            
+            # HTML para Iframe de vídeo
+            st.components.v1.html(f"""
+                <iframe src="{url_v}" 
+                allow="camera; microphone; fullscreen; display-capture; autoplay" 
+                style="height: 400px; width: 100%; border: 2px solid #b8860b; border-radius: 10px;">
+                </iframe>
+            """, height=420)
 
         with c2:
             st.subheader(f"🗨️ {dest}")
-            chat = st.container(height=400)
+            chat = st.container(height=450)
             if dest == "Todos (Grupo)":
                 df_msg = consultar_db("SELECT * FROM mensagens WHERE para_user = 'Todos (Grupo)' ORDER BY id ASC")
             else:
@@ -183,19 +136,17 @@ else:
                     st.rerun()
 
     elif menu == "📖 Bíblia Sagrada":
+        # (Código da Bíblia mantido igual...)
         l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not l_db.empty:
             cc1, cc2 = st.columns([0.3, 0.7])
             l_s = cc1.selectbox("Livro", l_db['livro'])
             c_s = cc1.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_s})['cap'])
             txts = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_s, "c":c_s})
-            txt_h = "".join([f"<p><span style='color:#b8860b; font-weight:bold;'>{v['ver']}</span> {v['texto']}</p>" for _, v in txts.iterrows()])
+            txt_h = "".join([f"<p><b>{v['ver']}</b> {v['texto']}</p>" for _, v in txts.iterrows()])
             cc2.markdown(f'<div class="caixa-leitura">{txt_h}</div>', unsafe_allow_html=True)
 
     elif menu == "💰 Tesouraria":
-        st.title("💰 Tesouraria")
         df = consultar_db("SELECT * FROM financeiro")
         if not df.empty:
-            e, s = df[df['tipo']=='Entrada']['valor'].sum(), df[df['tipo']=='Saída']['valor'].sum()
-            st.metric("Saldo Abençoado", f"R$ {e-s:,.2f}")
             st.dataframe(df, use_container_width=True)
