@@ -17,11 +17,11 @@ def aplicar_estilo_divino(tam_fonte):
             color: #000000 !important; 
             font-weight: 600 !important; 
         }}
-        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); color: #000 !important; }}
+        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }}
         .palavra-do-dia {{ background: #fff3ad; padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
         .palavra-texto {{ font-size: 32px !important; color: #1e3a8a !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
         .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black !important; font-family: serif; }}
-        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: black !important; border: 1px solid #ccc; font-size: 18px; font-weight: 500; }}
+        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: #000 !important; border: 1px solid #ccc; font-size: 18px; font-weight: 500; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -46,7 +46,6 @@ def init_db():
 
 init_db()
 
-# Função para exibir o Logo
 def exibir_logo(largura=150):
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
@@ -55,10 +54,9 @@ def exibir_logo(largura=150):
     else:
         st.markdown(f'<h1 style="text-align:center; color:#b8860b; margin-bottom:0;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
 
-# Função para limpar nomes para o link do vídeo
-def limpar_nome_link(texto):
-    texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode('utf-8')
-    return re.sub(r'\W+', '', texto)
+def limpar_string_link(txt):
+    txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode('utf-8')
+    return re.sub(r'\W+', '', txt).lower()
 
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
@@ -68,7 +66,7 @@ if not st.session_state.logado:
     _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
         exibir_logo(180)
-        t_l, t_c = st.tabs(["✨ Entrar", "📝 Cadastro"])
+        t_l, t_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with t_l:
             with st.form("login"):
                 e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
@@ -93,7 +91,7 @@ else:
         exibir_logo(100)
         st.markdown(f"<h3 style='text-align:center; color:#b8860b;'>🙏 {u['nome']}</h3>", unsafe_allow_html=True)
         menu = st.radio("Menu", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
-        tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
+        tam_fonte = st.select_slider("Tamanho Fonte", options=range(18, 48, 2), value=24)
         admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
@@ -105,8 +103,8 @@ else:
         with tm:
             with st.form("f_mural", clear_on_submit=True):
                 tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
-                foto = st.file_uploader("Adicionar Foto", type=['jpg','png','jpeg'])
-                if st.form_submit_button("Publicar Aviso"):
+                foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
+                if st.form_submit_button("Publicar"):
                     img = base64.b64encode(foto.read()).decode() if foto else ""
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
@@ -115,7 +113,7 @@ else:
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
         with tf:
             with st.form("f_fin"):
-                d, v, t = st.text_input("Descrição"), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
+                d, v, t = st.text_input("Desc."), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Lançar"):
                     executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.rerun()
@@ -130,7 +128,7 @@ else:
             if not p_res.empty: st.session_state.palavra_dia = p_res.iloc[0]
         if 'palavra_dia' in st.session_state:
             p = st.session_state.palavra_dia
-            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b; font-size:22px;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
             st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:20px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
@@ -144,16 +142,15 @@ else:
             dest = st.radio("Conversar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
             st.divider()
             
-            # --- VÍDEO CORRIGIDO (COM BARRA / E SEM ACENTOS) ---
-            sala_id = f"Agape{limpar_nome_link(u['nome'])}{limpar_nome_link(dest)}"
-            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
+            sala_id = f"agape_{limpar_string_link(u['nome'])}_{limpar_string_link(dest)}"
+            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=true"
             
             st.subheader("📹 Câmera")
             st.components.v1.html(f"""
                 <iframe src="{url_v}" allow="camera; microphone; fullscreen; display-capture; autoplay" 
-                style="height: 400px; width: 100%; border: 3px solid #b8860b; border-radius: 15px; background: black;"></iframe>
-            """, height=420)
-            st.link_button("🚀 Abrir em tela cheia", url_v, use_container_width=True)
+                style="height: 450px; width: 100%; border: 3px solid #b8860b; border-radius: 15px; background: black;"></iframe>
+            """, height=470)
+            st.link_button("🚀 Abrir Vídeo em Tela Cheia", url_v, use_container_width=True)
 
         with c2:
             st.subheader(f"🗨️ {dest}")
@@ -167,13 +164,14 @@ else:
             with chat:
                 for _, r in df_msg.iterrows():
                     me = r['de_user'] == u['nome']
-                    align, cor = ("flex-end", "#dcf8c6") if me else ("flex-start", "#ffffff")
+                    align, cor = ("flex-end", "#fff9c4") if me else ("flex-start", "#ffffff")
                     st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div class="chat-bubble" style="background:{cor};"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
             with st.form("chat_f", clear_on_submit=True):
                 txt, arq = st.text_input("Mensagem"), st.file_uploader("Anexo")
                 if st.form_submit_button("Enviar"):
                     b64 = base64.b64encode(arq.read()).decode() if arq else ""
-                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_data, anexo_nome, data) VALUES (:d,:p,:t,:ad,:an,:dt)", {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
+                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_data, anexo_nome, data) VALUES (:d,:p,:t,:ad,:an,:dt)", 
+                                  {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
                     st.rerun()
 
     elif menu == "📖 Bíblia Sagrada":
