@@ -11,13 +11,45 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 def aplicar_estilo_divino(tam_fonte):
     st.markdown(f"""
         <style>
-        .stApp {{ background: radial-gradient(circle, #ffffff 0%, #fdfbf0 100%); }}
-        h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-family: 'Georgia', serif; }}
-        .card-mural {{ background: white; padding: 20px; border-radius: 15px; border: 2px solid #ffd700; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(184, 134, 11, 0.1); color: black; }}
-        .palavra-do-dia {{ background: linear-gradient(135deg, #fffcf0 0%, #fff3ad 100%); padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
-        .palavra-texto {{ font-size: 32px !important; color: #0369a1 !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
-        .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border-left: 15px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }}
-        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: black !important; border: 1px solid #eee; font-size: 18px; }}
+        .stApp {{ background: #fdfbf0; }} /* Fundo Marfim Suave */
+        
+        /* Títulos em Dourado Forte */
+        h1, h2, h3 {{ color: #b8860b !important; text-align: center; font-weight: bold; }}
+        
+        /* Textos Gerais - Sempre Escuros para Contraste */
+        p, span, label, .stMarkdown {{ color: #1a1a1a !important; font-weight: 500; }}
+
+        /* Cards do Mural */
+        .card-mural {{ 
+            background: white; padding: 20px; border-radius: 15px; 
+            border: 2px solid #ffd700; margin-bottom: 15px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05); 
+            color: #000000 !important; 
+        }}
+        .card-mural h3 {{ color: #1e3a8a !important; text-align: left; }}
+
+        /* Palavra do Dia */
+        .palavra-do-dia {{ 
+            background: #fff3ad; padding: 30px; border-radius: 20px; 
+            border: 3px double #b8860b; text-align: center; margin-bottom: 30px; 
+        }}
+        .palavra-texto {{ 
+            font-size: 32px !important; color: #1e3a8a !important; 
+            font-family: serif; font-style: italic; font-weight: bold; 
+        }}
+
+        /* Bíblia - Texto Preto no Branco */
+        .caixa-leitura {{ 
+            background: white; padding: 30px; border-radius: 10px; 
+            border: 2px solid #b8860b; font-size: {tam_fonte}px !important; 
+            line-height: 1.7; color: #000000 !important; font-family: serif; 
+        }}
+
+        /* Chat - Cores de Contraste */
+        .chat-bubble {{ 
+            padding: 12px; border-radius: 15px; margin-bottom: 8px; 
+            color: #000000 !important; border: 1px solid #ccc; font-size: 18px; 
+        }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -42,13 +74,6 @@ def init_db():
 
 init_db()
 
-def exibir_logo(largura=150):
-    if os.path.exists("logo.png"):
-        with open("logo.png", "rb") as f:
-            data = base64.b64encode(f.read()).decode()
-            st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
-    else: st.markdown(f'<h1 style="text-align:center; color:#b8860b;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
-
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
@@ -56,12 +81,12 @@ if not st.session_state.logado:
     aplicar_estilo_divino(22)
     _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
-        exibir_logo(180)
-        t_l, t_c = st.tabs(["✨ Entrar", "📝 Cadastro"])
+        st.markdown("<h1>⛪ ÁGAPE</h1>", unsafe_allow_html=True)
+        t_l, t_c = st.tabs(["🔐 Entrar", "📝 Cadastro"])
         with t_l:
             with st.form("login"):
                 e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
-                if st.form_submit_button("Acessar", use_container_width=True):
+                if st.form_submit_button("Acessar"):
                     res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
                     if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                         st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
@@ -79,11 +104,10 @@ if not st.session_state.logado:
 else:
     u = st.session_state.user
     with st.sidebar:
-        exibir_logo(80)
-        st.markdown(f"### 🙏 {u['nome']}")
-        menu = st.radio("Caminho", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
+        st.markdown(f"<h3 style='text-align:left;'>🙏 {u['nome']}</h3>", unsafe_allow_html=True)
+        menu = st.radio("Menu", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
         tam_fonte = st.select_slider("Fonte", options=range(18, 48, 2), value=24)
-        admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
+        admin_mode = st.checkbox("Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     aplicar_estilo_divino(tam_fonte)
@@ -100,7 +124,7 @@ else:
                     executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                     st.rerun()
             for _, r in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Excluir Aviso: {r['titulo']}", key=f"del_av_{r['id']}"):
+                if st.button(f"🗑️ Excluir Aviso: {r['titulo']}", key=f"del_{r['id']}"):
                     executar_query("DELETE FROM avisos WHERE id=:id", {"id":r['id']}); st.rerun()
         with tf:
             with st.form("f_fin"):
@@ -109,7 +133,7 @@ else:
                     executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
                     st.rerun()
             for _, r in consultar_db("SELECT * FROM financeiro ORDER BY id DESC").iterrows():
-                if st.button(f"🗑️ Apagar Lançamento: {r['descricao']} (R$ {r['valor']})", key=f"df_{r['id']}"):
+                if st.button(f"🗑️ Apagar {r['descricao']}", key=f"df_{r['id']}"):
                     executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
 
     elif menu == "📢 Mural da Fé":
@@ -119,41 +143,38 @@ else:
             if not p_res.empty: st.session_state.palavra_dia = p_res.iloc[0]
         if 'palavra_dia' in st.session_state:
             p = st.session_state.palavra_dia
-            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b; font-size:22px;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="palavra-do-dia"><span class="palavra-texto">"{p["texto"]}"</span><br><br><span style="color:#b8860b;">📖 {p["livro"]} {p["cap"]}:{p["ver"]}</span></div>', unsafe_allow_html=True)
         for _, av in consultar_db("SELECT * FROM avisos ORDER BY id DESC").iterrows():
-            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:22px; color:black;">{av["conteudo"]}</p><small style="color:gray;">{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
 
     elif menu == "🎥 Comunhão":
         st.title("💬 Espaço de Comunhão")
         c1, c2 = st.columns([0.3, 0.7])
         with c1:
-            st.subheader("👥 Membros")
             m_db = consultar_db("SELECT nome FROM membros WHERE nome != :n ORDER BY nome ASC", {"n": u['nome']})
             dest = st.radio("Conversar com:", ["Todos (Grupo)"] + list(m_db['nome']), key="membro_seletor")
             st.divider()
+            # VÍDEO - NOME DE SALA LIMPO
             sala_id = re.sub(r'\W+', '', f"Agape{u['nome']}{dest}")
-            url_video = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=true"
-            st.link_button(f"🎥 Vídeo com {dest}", url_video, use_container_width=True)
-            if admin_mode: st.warning("👁️ Supervisor Ativo: Histórico de " + dest)
+            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
+            st.link_button("🎥 ENTRAR NA CÂMERA", url_v, use_container_width=True)
+            st.write("---")
+            st.write("Link Direto (clique se o botão falhar):")
+            st.markdown(f"[CLIQUE AQUI PARA ABRIR]({url_v})")
 
         with c2:
             st.subheader(f"🗨️ {dest}")
-            chat = st.container(height=450)
+            chat = st.container(height=400)
             if dest == "Todos (Grupo)":
                 df_msg = consultar_db("SELECT * FROM mensagens WHERE para_user = 'Todos (Grupo)' ORDER BY id ASC")
-            elif admin_mode:
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user = :c OR para_user = :c) AND para_user != 'Todos (Grupo)' ORDER BY id ASC", {"c": dest})
             else:
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:c) OR (de_user=:c AND para_user=:u) ORDER BY id ASC", {"u": u['nome'], "c": dest})
+                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:d) OR (de_user=:d AND para_user=:u) ORDER BY id ASC", {"u": u['nome'], "d": dest})
             with chat:
                 for _, r in df_msg.iterrows():
                     me = r['de_user'] == u['nome']
-                    align, cor = ("flex-end", "#fff9c4") if me else ("flex-start", "#ffffff")
+                    align, cor = ("flex-end", "#dcf8c6") if me else ("flex-start", "#ffffff")
                     st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div class="chat-bubble" style="background:{cor};"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
-                    if r['anexo_data']:
-                        try: st.download_button(label=f"📁 {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"dl_{r['id']}")
-                        except: pass
             with st.form("chat_f", clear_on_submit=True):
                 txt, arq = st.text_input("Mensagem"), st.file_uploader("Anexo")
                 if st.form_submit_button("Enviar"):
@@ -162,15 +183,6 @@ else:
                     st.rerun()
 
     elif menu == "📖 Bíblia Sagrada":
-        if consultar_db("SELECT COUNT(*) as t FROM biblia").iloc[0]['t'] < 10 and os.path.exists("acf.json"):
-            with st.spinner("Carregando Escrituras..."):
-                with open("acf.json", "r", encoding="utf-8-sig") as f:
-                    dados = json.load(f)
-                    for livro in dados:
-                        for n_cap, cap in enumerate(livro['chapters']):
-                            for n_ver, texto in enumerate(cap):
-                                executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":livro['name'],"c":n_cap+1,"v":n_ver+1,"t":str(texto)})
-            st.rerun()
         l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
         if not l_db.empty:
             cc1, cc2 = st.columns([0.3, 0.7])
