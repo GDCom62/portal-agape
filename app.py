@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import random, string, os, base64, json, io, re, unicodedata
+import random, string, os, base64, json, re, unicodedata
 
 # --- 1. CONFIGURAÇÕES E ESTILO DIVINO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -18,7 +18,6 @@ def aplicar_estilo_divino(tam_fonte):
         .palavra-do-dia {{ background: #fff3ad; padding: 30px; border-radius: 20px; border: 3px double #b8860b; text-align: center; margin-bottom: 30px; }}
         .palavra-texto {{ font-size: 32px !important; color: #1e3a8a !important; font-family: serif; font-style: italic; font-weight: bold; line-height: 1.3; }}
         .caixa-leitura {{ background: white; padding: 30px; border-radius: 10px; border: 2px solid #b8860b; font-size: {tam_fonte}px !important; line-height: 1.7; color: black !important; font-family: serif; }}
-        .chat-bubble {{ padding: 12px; border-radius: 15px; margin-bottom: 8px; color: #000 !important; border: 1px solid #ccc; font-size: 18px; font-weight: 500; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -36,7 +35,6 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, titulo TEXT, conteudo TEXT, img_data TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, anexo_nome TEXT, anexo_data TEXT, data TEXT)')
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
@@ -49,10 +47,6 @@ def exibir_logo(largura=150):
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<p align="center"><img src="data:image/png;base64,{data}" width="{largura}"></p>', unsafe_allow_html=True)
     else: st.markdown(f'<h1 style="text-align:center; color:#b8860b; margin:0;">⛪ ÁGAPE</h1>', unsafe_allow_html=True)
-
-def limpar_link(texto):
-    texto = unicodedata.normalize('NFD', str(texto)).encode('ascii', 'ignore').decode('utf-8')
-    return re.sub(r'[^a-zA-Z0-9]', '', texto)
 
 # --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
@@ -88,7 +82,7 @@ else:
         st.markdown(f"### 🙏 {u['nome']}")
         menu = st.radio("Menu", ["📢 Mural da Fé", "📖 Bíblia Sagrada", "🎥 Comunhão", "💰 Tesouraria"])
         tam_fonte = st.select_slider("Tamanho Fonte", options=range(18, 48, 2), value=24)
-        admin_mode = st.checkbox("⚙️ Modo Admin (Supervisor)") if u['is_admin'] == 1 else False
+        admin_mode = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     aplicar_estilo_divino(tam_fonte)
@@ -96,7 +90,7 @@ else:
     if menu == "📢 Mural da Fé":
         st.title("📢 Mural da Fé")
         if admin_mode:
-            with st.expander("➕ Publicar ou Editar Aviso"):
+            with st.expander("➕ Publicar Aviso"):
                 with st.form("f_mural", clear_on_submit=True):
                     tit, cont = st.text_input("Título"), st.text_area("Conteúdo")
                     foto = st.file_uploader("Anexar Foto", type=['jpg','png','jpeg'])
@@ -105,6 +99,7 @@ else:
                         executar_query("INSERT INTO avisos (titulo, conteudo, img_data, data) VALUES (:t,:c,:i,:d)", {"t":tit, "c":cont, "i":img, "d":datetime.now().strftime("%d/%m/%Y")})
                         st.rerun()
 
+        # Palavra do Dia
         p_res = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
         if not p_res.empty:
             p = p_res.iloc[0]
@@ -114,86 +109,51 @@ else:
         for _, av in avisos.iterrows():
             st.markdown(f'<div class="card-mural"><h3>{av["titulo"]}</h3><p style="font-size:20px;">{av["conteudo"]}</p><small>{av["data"]}</small></div>', unsafe_allow_html=True)
             if av['img_data']: st.image(base64.b64decode(av['img_data']), width=250)
-            if admin_mode:
-                if st.button(f"🗑️ Excluir {av['titulo']}", key=f"del_av_{av['id']}"):
-                    executar_query("DELETE FROM avisos WHERE id=:id", {"id":av['id']}); st.rerun()
+
+    elif menu == "📖 Bíblia Sagrada":
+        st.title("📖 Bíblia Sagrada")
+        livros = consultar_db("SELECT DISTINCT livro FROM biblia")['livro'].tolist()
+        col1, col2 = st.columns(2)
+        with col1: sel_livro = st.selectbox("Livro", livros)
+        caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":sel_livro})['cap'].tolist()
+        with col2: sel_cap = st.selectbox("Capítulo", caps)
+        
+        versiculos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver", {"l":sel_livro, "c":sel_cap})
+        texto_cap = ""
+        for _, v in versiculos.iterrows():
+            texto_cap += f"<sup>{v['ver']}</sup> {v['texto']} "
+        st.markdown(f'<div class="caixa-leitura">{texto_cap}</div>', unsafe_allow_html=True)
 
     elif menu == "🎥 Comunhão":
         st.title("💬 Espaço de Comunhão")
-        c1, c2 = st.columns([0.3, 0.7])
-        with c1:
-            st.subheader("👥 Irmãos")
-            m_db = consultar_db("SELECT nome FROM membros ORDER BY nome ASC")
-            outros = [n for n in m_db['nome'] if n != u['nome']]
-            dest = st.radio("Conversar com:", ["Todos (Grupo)"] + outros, key="chat_dest")
-            
-            st.divider()
-            sala_id = f"Agape{limpar_link(u['nome'])}{limpar_link(dest)}"
-            url_v = f"https://jit.si{sala_id}#config.prejoinPageEnabled=false"
-            
-            st.write("📹 **Vídeo Chamada**")
-            st.link_button("🎥 ENTRAR NA CÂMERA", url_v, use_container_width=True)
-            st.caption("Abre em nova aba para evitar erros de IP.")
-
-        with c2:
-            st.subheader(f"🗨️ {dest}")
-            chat = st.container(height=450)
-            if dest == "Todos (Grupo)":
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE para_user = 'Todos (Grupo)' ORDER BY id ASC")
-            elif admin_mode:
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user = :c OR para_user = :c) AND para_user != 'Todos (Grupo)' ORDER BY id ASC", {"c": dest})
-            else:
-                df_msg = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:d) OR (de_user=:d AND para_user=:u) ORDER BY id ASC", {"u": u['nome'], "d": dest})
-            
-            with chat:
-                for _, r in df_msg.iterrows():
-                    me = r['de_user'] == u['nome']
-                    align, cor = ("flex-end", "#fff9c4") if me else ("flex-start", "#ffffff")
-                    st.markdown(f'<div style="display:flex; flex-direction:column; align-items:{align};"><div class="chat-bubble" style="background:{cor};"><b>{r["de_user"]}</b><br>{r["texto"]}</div></div>', unsafe_allow_html=True)
-                    if r['anexo_data']:
-                        st.download_button(label=f"📁 Baixar {r['anexo_nome']}", data=base64.b64decode(r['anexo_data']), file_name=r['anexo_nome'], key=f"dl_{r['id']}")
-            
-            with st.form("chat_f", clear_on_submit=True):
-                txt, arq = st.text_input("Mensagem"), st.file_uploader("Anexo")
-                if st.form_submit_button("Enviar"):
-                    b64 = base64.b64encode(arq.read()).decode() if arq else ""
-                    executar_query("INSERT INTO mensagens (de_user, para_user, texto, anexo_data, anexo_nome, data) VALUES (:d,:p,:t,:ad,:an,:dt)", 
-                                  {"d":u['nome'], "p":dest, "t":txt, "ad":b64, "an":arq.name if arq else "", "dt":datetime.now().strftime("%H:%M")})
-                    st.rerun()
-
-    elif menu == "📖 Bíblia Sagrada":
-        if consultar_db("SELECT COUNT(*) as t FROM biblia").iloc[0]['t'] < 10 and os.path.exists("acf.json"):
-            with st.spinner("Carregando Escrituras..."):
-                with open("acf.json", "r", encoding="utf-8-sig") as f:
-                    dados = json.load(f)
-                    for livro in dados:
-                        for n_c, cap in enumerate(livro['chapters']):
-                            for n_v, texto in enumerate(cap):
-                                executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l,:c,:v,:t)", {"l":livro['name'],"c":n_c+1,"v":n_v+1,"t":str(texto)})
-            st.rerun()
+        st.markdown("""
+            <div style="background:white; padding:30px; border-radius:20px; border:2px solid #b8860b; text-align:center;">
+                <h2 style="color:#075e54 !important;">Bate-papo Realtime</h2>
+                <p>Clique no botão abaixo para abrir a sala de comunhão. <br> 
+                As mensagens são instantâneas e seguras via Redis.</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        l_db = consultar_db("SELECT DISTINCT livro FROM biblia")
-        if not l_db.empty:
-            cc1, cc2 = st.columns([0.3, 0.7])
-            l_s = cc1.selectbox("Livro", l_db['livro'])
-            c_s = cc1.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_s})['cap'])
-            txts = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_s, "c":c_s})
-            txt_h = "".join([f"<p><span style='color:#b8860b; font-weight:bold;'>{v['ver']}</span> {v['texto']}</p>" for _, v in txts.iterrows()])
-            cc2.markdown(f'<div class="caixa-leitura">{txt_h}</div>', unsafe_allow_html=True)
+        st.write("")
+        
+        # --- LINK PARA O CHAT EXTERNO ---
+        # Substitua pela URL que o Render te der para o app do Chat
+        URL_CHAT_RENDER = "https://onrender.com"
+        link_com_usuario = f"{URL_CHAT_RENDER}/?user={u['nome']}&room=Geral"
+        
+        st.link_button("🚀 ENTRAR NO CHAT AGORA", link_com_usuario, use_container_width=True)
+        st.info("O chat abre em uma nova janela para não interromper sua navegação no Portal.")
 
     elif menu == "💰 Tesouraria":
         st.title("💰 Tesouraria")
         if admin_mode:
             with st.form("f_fin"):
-                d, v, t = st.text_input("Desc."), st.number_input("Valor"), st.selectbox("Tipo", ["Entrada", "Saída"])
-                if st.form_submit_button("Lançar"):
-                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":d, "v":v, "t":t, "dt":datetime.now().strftime("%Y-%m-%d")})
-                    st.rerun()
-        df = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
-        if not df.empty:
-            st.metric("Saldo", f"R$ {df[df['tipo']=='Entrada']['valor'].sum() - df[df['tipo']=='Saída']['valor'].sum():,.2f}")
-            st.dataframe(df, use_container_width=True)
-            if admin_mode:
-                for _, r in df.iterrows():
-                    if st.button(f"🗑️ Apagar {r['descricao']}", key=f"df_{r['id']}"):
-                        executar_query("DELETE FROM financeiro WHERE id=:id", {"id":r['id']}); st.rerun()
+                desc, val = st.text_input("Descrição"), st.number_input("Valor", min_value=0.0)
+                tipo = st.selectbox("Tipo", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
+                if st.form_submit_button("Registrar"):
+                    executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%d/%m/%Y")})
+        
+        df_fin = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
+        st.dataframe(df_fin, use_container_width=True)
+        total = df_fin[df_fin['tipo'].str.contains("Entrada")]['valor'].sum() - df_fin[df_fin['tipo'].str.contains("Saída")]['valor'].sum()
+        st.metric("Saldo em Caixa", f"R$ {total:,.2f}")
