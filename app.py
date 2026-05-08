@@ -5,20 +5,70 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import random, string, os, base64, json, re, unicodedata
 
-# --- CONFIGURAÇÕES E ESTILO ---
+# --- 1. CONFIGURAÇÕES E ESTILO DE ALTO CONTRASTE ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 def aplicar_estilo_facebook():
     st.markdown("""
         <style>
+        /* Fonte Arial e Cores de Fundo */
+        html, body, [class*="st-"], .stMarkdown {
+            font-family: Arial, Helvetica, sans-serif !important;
+        }
         .stApp { background-color: #f0f2f5; }
-        .card-post { background: white; padding: 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 16px; border: 1px solid #dddfe2; color: black; }
-        .palavra-destaque { background: linear-gradient(135deg, #1877f2, #0054ca); color: white !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-        .stButton>button { border-radius: 6px !important; }
+
+        /* Texto Geral: Preto Absoluto e Maior */
+        p, span, label {
+            color: #000000 !important;
+            font-size: 20px !important;
+            font-weight: 500 !important;
+        }
+
+        /* Bíblia: Texto Extra Grande para Leitura */
+        .texto-biblico {
+            font-size: 28px !important;
+            color: #000000 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        /* Menu Lateral: Fundo Preto e Letras Brancas */
+        [data-testid="stSidebar"] {
+            background-color: #1c1e21 !important;
+        }
+        [data-testid="stSidebar"] * {
+            color: #ffffff !important;
+            font-size: 19px !important;
+        }
+        
+        /* Cards do Feed e Bíblia */
+        .card-post {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+            border: 1px solid #ced0d4;
+            color: black !important;
+        }
+
+        /* Títulos Azul Facebook */
+        h1, h2, h3 { 
+            color: #1877f2 !important; 
+            font-family: Arial !important;
+            font-weight: bold !important;
+        }
+
+        /* Botões */
+        .stButton>button {
+            border-radius: 8px !important;
+            font-weight: bold !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-# --- BANCO DE DADOS ---
+# --- 2. BANCO DE DADOS ---
 engine = create_engine("sqlite:///agape_v60.db", pool_pre_ping=True)
 
 def executar_query(sql, params={}):
@@ -33,7 +83,7 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, data TEXT)')
-    if consultar_db("SELECT * FROM membros WHERE email='admin@agape.com'").empty:
+    if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
 
@@ -41,116 +91,122 @@ init_db()
 
 def importar_biblia_acf():
     if not os.path.exists("acf.json"):
-        st.error("Arquivo acf.json não encontrado na pasta raiz!")
+        st.error("Arquivo acf.json não encontrado!")
         return
     try:
         with open("acf.json", "r", encoding="utf-8") as f:
-            biblia_data = json.load(f)
+            data = json.load(f)
             executar_query("DELETE FROM biblia")
-            for livro_dict in biblia_data:
-                nome_livro = livro_dict['name']
-                for i, capitulo in enumerate(livro_dict['chapters']):
-                    num_cap = i + 1
-                    for j, texto_verso in enumerate(capitulo):
-                        num_ver = j + 1
+            for livro in data:
+                nome_livro = livro['name']
+                for i, cap in enumerate(livro['chapters']):
+                    for j, texto in enumerate(cap):
                         executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l, :c, :v, :t)",
-                                       {"l": nome_livro, "c": num_cap, "v": num_ver, "t": texto_verso})
-        st.success("Bíblia ACF importada!")
-    except Exception as e: st.error(f"Erro: {e}")
+                                       {"l": nome_livro, "c": i+1, "v": j+1, "t": texto})
+        st.success("Bíblia Importada com Sucesso!")
+    except Exception as e: st.error(f"Erro na carga: {e}")
 
-# --- LOGIN ---
+# --- 3. LOGIN ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 
 if not st.session_state.logado:
     aplicar_estilo_facebook()
-    _, col_c, _ = st.columns([1, 1.2, 1])
-    with col_c:
-        st.markdown("<h1 style='color: #1877f2; text-align: center;'>facebook</h1>", unsafe_allow_html=True)
-        with st.form("login"):
-            e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
+    _, col_login, _ = st.columns([1, 1.5, 1])
+    with col_login:
+        st.markdown("<h1 style='text-align:center; font-size:45px;'>facebook</h1>", unsafe_allow_html=True)
+        with st.form("entrar"):
+            e = st.text_input("E-mail")
+            s = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar", use_container_width=True):
-                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e": e})
+                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e":e})
                 if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
                     st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
                     st.rerun()
-                st.error("Credenciais inválidas.")
+                st.error("Dados incorretos.")
 
+# --- 4. ÁREA LOGADA ---
 else:
     u = st.session_state.user
     aplicar_estilo_facebook()
 
     with st.sidebar:
-        st.subheader(f"👤 {u['nome']}")
-        menu = st.radio("Menu", ["🏠 Feed", "📖 Bíblia", "👥 Comunhão", "💰 Financeiro"])
+        st.markdown(f"### 👤 {u['nome']}")
+        menu = st.radio("Navegação", ["🏠 Feed", "📖 Bíblia", "👥 Comunhão", "💰 Financeiro"])
         adm = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
         if adm and st.button("📥 Importar acf.json"): importar_biblia_acf()
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     if menu == "🏠 Feed":
         st.title("Feed de Notícias")
-        col_f, col_p = st.columns([2, 1])
-        with col_f:
+        col_feed, col_side = st.columns([2, 1])
+        with col_feed:
             if adm:
                 with st.container():
                     st.markdown('<div class="card-post">', unsafe_allow_html=True)
-                    with st.form("post", clear_on_submit=True):
+                    with st.form("novo_post", clear_on_submit=True):
                         txt = st.text_area("No que você está pensando?")
                         if st.form_submit_button("Publicar"):
-                            executar_query("INSERT INTO avisos (conteudo, data) VALUES (:c, :d)", {"c":txt, "d":datetime.now().strftime("%d/%m %H:%M")})
+                            executar_query("INSERT INTO avisos (conteudo, data) VALUES (:c, :d)", 
+                                           {"c":txt, "d":datetime.now().strftime("%d/%m/%Y %H:%M")})
                             st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
             
             posts = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
             for _, p in posts.iterrows():
-                st.markdown(f"<div class='card-post'><b>Igreja Ágape</b><br><small>{p['data']}</small><p>{p['conteudo']}</p></div>", unsafe_allow_html=True)
-
-        with col_p:
-            res_b = consultar_db("SELECT * FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if not res_b.empty:
-                b = res_b.iloc[0]
-                st.markdown(f"<div class='palavra-destaque'><i>'{b['texto']}'</i><br><br><b>{b['livro']} {b['cap']}:{b['ver']}</b></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='card-post'><b>Ministério Ágape</b> • <small>{p['data']}</small><br><br>{p['conteudo']}</div>", unsafe_allow_html=True)
 
     elif menu == "📖 Bíblia":
         st.title("📖 Bíblia Sagrada")
         res_l = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not res_l.empty:
-            l_sel = st.selectbox("Livro", res_l['livro'].tolist())
+            c1, c2 = st.columns(2)
+            l_sel = c1.selectbox("Livro", res_l['livro'].tolist())
             res_c = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l ORDER BY cap", {"l":l_sel})
-            c_sel = st.selectbox("Capítulo", res_c['cap'].tolist())
+            c_sel = c2.selectbox("Capítulo", res_c['cap'].tolist())
+            
             st.markdown('<div class="card-post">', unsafe_allow_html=True)
             versos = consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c ORDER BY ver", {"l":l_sel, "c":c_sel})
-            for _, v in versos.iterrows(): st.write(f"**{v['ver']}** {v['texto']}")
+            for _, v in versos.iterrows():
+                st.markdown(f'<p class="texto-biblico"><b>{v["ver"]}</b> {v["texto"]}</p>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-        else: st.warning("Bíblia vazia. Use o botão Importar no Modo Admin.")
+        else: st.warning("Importe o arquivo acf.json no Modo Admin.")
 
     elif menu == "👥 Comunhão":
-        st.title("👥 Comunhão")
-        m_list = consultar_db("SELECT nome FROM membros")['nome'].tolist()
-        dest = st.selectbox("Conversar com:", [m for m in m_list if m != u['nome']])
-        st.link_button(f"🎥 Vídeo Chamada com {dest}", f"https://jit.si{u['id']}_{dest}")
+        st.title("👥 Espaço de Comunhão")
+        membros = consultar_db("SELECT nome FROM membros")['nome'].tolist()
+        dest = st.selectbox("Conversar com:", [m for m in membros if m != u['nome']])
+        st.link_button(f"🎥 Iniciar Vídeo Chamada com {dest}", f"https://jit.si_{u['id']}_{dest}")
         
-        st.divider()
-        msgs = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:d) OR (de_user=:d AND para_user=:u)", {"u":u['nome'], "d":dest})
-        for _, m in msgs.iterrows(): st.info(f"**{m['de_user']}**: {m['texto']}")
-        with st.form("chat", clear_on_submit=True):
-            mtxt = st.text_input("Mensagem")
+        st.markdown('<div class="card-post">', unsafe_allow_html=True)
+        msgs = consultar_db("SELECT * FROM mensagens WHERE (de_user=:u AND para_user=:d) OR (de_user=:d AND para_user=:u) ORDER BY id", {"u":u['nome'], "d":dest})
+        for _, m in msgs.iterrows():
+            cor = "#e7f3ff" if m['de_user'] == u['nome'] else "#f0f2f5"
+            st.markdown(f"<div style='background:{cor}; padding:10px; border-radius:10px; margin-bottom:5px;'><b>{m['de_user']}</b>: {m['texto']}</div>", unsafe_allow_html=True)
+        
+        with st.form("chat_msg", clear_on_submit=True):
+            mtxt = st.text_input("Escreva sua mensagem...")
             if st.form_submit_button("Enviar"):
-                executar_query("INSERT INTO mensagens (de_user, para_user, texto, data) VALUES (:u, :d, :t, :dt)", {"u":u['nome'], "d":dest, "t":mtxt, "dt":datetime.now().isoformat()})
+                executar_query("INSERT INTO mensagens (de_user, para_user, texto, data) VALUES (:u, :d, :t, :dt)",
+                               {"u":u['nome'], "d":dest, "t":mtxt, "dt":datetime.now().isoformat()})
                 st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "💰 Financeiro":
-        st.title("💰 Financeiro")
+        st.title("💰 Gestão Financeira")
         if adm:
             with st.expander("Novo Lançamento"):
-                with st.form("f"):
-                    desc, val = st.text_input("Descrição"), st.number_input("Valor", 0.0)
+                with st.form("fin_form"):
+                    desc = st.text_input("Descrição")
+                    val = st.number_input("Valor", 0.0)
                     tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-                    if st.form_submit_button("Salvar"):
-                        executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d, :v, :t, :dt)", {"d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%d/%m/%Y")})
+                    if st.form_submit_button("Registrar"):
+                        executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d, :v, :t, :dt)",
+                                       {"d":desc, "v":val, "t":tipo, "dt":datetime.now().strftime("%d/%m/%Y")})
                         st.rerun()
-        df = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
-        if not df.empty:
-            st.dataframe(df, use_container_width=True)
-            res_e = df[df['tipo']=='Entrada']['valor'].sum()
-            res_s = df[df['tipo']=='Saída']['valor'].sum()
-            st.metric("Saldo", f"R$ {res_e - res_s:,.2f}", delta=f"E: {res_e} | S: {res_s}")
+        
+        df_f = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
+        if not df_f.empty:
+            st.table(df_f[['data', 'descricao', 'tipo', 'valor']])
+            ent = df_f[df_f['tipo']=='Entrada']['valor'].sum()
+            sai = df_f[df_f['tipo']=='Saída']['valor'].sum()
+            st.metric("Saldo Geral", f"R$ {ent - sai:,.2f}", f"Entradas: {ent} | Saídas: {sai}")
