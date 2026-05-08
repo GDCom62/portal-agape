@@ -45,6 +45,11 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY, de_user TEXT, para_user TEXT, texto TEXT, data TEXT)')
+    
+    # --- CORREÇÃO DE COLUNA FALTANTE ---
+    try: consultar_db("SELECT urgente FROM avisos LIMIT 1")
+    except: executar_query("ALTER TABLE avisos ADD COLUMN urgente INTEGER DEFAULT 0")
+    
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, codigo, senha, is_admin) VALUES ('Admin', 'admin@agape.com', 'ADM-000', :pw, 1)", {"pw": pw})
@@ -88,9 +93,11 @@ else:
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
     # --- AVISO URGENTE ---
-    avisos_urgentes = consultar_db("SELECT * FROM avisos WHERE urgente=1 ORDER BY id DESC LIMIT 1")
-    if not avisos_urgentes.empty:
-        st.markdown(f'<div class="aviso-urgente">🚨 AVISO: {avisos_urgentes.iloc[0]["conteudo"]}</div>', unsafe_allow_html=True)
+    try:
+        av_urg = consultar_db("SELECT * FROM avisos WHERE urgente=1 ORDER BY id DESC LIMIT 1")
+        if not av_urg.empty:
+            st.markdown(f'<div class="aviso-urgente">🚨 AVISO: {av_urg.iloc[0]["conteudo"]}</div>', unsafe_allow_html=True)
+    except: pass
 
     # --- MENUS ---
     if menu == "🏠 Feed":
@@ -127,52 +134,33 @@ else:
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif menu == "💰 Financeiro":
-        st.title("💰 Gestão Financeira Online")
+        st.title("💰 Gestão Financeira")
         
-        # Filtros de Período para o Admin
-        st.markdown('<div class="card-post">', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
         meses = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
-        anos = [str(a) for a in range(2024, 2030)]
-        mes_sel = col1.selectbox("Filtrar por Mês", meses, index=datetime.now().month - 1)
-        ano_sel = col2.selectbox("Filtrar por Ano", anos, index=anos.index(datetime.now().strftime("%Y")))
-        st.markdown('</div>', unsafe_allow_html=True)
+        anos = [str(a) for a in range(2024, 2031)]
+        c1, c2 = st.columns(2)
+        mes_sel = c1.selectbox("Mês", meses, index=datetime.now().month-1)
+        ano_sel = c2.selectbox("Ano", anos, index=anos.index(datetime.now().strftime("%Y")))
 
         if adm:
-            with st.expander("➕ Novo / Editar Lançamento"):
-                with st.form("fin_form"):
-                    id_ed = st.number_input("ID para editar (0 para novo)", 0)
+            with st.expander("➕ Lançar / Editar"):
+                with st.form("fin"):
+                    id_ed = st.number_input("ID (0=novo)", 0)
                     desc, val = st.text_input("Descrição"), st.number_input("Valor", 0.0)
                     tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-                    data_lan = st.text_input("Data (DD/MM/AAAA)", datetime.now().strftime("%d/%m/%Y"))
-                    if st.form_submit_button("Confirmar Lançamento"):
-                        if id_ed == 0: executar_query("INSERT INTO financeiro (descricao, valor, tipo, data) VALUES (:d,:v,:t,:dt)", {"d":desc,"v":val,"t":tipo,"dt":data_lan})
-                        else: executar_query("UPDATE financeiro SET descricao=:d, valor=:v, tipo=:t, data=:dt WHERE id=:id", {"d":desc,"v":val,"t":tipo,"dt":data_lan,"id":id_ed})
+                    dt = st.text_input("Data", datetime.now().strftime("%d/%m/%Y"))
+                    if st.form_submit_button("Gravar"):
+                        if id_ed==0: executar_query("INSERT INTO financeiro (descricao,valor,tipo,data) VALUES (:d,:v,:t,:dt)", {"d":desc,"v":val,"t":tipo,"dt":dt})
+                        else: executar_query("UPDATE financeiro SET descricao=:d, valor=:v, tipo=:t, data=:dt WHERE id=:id", {"d":desc,"v":val,"t":tipo,"dt":dt,"id":id_ed})
                         st.rerun()
 
-        # Lógica de Filtro Online
         df = consultar_db("SELECT * FROM financeiro")
         if not df.empty:
-            # Filtra o DataFrame pelo mês e ano da coluna 'data' (formato DD/MM/AAAA)
-            df['mes'] = df['data'].str.split('/').str[1]
-            df['ano'] = df['data'].str.split('/').str[2]
-            df_filtrado = df[(df['mes'] == mes_sel) & (df['ano'] == ano_sel)].copy()
-            
-            st.subheader(f"Relatório de {mes_sel}/{ano_sel}")
-            if not df_filtrado.empty:
-                st.table(df_filtrado[['id', 'data', 'descricao', 'tipo', 'valor']])
-                
-                ent = df_filtrado[df_filtrado['tipo']=='Entrada']['valor'].sum()
-                sai = df_filtrado[df_filtrado['tipo']=='Saída']['valor'].sum()
-                
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Entradas", f"R$ {ent:,.2f}")
-                c2.metric("Saídas", f"R$ {sai:,.2f}")
-                c3.metric("Saldo do Período", f"R$ {ent-sai:,.2f}")
-                
-                if adm:
-                    id_del = st.number_input("ID para excluir", 0)
-                    if st.button("🗑️ Remover Lançamento"):
-                        executar_query("DELETE FROM financeiro WHERE id=:id", {"id":id_del}); st.rerun()
-            else:
-                st.warning("Nenhum lançamento encontrado para este período.")
+            df['periodo'] = df['data'].apply(lambda x: x[3:10] if len(str(x))>=10 else "")
+            df_f = df[df['periodo'] == f"{mes_sel}/{ano_sel}"]
+            st.table(df_f)
+            e, s = df_f[df_f['tipo']=='Entrada']['valor'].sum(), df_f[df_f['tipo']=='Saída']['valor'].sum()
+            st.metric("Saldo Mensal", f"R$ {e-s:,.2f}", f"Entradas: {e} | Saídas: {s}")
+            if adm:
+                id_del = st.number_input("ID p/ Excluir", 0)
+                if st.button("Remover"): executar_query("DELETE FROM financeiro WHERE id=:id", {"id":id_del}); st.rerun()
