@@ -62,6 +62,8 @@ if not st.session_state.logado:
                     st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
                     st.rerun()
                 st.error("Credenciais incorretas.")
+
+# --- 4. ÁREA LOGADA ---
 else:
     u = st.session_state.user
     aplicar_estilo_facebook()
@@ -74,18 +76,27 @@ else:
         st.markdown(f"### 👤 {u['nome']}")
         menu = st.radio("Menu", ["🏠 Feed", "📅 Agenda", "📖 Bíblia", "🙏 Orações", "🤝 Ofertas PIX", "💰 Financeiro"])
         adm = st.checkbox("⚙️ Modo Admin") if u['is_admin'] == 1 else False
-        if adm and st.button("📥 Importar acf.json"):
-            if os.path.exists("acf.json"):
-                with open("acf.json", "r", encoding="utf-8") as f:
-                    bib_data = json.load(f); executar_query("DELETE FROM biblia")
-                    for livro in bib_data:
-                        for i, cap in enumerate(livro['chapters']):
-                            for j, texto in enumerate(cap):
-                                executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l, :c, :v, :t)", {"l": livro['name'], "c": i+1, "v": j+1, "t": texto})
-                st.success("Bíblia carregada!")
+        
+        if adm:
+            st.divider()
+            if st.button("📥 Importar acf.json"):
+                if os.path.exists("acf.json"):
+                    with open("acf.json", "r", encoding="utf-8") as f:
+                        bib_data = json.load(f); executar_query("DELETE FROM biblia")
+                        for livro in bib_data:
+                            for i, cap in enumerate(livro['chapters']):
+                                for j, texto in enumerate(cap):
+                                    executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l, :c, :v, :t)", {"l": livro['name'], "c": i+1, "v": j+1, "t": texto})
+                    st.success("Bíblia carregada!")
+            
+            # --- EXPORTAR MEMBROS ---
+            membros_df = consultar_db("SELECT nome, email, codigo FROM membros")
+            csv = membros_df.to_csv(index=False).encode('utf-8')
+            st.download_button("👥 Exportar Membros (CSV)", data=csv, file_name="membros_agape.csv", mime="text/csv")
+            
         if st.button("Sair"): st.session_state.clear(); st.rerun()
 
-    # --- FEED (MURAL) ---
+    # --- MENU: FEED ---
     if menu == "🏠 Feed":
         st.title("Mural da Igreja")
         col_f, col_d = st.columns([0.7, 0.3])
@@ -131,7 +142,8 @@ else:
         res_l = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not res_l.empty:
             l_sel = st.selectbox("Livro", res_l['livro'].tolist())
-            c_sel = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})['cap'].tolist())
+            res_c = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})
+            c_sel = st.selectbox("Capítulo", res_c['cap'].tolist())
             st.markdown('<div class="card-post">', unsafe_allow_html=True)
             for _, v in consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_sel, "c":c_sel}).iterrows():
                 st.markdown(f'<p class="texto-biblico"><b>{v["ver"]}</b> {v["texto"]}</p>', unsafe_allow_html=True)
@@ -155,7 +167,7 @@ else:
         st.info("PIX: **financeiro@igrejaagape.com**")
         with st.form("pix"):
             v_pix = st.number_input("Valor", 1.0)
-            if st.form_submit_button("Informar Doação"):
+            if st.form_submit_button("Confirmar Doação"):
                 executar_query("INSERT INTO financeiro (descricao, valor, tipo, data, usuario) VALUES (:d,:v,'Entrada',:dt,:u)", {"d":f"Oferta PIX {u['nome']}", "v":v_pix, "dt":datetime.now().strftime("%d/%m/%Y"), "u":u['nome']})
                 st.success("Obrigado!")
 
