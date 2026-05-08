@@ -1,5 +1,6 @@
-redis
-streamlit-autorefresh
-sqlalchemy
+streamlit
 pandas
+sqlalchemy
 werkzeug
+reportlab
+
