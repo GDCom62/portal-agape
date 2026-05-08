@@ -20,7 +20,7 @@ def aplicar_estilo_facebook():
         .card-post { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; border: 1px solid #ced0d4; color: black !important; }
         h1, h2, h3 { color: #1877f2 !important; font-weight: bold !important; }
         .palavra-destaque { background: linear-gradient(135deg, #1877f2, #0054ca); color: white !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-        .event-card { border-left: 5px solid #1877f2; padding-left: 15px; margin-bottom: 15px; }
+        .event-card { border-left: 8px solid #1877f2; padding-left: 20px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -89,7 +89,6 @@ else:
                                     executar_query("INSERT INTO biblia (livro, cap, ver, texto) VALUES (:l, :c, :v, :t)", {"l": livro['name'], "c": i+1, "v": j+1, "t": texto})
                     st.success("Bíblia carregada!")
             
-            # --- EXPORTAR MEMBROS ---
             membros_df = consultar_db("SELECT nome, email, codigo FROM membros")
             csv = membros_df.to_csv(index=False).encode('utf-8')
             st.download_button("👥 Exportar Membros (CSV)", data=csv, file_name="membros_agape.csv", mime="text/csv")
@@ -102,6 +101,7 @@ else:
         col_f, col_d = st.columns([0.7, 0.3])
         with col_f:
             if adm:
+                st.markdown('<div class="card-post">', unsafe_allow_html=True)
                 with st.form("post_admin", clear_on_submit=True):
                     txt = st.text_area("Novo comunicado oficial")
                     foto = st.file_uploader("Anexar Imagem", type=['jpg', 'png', 'jpeg'])
@@ -110,12 +110,13 @@ else:
                         executar_query("INSERT INTO avisos (conteudo, img_data, data) VALUES (:c,:i,:d)",
                                        {"c":txt, "i":img_str, "d":datetime.now().strftime("%d/%m/%Y %H:%M")})
                         st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             posts = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
             for _, p in posts.iterrows():
                 st.markdown(f'<div class="card-post"><b>Igreja Ágape</b> • <small>{p["data"]}</small><br><br>{p["conteudo"]}</div>', unsafe_allow_html=True)
                 if p['img_data']: st.image(base64.b64decode(p['img_data']), use_container_width=True)
                 if adm:
-                    if st.button(f"🗑️ Excluir #{p['id']}", key=f"del_{p['id']}"):
+                    if st.button(f"🗑️ Excluir Post #{p['id']}", key=f"del_{p['id']}"):
                         executar_query("DELETE FROM avisos WHERE id=:id", {"id":p['id']}); st.rerun()
         with col_d:
             st.markdown("### ✨ Palavra do Dia")
@@ -124,17 +125,25 @@ else:
                 b = res_b.iloc[0]
                 st.markdown(f'<div class="palavra-destaque"><p>"{b["texto"]}"</p><b>{b["livro"]} {b["cap"]}:{b["ver"]}</b></div>', unsafe_allow_html=True)
 
-    # --- AGENDA ---
+    # --- MENU: AGENDA (TRAVADA PARA ADMIN) ---
     elif menu == "📅 Agenda":
-        st.title("📅 Programação")
+        st.title("📅 Programação da Igreja")
         if adm:
+            st.markdown('<div class="card-post">', unsafe_allow_html=True)
             with st.form("add_ev"):
-                tit, dia = st.text_input("Evento"), st.selectbox("Dia", ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"])
+                tit = st.text_input("Evento")
+                dia = st.selectbox("Dia", ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"])
                 hor = st.text_input("Hora")
-                if st.form_submit_button("Salvar"):
+                if st.form_submit_button("Salvar na Agenda"):
                     executar_query("INSERT INTO eventos (titulo, dia_semana, hora) VALUES (:t,:d,:h)", {"t":tit, "d":dia, "h":hor}); st.rerun()
-        for _, ev in consultar_db("SELECT * FROM eventos").iterrows():
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        ordem = "CASE dia_semana WHEN 'Domingo' THEN 1 WHEN 'Segunda' THEN 2 WHEN 'Terça' THEN 3 WHEN 'Quarta' THEN 4 WHEN 'Quinta' THEN 5 WHEN 'Sexta' THEN 6 WHEN 'Sábado' THEN 7 END"
+        for _, ev in consultar_db(f"SELECT * FROM eventos ORDER BY {ordem}").iterrows():
             st.markdown(f'<div class="card-post event-card"><b>{ev["dia_semana"]} às {ev["hora"]}</b><br>{ev["titulo"]}</div>', unsafe_allow_html=True)
+            if adm:
+                if st.button(f"🗑️ Remover Evento #{ev['id']}", key=f"ev_{ev['id']}"):
+                    executar_query("DELETE FROM eventos WHERE id=:id", {"id":ev['id']}); st.rerun()
 
     # --- BÍBLIA ---
     elif menu == "📖 Bíblia":
@@ -142,8 +151,7 @@ else:
         res_l = consultar_db("SELECT DISTINCT livro FROM biblia ORDER BY id")
         if not res_l.empty:
             l_sel = st.selectbox("Livro", res_l['livro'].tolist())
-            res_c = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})
-            c_sel = st.selectbox("Capítulo", res_c['cap'].tolist())
+            c_sel = st.selectbox("Capítulo", consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro=:l", {"l":l_sel})['cap'].tolist())
             st.markdown('<div class="card-post">', unsafe_allow_html=True)
             for _, v in consultar_db("SELECT ver, texto FROM biblia WHERE livro=:l AND cap=:c", {"l":l_sel, "c":c_sel}).iterrows():
                 st.markdown(f'<p class="texto-biblico"><b>{v["ver"]}</b> {v["texto"]}</p>', unsafe_allow_html=True)
@@ -151,7 +159,7 @@ else:
 
     # --- ORAÇÕES ---
     elif menu == "🙏 Orações":
-        st.title("🙏 Orações")
+        st.title("🙏 Pedidos de Oração")
         with st.form("ped"):
             txt_p = st.text_area("Seu pedido")
             if st.form_submit_button("Enviar"):
@@ -167,9 +175,9 @@ else:
         st.info("PIX: **financeiro@igrejaagape.com**")
         with st.form("pix"):
             v_pix = st.number_input("Valor", 1.0)
-            if st.form_submit_button("Confirmar Doação"):
+            if st.form_submit_button("Confirmar Doação Realizada"):
                 executar_query("INSERT INTO financeiro (descricao, valor, tipo, data, usuario) VALUES (:d,:v,'Entrada',:dt,:u)", {"d":f"Oferta PIX {u['nome']}", "v":v_pix, "dt":datetime.now().strftime("%d/%m/%Y"), "u":u['nome']})
-                st.success("Obrigado!")
+                st.success("Doação registrada! Deus abençoe.")
 
     # --- FINANCEIRO ---
     elif menu == "💰 Financeiro":
