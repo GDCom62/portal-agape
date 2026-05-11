@@ -8,7 +8,7 @@ import os, base64, json
 # --- 1. CONFIGURAÇÕES E ESTILO ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-URL_CHAT_RAILWAY = "https://railway.app"
+URL_CHAT_RAILWAY = "https://chat-agape-production.up.railway.app"
 
 def aplicar_estilo_facebook():
     st.markdown("""
