@@ -9,7 +9,7 @@ import os, base64, json
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # URL DO SEU CHAT NO RAILWAY (Certifique-se que este link está correto)
-URL_CHAT_RAILWAY = "https://railway.app"
+URL_CHAT_RAILWAY = "https://chat-agape-production.up.railway.app/"
 
 def aplicar_estilo():
     st.markdown("""
