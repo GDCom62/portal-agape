@@ -1,0 +1,34 @@
+import os, json, datetime, redis
+from flask import Flask, render_template, request, url_for, send_from_directory, jsonify
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+app.secret_key = 'agape_123'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+
+REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
+r = redis.from_url(REDIS_URL, decode_responses=True)
+
+@app.route('/')
+def index():
+    user = request.args.get('user', 'Irmão')
+    room = request.args.get('room', 'agape_oficial')
+    r.set(f"online:{user}", "online", ex=60)
+    history = [json.loads(m) for m in r.lrange(f"chat:{room}", 0, -1)]
+    return render_template('chat.html', user=user, room=room, history=history)
+
+@app.route('/usuarios')
+def listar_usuarios():
+    keys = r.keys("online:*")
+    return jsonify([k.replace("online:", "") for k in keys])
+
+@socketio.on('send_message')
+def handle_message(data):
+    room = data.get('room', 'agape_oficial')
+    payload = {"user": data.get('user'), "text": data.get('message'), "time": datetime.datetime.now().strftime("%H:%M")}
+    r.rpush(f"chat:{room}", json.dumps(payload))
+    r.ltrim(f"chat:{room}", -50, -1) # Mantém apenas últimas 50 msgs
+    emit('receive_message', payload, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
