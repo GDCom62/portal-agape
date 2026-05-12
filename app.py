@@ -9,7 +9,7 @@ import os, base64, json, redis
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 URL_CHAT_RAILWAY = "https://railway.app"
 
-# Conexão Redis para Sincronizar Membros Online
+# Redis (Mesmo para Portal e Chat)
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 r_db = redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -40,11 +40,7 @@ def consultar_db(sql, params=None):
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, conteudo TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY, descricao TEXT, valor REAL, tipo TEXT, data TEXT, mes_ref TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS oracoes (id INTEGER PRIMARY KEY, nome TEXT, pedido TEXT, status TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS eventos (id INTEGER PRIMARY KEY, titulo TEXT, dia_semana TEXT, hora TEXT)')
-    
     if consultar_db("SELECT id FROM biblia LIMIT 1").empty and os.path.exists("acf.json"):
         with open("acf.json", "r", encoding="utf-8-sig") as f:
             for livro in json.load(f):
@@ -65,21 +61,21 @@ if not st.session_state.logado:
         if st.form_submit_button("Entrar", use_container_width=True):
             res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e":e})
             if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
-                nome_user = res.iloc[0]['nome']
                 st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
-                # REGISTRA NO REDIS QUE ESTÁ ONLINE POR 1 HORA
-                r_db.sadd("agape_membros_online", nome_user)
-                r_db.expire("agape_membros_online", 3600)
                 st.rerun()
-            st.error("Erro no login.")
+            st.error("Credenciais inválidas.")
 else:
     u = st.session_state.user
+    
+    # ATUALIZA PRESENÇA NO REDIS (Expira em 60 segundos)
+    r_db.set(f"online:{u['nome']}", "online", ex=60)
+    
     aplicar_estilo()
     with st.sidebar:
         st.write(f"👤 **{u['nome']}**")
-        menu = st.radio("Menu", ["🏠 Mural", "📖 Bíblia", "🙏 Orações", "💰 Financeiro", "💬 Chat Online"])
+        menu = st.radio("Menu", ["🏠 Mural", "📖 Bíblia", "💬 Chat Online"])
         if st.button("Sair"): 
-            r_db.srem("agape_membros_online", u['nome']) # Remove do chat ao sair
+            r_db.delete(f"online:{u['nome']}")
             st.session_state.clear(); st.rerun()
 
     if menu == "💬 Chat Online":
@@ -88,15 +84,12 @@ else:
         st.markdown(f'''
             <div style="text-align:center; padding:50px; background:white; border-radius:20px; border:1px solid #ddd;">
                 <h2>Ambiente Ágape Premium</h2>
-                <p>Olá <b>{u['nome']}</b>, sua conexão é segura.</p>
                 <a href="{link}" target="_blank" style="background:#1877f2; color:white; padding:15px 30px; text-decoration:none; border-radius:30px; font-weight:bold; display:inline-block;">ABRIR CHAT AGORA</a>
             </div>
         ''', unsafe_allow_html=True)
     
     elif menu == "🏠 Mural":
         st.title("Mural Ágape")
-        c1, c2 = st.columns([0.7, 0.3])
-        with c2:
-            p_dia = consultar_db("SELECT * FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if not p_dia.empty:
-                st.markdown(f'<div class="palavra-destaque">"{p_dia.iloc[0]["texto"]}"<br><b>{p_dia.iloc[0]["livro"]} {p_dia.iloc[0]["cap"]}:{p_dia.iloc[0]["ver"]}</b></div>', unsafe_allow_html=True)
+        p_dia = consultar_db("SELECT * FROM biblia ORDER BY RANDOM() LIMIT 1")
+        if not p_dia.empty:
+            st.markdown(f'<div class="palavra-destaque">"{p_dia.iloc[0]["texto"]}"<br><b>{p_dia.iloc[0]["livro"]} {p_dia.iloc[0]["cap"]}:{p_dia.iloc[0]["ver"]}</b></div>', unsafe_allow_html=True)
