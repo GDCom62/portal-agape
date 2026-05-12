@@ -3,7 +3,8 @@ pandas
 sqlalchemy
 werkzeug
 redis
-flask 
+flask
 flask-socketio
 gevent
-gevent-websocket.
+gevent-websocket
+requests
