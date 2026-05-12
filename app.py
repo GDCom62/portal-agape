@@ -126,9 +126,38 @@ else:
     with aba_chat:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=600, scrolling=True)
 
-    with aba_biblia:
-        busca = st.text_input("Pesquisar palavra na Bíblia...")
-        if busca:
-            res = consultar_db("SELECT livro, cap, ver, texto FROM biblia WHERE texto LIKE :b LIMIT 30", {"b":f"%{busca}%"})
-            if not res.empty: st.table(res)
-            else: st.warning("Nenhum versículo encontrado.")
+        with aba_biblia:
+        st.title("📖 Leitura Bíblica")
+        
+        # 1. Busca todos os livros cadastrados no banco para criar a lista de opções
+        df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
+        
+        if not df_livros.empty:
+            lista_livros = df_livros['livro'].tolist()
+            
+            # Seletor do Livro
+            livro_selecionado = st.selectbox("Escolha o Livro:", lista_livros)
+            
+            if livro_selecionado:
+                # 2. Busca os capítulos existentes para o livro selecionado
+                df_caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro = :l ORDER BY cap", {"l": livro_selecionado})
+                lista_caps = df_caps['cap'].tolist()
+                
+                # Seletor do Capítulo
+                cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_caps)
+                
+                if cap_selecionado:
+                    st.divider()
+                    st.subheader(f"{livro_selecionado}, Capítulo {cap_selecionado}")
+                    
+                    # 3. Busca e exibe todos os versículos do capítulo selecionado
+                    df_versiculos = consultar_db(
+                        "SELECT ver, texto FROM biblia WHERE livro = :l AND cap = :c ORDER BY ver",
+                        {"l": livro_selecionado, "c": cap_selecionado}
+                    )
+                    
+                    # Exibe o texto formatado versículo por versículo
+                    for _, row in df_versiculos.iterrows():
+                        st.markdown(f"**{row['ver']}** {row['texto']}")
+        else:
+            st.warning("Nenhum livro encontrado no banco de dados. Certifique-se de rodar o script de importação.")
