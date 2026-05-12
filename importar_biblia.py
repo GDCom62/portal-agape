@@ -3,26 +3,25 @@ import pandas as pd
 import requests
 
 def popular_biblia():
-    conn = sqlite3.connect('agape_v60.db')
-    cursor = conn.cursor()
-
-    print("⏳ Baixando base de dados bíblica...")
-    # URL de uma base Almeida simplificada em JSON/CSV
-    url = "https://githubusercontent.com"
+    # Aumentamos o timeout para 30 segundos para evitar o erro 'database is locked'
+    conn = sqlite3.connect('agape_v60.db', timeout=30)
     
     try:
+        print("⏳ Baixando base de dados bíblica (isso pode demorar 1 min)...")
+        url = "https://githubusercontent.com"
+        
+        # Lendo em pedaços (chunks) para não travar a memória e a conexão
         df = pd.read_csv(url)
-        # Ajustamos os nomes das colunas para bater com sua tabela: livro, cap, ver, texto
         df = df[['livro', 'capitulo', 'versiculo', 'texto']]
         df.columns = ['livro', 'cap', 'ver', 'texto']
 
-        print(f"📖 Importando {len(df)} versículos para o Banco Ágape...")
-        df.to_sql('biblia', conn, if_exists='append', index=False)
+        print(f"📖 Gravando {len(df)} versículos...")
+        # if_exists='replace' garante que ele limpe o erro anterior e comece do zero
+        df.to_sql('biblia', conn, if_exists='replace', index=False)
         
-        conn.commit()
         print("✅ Bíblia importada com sucesso!")
     except Exception as e:
-        print(f"❌ Erro ao importar: {e}")
+        print(f"❌ Erro detectado: {e}")
     finally:
         conn.close()
 
