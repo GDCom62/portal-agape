@@ -17,7 +17,11 @@ except:
     st.error("Erro ao conectar ao Redis.")
 
 # --- BANCO DE DADOS (SQLite) ---
-engine = create_engine("sqlite:///agape_v60.db", pool_pre_ping=True)
+# Substitua sua linha da engine por esta:
+engine = create_engine(
+    "sqlite:///agape_v60.db", 
+    connect_args={"check_same_thread": False}
+)
 
 def executar_query(sql, params=None):
     with engine.begin() as conn:
