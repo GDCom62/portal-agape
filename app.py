@@ -90,12 +90,16 @@ def aplicar_estilo():
 
 # --- COMPONENTES VISUAIS ---
 def render_louvor():
+    # Tenta buscar no banco, se falhar ou estiver vazio, usa o plano B
     if 'versiculo_dia' not in st.session_state:
-        df = consultar_db("SELECT * FROM biblia")
-        if not df.empty:
-            st.session_state.versiculo_dia = df.sample(1).iloc[0].to_dict()
-        else:
-            st.session_state.versiculo_dia = {"texto": "O Senhor é o meu pastor.", "livro": "Salmos", "cap": 23, "ver": 1}
+        try:
+            df = consultar_db("SELECT * FROM biblia ORDER BY RANDOM() LIMIT 1")
+            if not df.empty:
+                st.session_state.versiculo_dia = df.iloc[0].to_dict()
+            else:
+                st.session_state.versiculo_dia = {"texto": "O Senhor é bom.", "livro": "Salmos", "cap": 1, "ver": 1}
+        except:
+            st.session_state.versiculo_dia = {"texto": "Deus é fiel.", "livro": "1 Coríntios", "cap": 1, "ver": 9}
     
     v = st.session_state.versiculo_dia
     st.markdown(f"""
