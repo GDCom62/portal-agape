@@ -86,9 +86,10 @@ if not st.session_state.logado:
     
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar Nova Conta"])
+        # CORREÇÃO CRÍTICA: Separando a lista retornada em duas variáveis distintas
+        aba_login, aba_cadastro = st.tabs(["🔐 Entrar", "📝 Cadastrar Nova Conta"])
         
-        with aba_auth:
+        with aba_login:
             username = st.text_input("Usuário", key="login_user").strip()
             password = st.text_input("Senha", type="password", key="login_pass")
             
@@ -96,9 +97,9 @@ if not st.session_state.logado:
                 if username and password:
                     res = consultar_db("SELECT senha FROM usuarios WHERE usuario = :user", {"user": username})
                     
-                    # CORREÇÃO CRÍTICA: Extração do hash utilizando índice posicional adequado do Pandas
                     if not res.empty:
-                        senha_hash_banco = res.iloc[0]['senha']
+                        # Extração segura da string hash do DataFrame
+                        senha_hash_banco = str(res.iloc[0]['senha'])
                         
                         if check_password_hash(senha_hash_banco, password):
                             st.session_state.logado = True
@@ -112,7 +113,7 @@ if not st.session_state.logado:
                 else:
                     st.warning("Por favor, preencha todos os campos.")
                     
-        with aba_auth:
+        with aba_cadastro:
             new_username = st.text_input("Escolha um Usuário", key="reg_user").strip()
             new_password = st.text_input("Escolha uma Senha", type="password", key="reg_pass")
             
@@ -123,12 +124,10 @@ if not st.session_state.logado:
                     else:
                         existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": new_username})
                         if existe.empty:
-                            # Forçando método scrypt explícito para compatibilidade total de hash
                             hash_senha = generate_password_hash(new_password, method="scrypt")
-                            
                             executar_query("INSERT INTO usuarios (usuario, senha) VALUES (:user, :senha)", 
                                            {"user": new_username, "senha": hash_senha})
-                            st.success("Conta criada com sucesso! Mude para a aba 'Entrar' e faça login.")
+                            st.success("Conta criada com sucesso! Acesse a aba 'Entrar' para fazer o login.")
                         else:
                             st.error("Este nome de usuário já está em uso.")
                 else:
@@ -176,7 +175,7 @@ else:
                 st.caption("Sugestão de Leitura: Gênesis Capítulo 1")
                 exemplo = consultar_db("SELECT capitulo, versiculo, texto FROM biblia WHERE livro = 'Gênesis' AND capitulo = 1 LIMIT 5")
                 if not exemplo.empty:
-                    for idx, row in ejemplo.iterrows():
+                    for idx, row in exemplo.iterrows():
                         st.write(f"**{row['versiculo']}.** {row['texto']}")
 
     with aba2:
@@ -191,4 +190,4 @@ else:
             st.metric(label="Persistência Cache (Redis)", value="⚡ Conectado" if r_db else "⚠️ Desconectado")
         with col_m2:
             total_usuarios = consultar_db("SELECT COUNT(*) AS total FROM usuarios")
-            st.metric(label="Usuários Cadastrados", value=int(total_usuarios.iloc[0]["total"]) if not total_usuarios.empty else 0)
+            st.metric(label="Usuários Cadastrados", value=int(total_usuarios.iloc[0]['total']) if not total_usuarios.empty else 0)
