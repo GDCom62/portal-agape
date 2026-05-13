@@ -39,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# --- 3.1 CRREÇÃO E EXECUÇÃO DAS TABELAS ---
+# Inicialização de Tabelas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,10 +93,11 @@ CREATE TABLE IF NOT EXISTS louvores (
     letra TEXT
 );
 """)
+
 try:
     executar_query("ALTER TABLE louvores ADD COLUMN arquivo_audio BLOB;")
 except Exception:
-    pass # Coluna já existe no banco de dados temporário
+    pass
 
 # FORÇA A ATUALIZAÇÃO SEGURA DO ADMINISTRADOR
 def verificar_e_criar_admin():
@@ -180,8 +181,7 @@ TRADUCAO_LIVROS = {
     "joao": "john", "atos": "acts", "romanos": "romans", "corintios": "corinthians",
     "galatas": "galatians", "efesios": "ephesians", "filipenses": "philippians", "colossenses": "colossians",
     "tessalonicenses": "thessalonians", "timoteo": "timothy", "tito": "titus", "filemon": "philemon",
-    "hebreus": "hebrews", "tiago": "james", "pedro": "peter", "joao": "john",
-    "judas": "jude", "apocalipse": "revelation"
+    "hebreus": "hebrews", "tiago": "james", "pedro": "peter", "judas": "jude", "apocalipse": "revelation"
 }
 
 def normalizar_livro(nome_livro):
@@ -206,10 +206,10 @@ if not st.session_state.autenticado:
         botao_entrar = st.form_submit_button("Entrar")
         if botao_entrar:
             df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-            if not df_u.empty and check_password_hash(df_u.iloc[0]['senha'], campo_senha):
+            if not df_u.empty and check_password_hash(df_u.iloc['senha'], campo_senha):
                 st.session_state.autenticado = True
                 st.session_state.usuario_atual = campo_usuario
-                st.session_state.nivel_atual = df_u.iloc[0]['nivel']
+                st.session_state.nivel_atual = df_u.iloc['nivel']
                 st.rerun()
             else:
                 st.sidebar.error("Usuário ou senha incorretos.")
@@ -293,17 +293,19 @@ def modulo_membros():
             
     with aba2:
         if e_administrador():
-            with st.form("form_membro"):
+            with st.form("form_membro", clear_on_submit=True):
                 nome = st.text_input("Nome Completo")
                 tel = st.text_input("Telefone")
                 cargo = st.selectbox("Função Ministerial", ["Membro", "Diácono", "Presbítero", "Pastor", "Líder"])
                 mes_niver = st.selectbox("Mês de Aniversário", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
-                if st.form_submit_button("Salvar Membro") and nome:
-                    hoje = datetime.date.today().strftime("%d/%m/%Y")
-                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
-                                   {"n": nome, "t": tel, "c": cargo, "d": hoje, "m": mes_niver})
-                    st.success("Cadastro efetuado!")
-                    st.rerun()
+                if st.form_submit_button("Salvar Membro"):
+                    if nome:
+                        hoje = datetime.date.today().strftime("%d/%m/%Y")
+                        executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
+                                       {"n": nome, "t": tel, "c": cargo, "d": hoje, "m": mes_niver})
+                        st.success("✅ Membro cadastrado com sucesso!")
+                    else:
+                        st.warning("O nome é obrigatório.")
         else:
             st.warning("Apenas administradores podem cadastrar.")
             
@@ -314,7 +316,7 @@ def modulo_membros():
             membro_sel = st.selectbox("Selecione o Membro para Gerar o Cartão", df_seletor['nome'].tolist())
             membro_dados = consultar_db("SELECT * FROM membros WHERE nome = :n", {"n": membro_sel}).iloc[0]
             
-            qr_code_url = f"qrserver.com:{membro_dados['id']}"
+            qr_code_url = f"qrserver.com_{membro_dados['id']}"
             
             st.markdown(f"""
             <div class="cartao-membro">
@@ -348,7 +350,7 @@ def modulo_financeiro():
     
     if e_administrador():
         with st.expander("💸 Lançar Entrada ou Dízimo de Membro"):
-            with st.form("form_fin"):
+            with st.form("form_fin", clear_on_submit=True):
                 tipo = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída"])
                 desc = st.text_input("Histórico / Descrição")
                 val = st.number_input("Valor (R$)", min_value=0.0)
@@ -357,17 +359,19 @@ def modulo_financeiro():
                 lista_membros = ["Nenhum / Oferta Geral"] + df_m['nome'].tolist() if not df_m.empty else ["Nenhum / Oferta Geral"]
                 membro_vinc = st.selectbox("Vincular a um Membro (Opcional)", lista_membros)
                 
-                if st.form_submit_button("Gravar Transação") and desc and val > 0:
-                    hoje = datetime.date.today()
-                    m_id = None
-                    if membro_vinc != "Nenhum / Oferta Geral":
-                        m_id = int(df_m[df_m['nome'] == membro_vinc]['id'].values[0])
-                        
-                    tipo_limpo = "Entrada" if "Entrada" in tipo else "Saída"
-                    executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id) VALUES (:t, :desc, :v, :d, :ma, :m_id)",
-                                   {"t": tipo_limpo, "desc": desc, "v": val, "d": hoje.strftime("%d/%m/%Y"), "ma": hoje.strftime("%m/%Y"), "m_id": m_id})
-                    st.success("Lançamento adicionado com sucesso!")
-                    st.rerun()
+                if st.form_submit_button("Gravar Transação"):
+                    if desc and val > 0:
+                        hoje = datetime.date.today()
+                        m_id = None
+                        if membro_vinc != "Nenhum / Oferta Geral":
+                            m_id = int(df_m[df_m['nome'] == membro_vinc]['id'].values[0])
+                            
+                        tipo_limpo = "Entrada" if "Entrada" in tipo else "Saída"
+                        executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id) VALUES (:t, :desc, :v, :d, :ma, :m_id)",
+                                       {"t": tipo_limpo, "desc": desc, "v": val, "d": hoje.strftime("%d/%m/%Y"), "ma": hoje.strftime("%m/%Y"), "m_id": m_id})
+                        st.success("✅ Transação computada com sucesso!")
+                    else:
+                        st.warning("Preencha a descrição e um valor válido.")
 
 def modulo_biblia():
     st.title("📖 Consulta Bíblica Integrada")
@@ -377,16 +381,13 @@ def modulo_biblia():
     ver = col3.text_input("Versículo (Opcional, ex: 1 ou 1-5)", value="")
     
     if st.button("Consultar Escrituras"):
-        # Remove espaços e normaliza o nome do livro para a API externa
         livro_en = normalizar_livro(livro_pt)
         
-        # Monta o escopo correto da URL com HTTPS obrigatório
         if ver.strip():
             alvo = f"{livro_en}+{cap}:{ver.strip()}"
         else:
             alvo = f"{livro_en}+{cap}"
             
-        # URL da API com fallback para tradução Almeida Recebida
         url_api = f"bible-api.com{alvo}?translation=almeida"
         
         try:
@@ -395,12 +396,11 @@ def modulo_biblia():
                 if r.status_code == 200:
                     dados = r.json()
                     st.markdown(f"### 📜 {livro_pt.title()} {cap}")
-                    # Caixa flutuante branca com o texto retornado
                     st.info(dados['text'])
                 else:
                     st.error("Trecho não localizado. Verifique se digitou o nome do livro corretamente.")
-        except Exception as e:
-            st.error(f"Falha de comunicação com o servidor da Bíblia externo.")
+        except Exception:
+            st.error("Falha de comunicação com o servidor da Bíblia externo.")
 
 def modulo_louvores():
     st.title("🎵 Acervo Digital & Playlist de Louvores")
@@ -418,13 +418,11 @@ def modulo_louvores():
         else:
             for _, louvor in df_l.iterrows():
                 with st.expander(f"🎼 {louvor['titulo']} — {louvor['artista']}"):
-                    # Se houver arquivo de áudio atrelado no banco, renderiza o player nativo
                     if louvor['arquivo_audio'] is not None:
                         st.write("▶️ **Ouvir Louvor:**")
                         st.audio(louvor['arquivo_audio'], format="audio/mp3")
                     else:
-                        st.caption("ℹ️ Este louvor possui apenas letra (sem arquivo de áudio carregado).")
-                    
+                        st.caption("ℹ️ Este louvor possui apenas letra.")
                     st.text(louvor['letra'])
                 
     with aba2:
@@ -433,8 +431,6 @@ def modulo_louvores():
                 t = st.text_input("Título da Canção")
                 a = st.text_input("Ministério / Cantor / Banda")
                 letra = st.text_area("Letra ou Cifra da Música", height=150)
-                
-                # Campo de Upload do arquivo de música
                 audio_upload = st.file_uploader("Selecione o arquivo de áudio (MP3 ou WAV)", type=["mp3", "wav"])
                 
                 if st.form_submit_button("Indexar na Playlist"):
@@ -447,25 +443,27 @@ def modulo_louvores():
                             "INSERT INTO louvores (titulo, artista, letra, arquivo_audio) VALUES (:t, :a, :l, :audio)", 
                             {"t": t, "a": a, "l": letra, "audio": bytes_audio}
                         )
-                        st.success(f"📌 '{t}' foi adicionado com sucesso à playlist do portal!")
-                        st.rerun()
+                        st.success(f"✅ Louvor '{t}' guardado silenciosamente no banco!")
                     else:
-                        st.warning("O título e a letra são obrigatórios para o registro.")
+                        st.warning("O título e a letra são obrigatórios.")
         else:
             st.warning("⚠️ Apenas pastores e líderes do ministério de louvor podem fazer upload de músicas.")
-
 
 def modulo_avisos():
     st.title("📢 Gerenciador do Quadro de Avisos")
     if e_administrador():
-        with st.form("novo_aviso"):
+        with st.form("novo_aviso", clear_on_submit=True):
             t = st.text_input("Título do Comunicado")
             c = st.text_area("Mensagem")
-            if st.form_submit_button("Publicar Mural") and t and c:
-                data = datetime.date.today().strftime("%d/%m/%Y %H:%M")
-                executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t": t, "c": c, "d": data})
-                st.success("Aviso fixado no Painel!")
-                st.rerun()
+            if st.form_submit_button("Publicar Mural"):
+                if t and c:
+                    data = datetime.date.today().strftime("%d/%m/%Y %H:%M")
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)", {"t": t, "c": c, "d": data})
+                    st.success("✅ Cadastrado! O aviso aparecerá no Painel Geral no próximo clique.")
+                else:
+                    st.warning("Preencha todos os campos.")
+    else:
+        st.warning("⚠️ Seu nível de acesso não permite gerenciar comunicados.")
 
 def modulo_chat():
     st.title("💬 Chat em Tempo Real (Liderança e Pastores)")
