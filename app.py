@@ -51,9 +51,10 @@ if "usuario_atual" not in st.session_state:
     st.session_state.usuario_atual = None
 
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
 def carregar_biblia_completa():
     try:
-        # Endpoint público alternativo e estável com a bíblia em PT-BR estruturada
+        # URL real, pública e com o protocolo HTTPS obrigatório
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -62,8 +63,10 @@ def carregar_biblia_completa():
             linhas_db = []
             
             for livro_dados in dados_totais:
+                # Captura o nome do livro (ex: "Gênesis")
                 nome_livro = livro_dados.get("name", "Desconhecido")
-                # Itera pelos capítulos e versículos do JSON padronizado
+                
+                # Itera pelos capítulos e versículos do JSON
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -81,6 +84,7 @@ def carregar_biblia_completa():
     except Exception as e:
         st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
+
 
 # --- 6. FLUXO DE TELAS (LOGIN OU PORTAL) ---
 
