@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import redis, random
+import redis, random, requests
 
 # --- CONFIGURAÇÕES BÁSICAS ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -13,7 +13,6 @@ URL_CHAT_RAILWAY = "railway.app"
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- CONEXÃO BANCO E REDIS ---
-# O 'check_same_thread': False impede que o Streamlit derrube a conexão
 engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
 
 try:
@@ -42,7 +41,6 @@ def init_db():
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
 
-# Inicializa as tabelas estruturais
 init_db()
 
 # --- ESTILIZAÇÃO CSS ---
@@ -55,27 +53,13 @@ def aplicar_estilo():
         header, footer { visibility: hidden; }
     </style>""", unsafe_allow_html=True)
 
-# --- COMPONENTES VISUAIS (LOUVOR VIA API) ---
+# --- COMPONENTES VISUAIS (LOUVOR FIXADO) ---
 def render_louvor():
     if 'versiculo_dia' not in st.session_state:
-        import requests
-        try:
-            # Puxa um versículo aleatório da API pública [2]
-            r = requests.get("bible-api.com", timeout=5)
-            if r.status_code == 200:
-                dados = r.json()
-                st.session_state.versiculo_dia = {
-                    "texto": dados['text'].strip(),
-                    "ref": "João 3:16"
-                }
-            else:
-                raise Exception()
-        except:
-            st.session_state.versiculo_dia = {
-                "texto": "O Senhor é o meu pastor, nada me faltará.",
-                "ref": "Salmos 23:1"
-            }
-    
+        st.session_state.versiculo_dia = {
+            "texto": "O Senhor é o meu pastor, nada me faltará.",
+            "ref": "Salmos 23:1"
+        }
     v = st.session_state.versiculo_dia
     st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["ref"]}</b></div></div>', unsafe_allow_html=True)
 
@@ -140,27 +124,27 @@ else:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
     with aba_biblia:
-        st.title("📖 Leitura Bíblica Online")
-        st.write("Selecione o livro e o capítulo para ler a Palavra.")
+        st.title("📖 Leitura Bíblica Almeida")
+        st.write("Selecione o livro e o capítulo para renderizar os textos sagrados.")
 
-        # Dicionário de tradução e mapeamento para API [2]
+        # Dicionário mapeado para a API do repositório público Almeida Revista e Corrigida
         livros_dict = {
-            "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "teleonomy",
-            "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
-            "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles",
-            "Esdras": "ezra", "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms",
-            "Provérbios": "proverbs", "Eclesiastes": "ecclesiastes", "Cânticos": "songofsolomon", "Isaías": "isaiah",
-            "Jeremias": "jeremiah", "Lamentações": "lamentations", "Ezequiel": "ezekiel", "Daniel": "daniel",
-            "Oséias": "hosea", "Joel": "joel", "Amós": "amos", "Obadias": "obadiah", "Jonas": "jonah",
-            "Miquéias": "micah", "Naum": "nahum", "Habacuque": "habakkuk", "Sofonias": "zephaniah",
-            "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi",
-            "Mateus": "matthew", "Marcos": "mark", "Lucas": "luke", "João": "john", "Atos": "acts",
-            "Romanos": "romans", "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians",
-            "Efésios": "ephesians", "Filipenses": "philippians", "Colossenses": "colossians",
-            "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians",
-            "1 Timóteo": "1timothy", "2 Timóteo": "2timothy", "Tito": "titus", "Filemom": "philemon",
-            "Hebreus": "hebrews", "Tiago": "james", "1 Pedro": "1peter", "2 Pedro": "2peter",
-            "1 João": "1john", "2 João": "2john", "3 João": "3john", "Judas": "judas", "Apocalipse": "revelation"
+            "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "num", "Deuteronômio": "dt",
+            "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
+            "1 Reis": "1re", "2 Reis": "2re", "1 Crônicas": "1cr", "2 Crônicas": "2cr",
+            "Esdras": "ez", "Neemias": "ne", "Ester": "et", "Jó": "jo", "Salmos": "ps",
+            "Provérbios": "pv", "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is",
+            "Jeremias": "jr", "Lamentações": "lm", "Ezequiel": "ezq", "Daniel": "dn",
+            "Oséias": "os", "Joel": "jl", "Amós": "am", "Obadias": "ob", "Jonas": "jn",
+            "Miquéias": "mq", "Naum": "na", "Habacuque": "hc", "Sofonias": "sf",
+            "Ageu": "ag", "Zacarias": "zc", "Malaquias": "ml",
+            "Mateus": "mt", "Marcos": "mc", "Lucas": "lc", "João": "jo", "Atos": "at",
+            "Romanos": "rm", "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl",
+            "Efésios": "ef", "Filipenses": "fp", "Colossenses": "cl",
+            "1 Tessalonicenses": "1ts", "2 Tessalonicenses": "2ts",
+            "1 Timóteo": "1tm", "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "fm",
+            "Hebreus": "hb", "Tiago": "tg", "1 Pedro": "1pe", "2 Pedro": "2pe",
+            "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "ap"
         }
 
         livro_pt = st.selectbox("Escolha o Livro:", list(livros_dict.keys()))
@@ -169,9 +153,9 @@ else:
         cap_selecionado = st.number_input("Escolha o Capítulo:", min_value=1, max_value=150, value=1, step=1)
 
         if st.button("📖 Ler Capítulo", use_container_width=True):
-            import requests
-            with st.spinner("Buscando texto sagrado..."):
-                url_api = f"bible-api.com{livro_api}+{cap_selecionado}?translation=almeida"
+            with st.spinner("Buscando textos sagrados..."):
+                # Requisição direta para o CDN estável de arquivos JSON bíblicos do repositório do MaatheusGois
+                url_api = f"https://raw.githubusercontent.com/maatheusgois/bible/main/versions/pt-br/arc/{livro_api}/{cap_selecionado}.json"
                 try:
                     resposta = requests.get(url_api, timeout=10)
                     if resposta.status_code == 200:
@@ -179,9 +163,10 @@ else:
                         st.divider()
                         st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
                         
-                        for v in dados['verses']:
-                            st.markdown(f"**{v['verse']}** {v['text'].strip()}")
+                        # Estruturação dinâmica versículo por versículo na tela
+                        for id_ver, texto_ver in dados.items():
+                            st.markdown(f"**{id_ver}** {texto_ver.strip()}")
                     else:
-                        st.error("Capítulo inválido ou não existente para este livro.")
+                        st.error("Capítulo inválido ou inexistente para este livro.")
                 except:
-                    st.error("Erro de conexão com o servidor da Bíblia externa. Tente novamente.")
+                    st.error("Ocorreu uma lentidão na rede externa. Por favor, tente clicar novamente.")
