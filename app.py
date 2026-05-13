@@ -31,11 +31,21 @@ def consultar_db(sql, params=None):
         except:
             return pd.DataFrame()
 
+# --- ESTILIZAÇÃO CSS (DECLARADA ANTES DE USAR) ---
+def aplicar_estilo():
+    st.markdown("""<style>
+        .stApp { background: linear-gradient(135deg, #f0f2f5 0%, #c9d6ff 100%); }
+        [data-testid="stForm"] { background-color: white !important; padding: 30px !important; border-radius: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; border: none !important; max-width: 450px; margin: auto !important; }
+        .card-post { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #ced0d4; margin-bottom: 10px; }
+        .floating-louvor { position: fixed; bottom: 25px; right: 25px; width: 300px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-left: 6px solid #1877f2; border-radius: 12px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 999999; }
+        header, footer { visibility: hidden; }
+    </style>""", unsafe_allow_html=True)
+
 # --- CARGA AUTOMÁTICA DA BÍBLIA COMPLETA ---
 def carregar_biblia_completa():
     try:
-        with st.spinner("📖 Configurando os 66 Livros da Bíblia... Aguarde alguns segundos."):
-            # URL completa, direta e pública com o protocolo HTTPS obrigatório
+        with st.spinner("📢 Configurando os 66 Livros da Bíblia Sagrada... Aguarde alguns segundos."):
+            # URL corrigida com o protocolo HTTPS completo
             url = "githubusercontent.com"
             resposta = requests.get(url, timeout=15)
             
@@ -80,6 +90,22 @@ def carregar_biblia_completa():
                 st.rerun()
     except Exception as e:
         st.error(f"Erro ao estruturar banco da Bíblia: {e}")
+
+def init_db():
+    executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
+    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, conteudo TEXT, data TEXT, autor TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS curtidas (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
+    executar_query('CREATE TABLE IF NOT EXISTS biblia (livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
+    
+    pw = generate_password_hash('Agape2026')
+    executar_query("INSERT OR IGNORE INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
+
+    check_biblia = consultar_db("SELECT livro FROM biblia LIMIT 1")
+    if len(check_biblia) == 0:
+        carregar_biblia_completa()
+
+init_db()
 
 # --- COMPONENTES VISUAIS (LOUVOR DO DIA) ---
 def render_louvor():
@@ -156,7 +182,6 @@ else:
                 st.rerun()
 
     with aba_chat:
-        # CORREÇÃO DEFINITIVA: Usando a sintaxe st.iframe recomendada nativamente pela nova versão do Streamlit
         st.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700)
 
     with aba_biblia:
