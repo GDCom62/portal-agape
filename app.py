@@ -35,7 +35,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação inicial da tabela de usuários
+# Garantir estrutura correta da tabela
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +53,6 @@ if "usuario_atual" not in st.session_state:
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
 def carregar_biblia_completa():
     try:
-        # Link RAW estável direto do JSON da Bíblia ARC (Almeida Revista e Corrigida)
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -89,42 +88,57 @@ if not st.session_state.logado:
     with col2:
         aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar Nova Conta"])
         
-        with aba_auth[0]:
-            username = st.text_input("Usuário", key="login_user")
+        with aba_auth:
+            username = st.text_input("Usuário", key="login_user").strip()
             password = st.text_input("Senha", type="password", key="login_pass")
             
             if st.button("Acessar Portal", use_container_width=True):
-                res = consultar_db("SELECT senha FROM usuarios WHERE usuario = :user", {"user": username})
-                if not res.empty and check_password_hash(res.iloc[0]["senha"], password):
-                    st.session_state.logado = True
-                    st.session_state.usuario_atual = username
-                    st.success(f"Bem-vindo, {username}!")
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos.")
+                if username and password:
+                    res = consultar_db("SELECT senha FROM usuarios WHERE usuario = :user", {"user": username})
                     
-        with aba_auth[1]:
-            new_username = st.text_input("Escolha um Usuário", key="reg_user")
+                    # CORREÇÃO CRÍTICA: Extração do hash utilizando índice posicional adequado do Pandas
+                    if not res.empty:
+                        senha_hash_banco = res.iloc[0]['senha']
+                        
+                        if check_password_hash(senha_hash_banco, password):
+                            st.session_state.logado = True
+                            st.session_state.usuario_atual = username
+                            st.success(f"Bem-vindo, {username}!")
+                            st.rerun()
+                        else:
+                            st.error("Usuário ou senha incorretos.")
+                    else:
+                        st.error("Usuário ou senha incorretos.")
+                else:
+                    st.warning("Por favor, preencha todos os campos.")
+                    
+        with aba_auth:
+            new_username = st.text_input("Escolha um Usuário", key="reg_user").strip()
             new_password = st.text_input("Escolha uma Senha", type="password", key="reg_pass")
             
             if st.button("Criar Conta", use_container_width=True):
                 if new_username and new_password:
-                    existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": new_username})
-                    if existe.empty:
-                        hash_senha = generate_password_hash(new_password)
-                        executar_query("INSERT INTO usuarios (usuario, senha) VALUES (:user, :senha)", 
-                                       {"user": new_username, "senha": hash_senha})
-                        st.success("Conta criada com sucesso! Faça login na aba ao lado.")
+                    if len(new_password) < 4:
+                        st.error("A senha precisa ter pelo menos 4 caracteres.")
                     else:
-                        st.error("Este nome de usuário já está em uso.")
+                        existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": new_username})
+                        if existe.empty:
+                            # Forçando método scrypt explícito para compatibilidade total de hash
+                            hash_senha = generate_password_hash(new_password, method="scrypt")
+                            
+                            executar_query("INSERT INTO usuarios (usuario, senha) VALUES (:user, :senha)", 
+                                           {"user": new_username, "senha": hash_senha})
+                            st.success("Conta criada com sucesso! Mude para a aba 'Entrar' e faça login.")
+                        else:
+                            st.error("Este nome de usuário já está em uso.")
                 else:
                     st.warning("Preencha todos os campos.")
 else:
-    col_tit, col_user = st.columns([4, 1])
+    col_tit, col_user = st.columns([3, 1])
     with col_tit:
         st.title("⛪ Portal Ágape")
     with col_user:
-        st.markdown(f"👤 **{st.session_state.usuario_atual}**")
+        st.markdown(f"👤 Logado como: **{st.session_state.usuario_atual}**")
         if st.button("🚪 Sair do Sistema", use_container_width=True):
             st.session_state.logado = False
             st.session_state.usuario_atual = None
@@ -144,7 +158,7 @@ else:
                         st.success("Bíblia Sagrada integrada com sucesso!")
                         st.rerun()
                     else:
-                        st.error("Falha ao baixar os dados. Verifique sua conexão.")
+                        st.error("Falha ao baixar os dados. Verifique a URL ou sua conexão.")
         else:
             busca = st.text_input("🔍 O que você deseja buscar na palavra? (Ex: Jesus, Fé, Amor):")
             if busca:
@@ -162,13 +176,12 @@ else:
                 st.caption("Sugestão de Leitura: Gênesis Capítulo 1")
                 exemplo = consultar_db("SELECT capitulo, versiculo, texto FROM biblia WHERE livro = 'Gênesis' AND capitulo = 1 LIMIT 5")
                 if not exemplo.empty:
-                    for idx, row in exemplo.iterrows():
+                    for idx, row in ejemplo.iterrows():
                         st.write(f"**{row['versiculo']}.** {row['texto']}")
 
     with aba2:
         st.header("Sala de Conferência Ágape")
         st.caption("Conexão direta com a sala de vídeo oficial.")
-        # Renderização HTML limpa e imune a erros do Streamlit
         st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="700" style="border:none;" scrolling="yes"></iframe>')
 
     with aba3:
