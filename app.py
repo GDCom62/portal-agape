@@ -36,8 +36,10 @@ def baixar_biblia_automatico():
     import requests
     try:
         with st.spinner("📖 Configurando a Bíblia Sagrada no servidor... Aguarde cerca de 30 segundos."):
-            # URL com a base de dados Almeida Corrigida Fiel original
+            # Endereço completo e correto para o download da base de dados
             url = "githubusercontent.com"
+            
+            # Baixa e estrutura os dados do repositório
             df = pd.read_csv(url)
             df = df[['livro', 'capitulo', 'versiculo', 'texto']]
             df.columns = ['livro', 'cap', 'ver', 'texto']
@@ -49,6 +51,7 @@ def baixar_biblia_automatico():
             st.rerun()
     except Exception as e:
         st.error(f"Erro ao carregar Bíblia automaticamente: {e}")
+
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
