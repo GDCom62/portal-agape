@@ -28,7 +28,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -166,7 +166,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
 def carregar_biblia_completa():
     try:
         url = "githubusercontent.com"
@@ -211,11 +211,11 @@ if not st.session_state.autenticado:
         botao_entrar = st.form_submit_button("Entrar")
         if botao_entrar:
             df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-            if not df_u.empty and check_password_hash(df_u.iloc[0]['senha'], campo_senha):
+            if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
                 st.session_state.autenticado = True
                 st.session_state.usuario_atual = campo_usuario
                 st.session_state.nivel_atual = df_u.iloc[0]['nivel']
-                st.sidebar.success("Logado com sucesso!")
+                st.sidebar.success("Logado!")
                 st.rerun()
             else:
                 st.sidebar.error("Usuário ou senha incorretos.")
@@ -238,9 +238,40 @@ if st.session_state.nivel_atual == "Pastor":
 else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
 
-# ABA 1: MURAL DE AVISOS E VÍDEO
+# ABA 1: MURAL DE AVISOS, VÍDEO, PALAVRA DO DIA E ANIVERSARIANTES
 with abas[0]:
-    col_aviso, col_video = st.columns([1, 1])
+    # PALAVRA DO DIA E ANIVERSARIANTES NO TOPO
+    st.markdown("---")
+    col_topo1, col_topo2 = st.columns(2)
+    
+    with col_topo1:
+        st.markdown("""
+        <div class='versiculo-box'>
+            <h3 style='margin:0; color:#FFD700;'>📖 Palavra do Dia</h3>
+            <p style='font-size: 16px; font-style: italic; margin-top:10px;'>\"O Senhor é o meu pastor, nada me faltará. Deita-me em verdes pastos, guia-me mansamente a águas tranquilas.\"</p>
+            <p style='text-align: right; font-weight: bold; margin:0;'>Salmos 23:1-2</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_topo2:
+        meses_pt = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual = meses_pt[datetime.date.today().month - 1]
+        
+        st.markdown(f"""
+        <div style='background: white; padding: 20px; border-radius: 20px; border: 1px solid #e0a800; min-height: 145px;'>
+            <h3 style='margin:0; color:#212529;'>🎂 Aniversariantes de {mes_atual}</h3>
+        """, unsafe_allow_html=True)
+        
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :mes", {"mes": mes_atual})
+        if not df_aniv.empty:
+            nomes_aniv = ", ".join([f"<b>{row['nome']}</b> ({row['cargo']})" for _, row in df_aniv.iterrows()])
+            st.markdown(f"<p style='color:#333; margin-top:10px; font-size:16px;'>🎉 Parabéns a: {nomes_aniv}!</p>", unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='color:gray; margin-top:10px;'>Nenhum membro faz aniversário este mês.</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    col_aviso, col_video = st.columns()
     
     with col_aviso:
         st.header("📋 Mural de Avisos da Igreja")
@@ -255,7 +286,6 @@ with abas[0]:
                         st.success("Publicado!")
                         st.rerun()
         
-        # Listar Avisos do Banco
         lista_avisos = consultar_db("SELECT titulo, conteudo, data FROM avisos ORDER BY id DESC LIMIT 5")
         if not lista_avisos.empty:
             for _, av in lista_avisos.iterrows():
@@ -271,7 +301,7 @@ with abas[0]:
 
     with col_video:
         st.header("🎥 Conferência Ao Vivo")
-        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="550" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
+        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="500" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
 
 # ABA 2: BÍBLIA SAGRADA
 with abas[1]:
@@ -293,14 +323,6 @@ with abas[1]:
                 st.dataframe(res_b, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum resultado encontrado.")
-        else:
-            st.markdown("""
-            <div class='versiculo-box'>
-                <h3>💡 Versículo em Destaque</h3>
-                <p style='font-size: 18px; font-style: italic;'>\"Lâmpada para os meus pés é tua palavra, e luz para o meu caminho.\"</p>
-                <p style='text-align: right; font-weight: bold;'>Salmos 119:105</p>
-            </div>
-            """, unsafe_allow_html=True)
 
 # ABA 3: LOUVORES (Aba indexada dinamicamente dependendo do nível de acesso)
 idx_louvores = 4 if st.session_state.nivel_atual == "Pastor" else 2
@@ -325,13 +347,24 @@ with abas[idx_louvores]:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor para exibir", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            id_l = int(lista_louvores.iloc[lista_louvores['titulo'].str.cat(lista_louvores['artista'], sep=' - ') == selecionado]['id'].values[0])
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE id = :id", {"id": id_l})
+            partes = selecionado.split(" - ")
+            t_sel = partes[0]
             
-            st.subheader(selecionado)
-            if dados_l.iloc[0]['arquivo_audio']:
-                st.audio(dados_l.iloc[0]['arquivo_audio'], format="audio/mp3")
-            st.text(dados_l.iloc[0]['letra'])
+            # CORREÇÃO CRÍTICA DO AUDIO: Extração correta da linha de bytes sem falha posicional
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
+            
+            if not dados_l.empty:
+                st.subheader(selecionado)
+                
+                # Obtém o conteúdo do blob de áudio de forma segura
+                registro_audio = dados_l.iloc[0]['arquivo_audio']
+                if registro_audio is not None:
+                    # Carrega o player de áudio injetando os bytes diretamente
+                    st.audio(registro_audio, format="audio/mp3")
+                else:
+                    st.caption("Aviso: Este hino não possui arquivo de áudio anexado.")
+                
+                st.text(dados_l.iloc[0]['letra'])
     else:
         st.info("Nenhum hino cadastrado no hinário.")
 
@@ -380,13 +413,15 @@ if st.session_state.nivel_atual == "Pastor":
                 st.rerun()
         
         st.markdown("---")
-        # Métricas Consolidadas
-        ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'").iloc[0]['total'] or 0.0
-        sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'").iloc[0]['total'] or 0.0
+        df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
+        df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
+        
+        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
+        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
         
         m1, m2, m3 = st.columns(3)
-        m1.metric("Total Entradas", f"R$ {ent:,.2f}", delta_color="normal")
-        m2.metric("Total Saídas", f"R$ {sai:,.2f}", delta_color="inverse")
+        m1.metric("Total Entradas", f"R$ {ent:,.2f}")
+        m2.metric("Total Saídas", f"R$ {sai:,.2f}")
         m3.metric("Saldo em Caixa", f"R$ {(ent - sai):,.2f}")
 
     # CREDENCIAIS / USUÁRIOS
