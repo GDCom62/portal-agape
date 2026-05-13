@@ -31,6 +31,22 @@ def consultar_db(sql, params=None):
             return pd.read_sql_query(text(sql), conn, params=params or {})
         except:
             return pd.DataFrame()
+def baixar_biblia_automatico():
+    import requests
+    try:
+        with st.spinner("📖 Configurando a Bíblia Sagrada pela primeira vez... Por favor, aguarde 30 segundos."):
+            url = "githubusercontent.com"
+            df = pd.read_csv(url)
+            df = df[['livro', 'capitulo', 'versiculo', 'texto']]
+            df.columns = ['livro', 'cap', 'ver', 'texto']
+            
+            # Grava direto no banco de dados conectado
+            with engine.begin() as conn:
+                df.to_sql('biblia', conn, if_exists='replace', index=False)
+            st.success("✅ Bíblia configurada com sucesso! Atualizando...")
+            st.rerun()
+    except Exception as e:
+        st.error(f"Erro ao carregar Bíblia automaticamente: {e}")
 
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
