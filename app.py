@@ -103,7 +103,7 @@ else:
         if st.button("🚪 Sair"):
             st.session_state.clear(); st.rerun()
 
-    # ABAS DE NAVEGAÇÃO INTERNA
+    # ABAS DE NAVEGAÇÃO INTERNA (Tudo com recuo exato de 4 espaços)
     aba_mural, aba_chat, aba_biblia = st.tabs(["🏠 Mural", "💬 Chat Ágape", "📖 Bíblia"])
 
     with aba_mural:
@@ -123,11 +123,10 @@ else:
     with aba_chat:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
-       with aba_biblia:
+    with aba_biblia:
         st.title("📖 Leitura Bíblica Almeida")
         st.write("Selecione o livro e o capítulo para renderizar os textos sagrados.")
 
-        # Dicionário oficial mapeado com as siglas exatas exigidas pela API
         livros_dict = {
             "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "num", "Deuteronômio": "dt",
             "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
@@ -147,30 +146,22 @@ else:
             "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "ap"
         }
 
-        # Componentes de interface do Streamlit
         livro_pt = st.selectbox("Escolha o Livro:", list(livros_dict.keys()))
         livro_api = livros_dict[livro_pt]
-
         cap_selecionado = st.number_input("Escolha o Capítulo:", min_value=1, max_value=150, value=1, step=1)
 
         if st.button("📖 Ler Capítulo", use_container_width=True):
             with st.spinner("Buscando textos sagrados..."):
-                # URL oficial puxando o arquivo completo do livro (Garante 100% de existência do endpoint)
-                url_api = f"https://raw.githubusercontent.com/maatheusgois/bible/main/versions/pt-br/arc/{livro_api}/{livro_api}.json"
+                url_api = f"githubusercontent.com{livro_api}/{livro_api}.json"
                 try:
                     resposta = requests.get(url_api, timeout=10)
                     if resposta.status_code == 200:
                         dados_livro = resposta.json()
-                        
-                        # Converte o número digitado para String para bater com a chave do JSON
                         cap_str = str(cap_selecionado)
                         
-                        # Verifica se o capítulo realmente existe dentro do livro baixado
                         if cap_str in dados_livro:
                             st.divider()
                             st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
-                            
-                            # Filtra e extrai os versículos específicos do capítulo na memória
                             versiculos = dados_livro[cap_str]
                             for id_ver, texto_ver in versiculos.items():
                                 st.markdown(f"**{id_ver}** {texto_ver.strip()}")
