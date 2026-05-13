@@ -123,11 +123,11 @@ else:
     with aba_chat:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
-    with aba_biblia:
+       with aba_biblia:
         st.title("📖 Leitura Bíblica Almeida")
         st.write("Selecione o livro e o capítulo para renderizar os textos sagrados.")
 
-        # Dicionário mapeado para a API do repositório público Almeida Revista e Corrigida
+        # Dicionário oficial mapeado com as siglas exatas exigidas pela API
         livros_dict = {
             "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "num", "Deuteronômio": "dt",
             "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
@@ -147,6 +147,7 @@ else:
             "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "ap"
         }
 
+        # Componentes de interface do Streamlit
         livro_pt = st.selectbox("Escolha o Livro:", list(livros_dict.keys()))
         livro_api = livros_dict[livro_pt]
 
@@ -154,19 +155,28 @@ else:
 
         if st.button("📖 Ler Capítulo", use_container_width=True):
             with st.spinner("Buscando textos sagrados..."):
-                # Requisição direta para o CDN estável de arquivos JSON bíblicos do repositório do MaatheusGois
-                url_api = f"https://raw.githubusercontent.com/maatheusgois/bible/main/versions/pt-br/arc/{livro_api}/{cap_selecionado}.json"
+                # URL oficial puxando o arquivo completo do livro (Garante 100% de existência do endpoint)
+                url_api = f"https://raw.githubusercontent.com/maatheusgois/bible/main/versions/pt-br/arc/{livro_api}/{livro_api}.json"
                 try:
                     resposta = requests.get(url_api, timeout=10)
                     if resposta.status_code == 200:
-                        dados = resposta.json()
-                        st.divider()
-                        st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
+                        dados_livro = resposta.json()
                         
-                        # Estruturação dinâmica versículo por versículo na tela
-                        for id_ver, texto_ver in dados.items():
-                            st.markdown(f"**{id_ver}** {texto_ver.strip()}")
+                        # Converte o número digitado para String para bater com a chave do JSON
+                        cap_str = str(cap_selecionado)
+                        
+                        # Verifica se o capítulo realmente existe dentro do livro baixado
+                        if cap_str in dados_livro:
+                            st.divider()
+                            st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
+                            
+                            # Filtra e extrai os versículos específicos do capítulo na memória
+                            versiculos = dados_livro[cap_str]
+                            for id_ver, texto_ver in versiculos.items():
+                                st.markdown(f"**{id_ver}** {texto_ver.strip()}")
+                        else:
+                            st.error(f"O livro {livro_pt} não possui o capítulo {cap_selecionado}.")
                     else:
-                        st.error("Capítulo inválido ou inexistente para este livro.")
-                except:
-                    st.error("Ocorreu uma lentidão na rede externa. Por favor, tente clicar novamente.")
+                        st.error("Erro interno ao localizar arquivo do livro na nuvem.")
+                except Exception as e:
+                    st.error("Ocorreu uma lentidão na rede externa. Por favor, clique novamente.")
