@@ -11,6 +11,8 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 # URLs Oficiais (Substitua pelas suas URLs reais do Railway)
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
+# Comunicação direta via rede interna do container
+URL_API_LOCAL = "http://127.0.0.1:8000"
 
 # --- CONEXÃO BANCO E REDIS ---
 engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
