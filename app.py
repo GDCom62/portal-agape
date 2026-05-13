@@ -8,7 +8,7 @@ import redis, random
 # --- CONFIGURAÇÕES BÁSICAS ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# URLs Oficiais
+# URLs Oficiais (Substitua pelas suas URLs reais do Railway)
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
@@ -32,44 +32,17 @@ def consultar_db(sql, params=None):
         except:
             return pd.DataFrame()
 
-def baixar_biblia_automatico():
-    import requests
-    try:
-        with st.spinner("📖 Configurando a Bíblia Sagrada no servidor... Aguarde cerca de 30 segundos."):
-            # Endereço completo e correto para o download da base de dados
-            url = "githubusercontent.com"
-            
-            # Baixa e estrutura os dados do repositório
-            df = pd.read_csv(url)
-            df = df[['livro', 'capitulo', 'versiculo', 'texto']]
-            df.columns = ['livro', 'cap', 'ver', 'texto']
-            
-            # Grava diretamente no banco de dados SQLite do servidor
-            with engine.begin() as conn:
-                df.to_sql('biblia', conn, if_exists='replace', index=False)
-            st.success("✅ Bíblia configurada com sucesso!")
-            st.rerun()
-    except Exception as e:
-        st.error(f"Erro ao carregar Bíblia automaticamente: {e}")
-
-
 def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
     executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, conteudo TEXT, data TEXT, autor TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS curtidas (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     
-    # Se a tabela de bíblia não possuir registros, inicia o download automático
-    check_biblia = consultar_db("SELECT livro FROM biblia LIMIT 1")
-    if check_biblia.empty:
-        baixar_biblia_automatico()
-
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
 
-# Inicializa banco de dados antes da interface carregar
+# Inicializa as tabelas estruturais
 init_db()
 
 # --- ESTILIZAÇÃO CSS ---
@@ -82,17 +55,29 @@ def aplicar_estilo():
         header, footer { visibility: hidden; }
     </style>""", unsafe_allow_html=True)
 
-# --- COMPONENTES VISUAIS ---
+# --- COMPONENTES VISUAIS (LOUVOR VIA API) ---
 def render_louvor():
     if 'versiculo_dia' not in st.session_state:
+        import requests
         try:
-            df = consultar_db("SELECT * FROM biblia ORDER BY RANDOM() LIMIT 1")
-            st.session_state.versiculo_dia = df.iloc[0].to_dict() if not df.empty else {"texto": "O Senhor é bom.", "livro": "Salmos", "cap": 1, "ver": 1}
+            # Puxa um versículo aleatório da API pública [2]
+            r = requests.get("bible-api.com", timeout=5)
+            if r.status_code == 200:
+                dados = r.json()
+                st.session_state.versiculo_dia = {
+                    "texto": dados['text'].strip(),
+                    "ref": "João 3:16"
+                }
+            else:
+                raise Exception()
         except:
-            st.session_state.versiculo_dia = {"texto": "Deus é fiel.", "livro": "1 Coríntios", "cap": 1, "ver": 9}
+            st.session_state.versiculo_dia = {
+                "texto": "O Senhor é o meu pastor, nada me faltará.",
+                "ref": "Salmos 23:1"
+            }
     
     v = st.session_state.versiculo_dia
-    st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["livro"]} {v["cap"]}:{v["ver"]}</b></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["ref"]}</b></div></div>', unsafe_allow_html=True)
 
 # --- CONTROLE DE SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
@@ -115,7 +100,7 @@ if not st.session_state.logado:
     else:
         with st.form("cad_f"):
             n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
-            if st.form_submit_button("SALVAR"):
+            if st.form_submit_button("CADASTRAR"):
                 executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES (:n,:em,:s,0)", {"n":n,"em":em,"s":generate_password_hash(se)})
                 st.success("Sucesso!"); st.session_state.tela = "login"; st.rerun()
         if st.button("Voltar"): st.session_state.tela = "login"; st.rerun()
@@ -155,32 +140,48 @@ else:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
     with aba_biblia:
-        st.title("📖 Leitura Bíblica")
-        
-        # 1. Carrega todos os livros disponíveis
-        df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-        
-        if not df_livros.empty:
-            lista_livros = df_livros['livro'].tolist()
-            livro_selecionado = st.selectbox("Escolha o Livro:", lista_livros)
-            
-            if livro_selecionado:
-                # 2. Carrega dinamicamente os capítulos do livro
-                df_caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro = :l ORDER BY cap", {"l": livro_selecionado})
-                lista_caps = df_caps['cap'].tolist()
-                cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_caps)
-                
-                if cap_selecionado:
-                    st.divider()
-                    st.subheader(f"{livro_selecionado}, Capítulo {cap_selecionado}")
-                    
-                    # 3. Exibe em formato de texto contínuo todos os versículos
-                    df_versiculos = consultar_db(
-                        "SELECT ver, texto FROM biblia WHERE livro = :l AND cap = :c ORDER BY ver",
-                        {"l": livro_selecionado, "c": cap_selecionado}
-                    )
-                    
-                    for _, row in df_versiculos.iterrows():
-                        st.markdown(f"**{row['ver']}** {row['texto']}")
-        else:
-            st.warning("Nenhum livro encontrado no banco de dados.")
+        st.title("📖 Leitura Bíblica Online")
+        st.write("Selecione o livro e o capítulo para ler a Palavra.")
+
+        # Dicionário de tradução e mapeamento para API [2]
+        livros_dict = {
+            "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "teleonomy",
+            "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
+            "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles",
+            "Esdras": "ezra", "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms",
+            "Provérbios": "proverbs", "Eclesiastes": "ecclesiastes", "Cânticos": "songofsolomon", "Isaías": "isaiah",
+            "Jeremias": "jeremiah", "Lamentações": "lamentations", "Ezequiel": "ezekiel", "Daniel": "daniel",
+            "Oséias": "hosea", "Joel": "joel", "Amós": "amos", "Obadias": "obadiah", "Jonas": "jonah",
+            "Miquéias": "micah", "Naum": "nahum", "Habacuque": "habakkuk", "Sofonias": "zephaniah",
+            "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi",
+            "Mateus": "matthew", "Marcos": "mark", "Lucas": "luke", "João": "john", "Atos": "acts",
+            "Romanos": "romans", "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians",
+            "Efésios": "ephesians", "Filipenses": "philippians", "Colossenses": "colossians",
+            "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians",
+            "1 Timóteo": "1timothy", "2 Timóteo": "2timothy", "Tito": "titus", "Filemom": "philemon",
+            "Hebreus": "hebrews", "Tiago": "james", "1 Pedro": "1peter", "2 Pedro": "2peter",
+            "1 João": "1john", "2 João": "2john", "3 João": "3john", "Judas": "judas", "Apocalipse": "revelation"
+        }
+
+        livro_pt = st.selectbox("Escolha o Livro:", list(livros_dict.keys()))
+        livro_api = livros_dict[livro_pt]
+
+        cap_selecionado = st.number_input("Escolha o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+
+        if st.button("📖 Ler Capítulo", use_container_width=True):
+            import requests
+            with st.spinner("Buscando texto sagrado..."):
+                url_api = f"bible-api.com{livro_api}+{cap_selecionado}?translation=almeida"
+                try:
+                    resposta = requests.get(url_api, timeout=10)
+                    if resposta.status_code == 200:
+                        dados = resposta.json()
+                        st.divider()
+                        st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
+                        
+                        for v in dados['verses']:
+                            st.markdown(f"**{v['verse']}** {v['text'].strip()}")
+                    else:
+                        st.error("Capítulo inválido ou não existente para este livro.")
+                except:
+                    st.error("Erro de conexão com o servidor da Bíblia externa. Tente novamente.")
