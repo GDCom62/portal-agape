@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import redis, random, requests
+import redis, random
 
 # --- CONFIGURAÇÕES BÁSICAS ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -53,12 +53,33 @@ def aplicar_estilo():
         header, footer { visibility: hidden; }
     </style>""", unsafe_allow_html=True)
 
+# --- BASE DE DADOS NATIVA DA BÍBLIA (100% OFFLINE E INSTANTÂNEA) ---
+biblia_local = {
+    "Salmos": {
+        "23": {"1": "O Senhor é o meu pastor, nada me faltará.", "2": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "3": "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.", "4": "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo.", "5": "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.", "6": "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."},
+        "91": {"1": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei.", "3": "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4": "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."}
+    },
+    "João": {
+        "3": {"16": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."}
+    },
+    "Filipenses": {
+        "4": {"13": "Tudo posso naquele que me fortalece."}
+    },
+    "Gênesis": {
+        "1": {"1": "No princípio criou Deus os céus e a terra.", "2": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.", "3": "E disse Deus: Haja luz; e houve luz."}
+    }
+}
+
 # --- COMPONENTES VISUAIS (LOUVOR FIXADO) ---
 def render_louvor():
     if 'versiculo_dia' not in st.session_state:
+        # Sorteia um versículo da nossa base local offline
+        livro = random.choice(list(biblia_local.keys()))
+        cap = random.choice(list(biblia_local[livro].keys()))
+        ver = random.choice(list(biblia_local[livro][cap].keys()))
         st.session_state.versiculo_dia = {
-            "texto": "O Senhor é o meu pastor, nada me faltará.",
-            "ref": "Salmos 23:1"
+            "texto": biblia_local[livro][cap][ver],
+            "ref": f"{livro} {cap}:{ver}"
         }
     v = st.session_state.versiculo_dia
     st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["ref"]}</b></div></div>', unsafe_allow_html=True)
@@ -103,7 +124,7 @@ else:
         if st.button("🚪 Sair"):
             st.session_state.clear(); st.rerun()
 
-    # ABAS DE NAVEGAÇÃO INTERNA (Tudo com recuo exato de 4 espaços)
+    # ABAS DE NAVEGAÇÃO INTERNA
     aba_mural, aba_chat, aba_biblia = st.tabs(["🏠 Mural", "💬 Chat Ágape", "📖 Bíblia"])
 
     with aba_mural:
@@ -124,50 +145,21 @@ else:
         st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
     with aba_biblia:
-        st.title("📖 Leitura Bíblica Almeida")
-        st.write("Selecione o livro e o capítulo para renderizar os textos sagrados.")
+        st.title("📖 Leitura Bíblica Local")
+        st.write("Acesso ultrarrápido aos principais livros e capítulos.")
 
-        livros_dict = {
-            "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "num", "Deuteronômio": "dt",
-            "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
-            "1 Reis": "1re", "2 Reis": "2re", "1 Crônicas": "1cr", "2 Crônicas": "2cr",
-            "Esdras": "ez", "Neemias": "ne", "Ester": "et", "Jó": "jo", "Salmos": "ps",
-            "Provérbios": "pv", "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is",
-            "Jeremias": "jr", "Lamentações": "lm", "Ezequiel": "ezq", "Daniel": "dn",
-            "Oséias": "os", "Joel": "jl", "Amós": "am", "Obadias": "ob", "Jonas": "jn",
-            "Miquéias": "mq", "Naum": "na", "Habacuque": "hc", "Sofonias": "sf",
-            "Ageu": "ag", "Zacarias": "zc", "Malaquias": "ml",
-            "Mateus": "mt", "Marcos": "mc", "Lucas": "lc", "João": "jo", "Atos": "at",
-            "Romanos": "rm", "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl",
-            "Efésios": "ef", "Filipenses": "fp", "Colossenses": "cl",
-            "1 Tessalonicenses": "1ts", "2 Tessalonicenses": "2ts",
-            "1 Timóteo": "1tm", "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "fm",
-            "Hebreus": "hb", "Tiago": "tg", "1 Pedro": "1pe", "2 Pedro": "2pe",
-            "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "ap"
-        }
-
-        livro_pt = st.selectbox("Escolha o Livro:", list(livros_dict.keys()))
-        livro_api = livros_dict[livro_pt]
-        cap_selecionado = st.number_input("Escolha o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+        # Seletores baseados estritamente no nosso dicionário local estável
+        livro_pt = st.selectbox("Escolha o Livro:", list(biblia_local.keys()))
+        
+        # Filtra os capítulos do livro selecionado
+        lista_capitulos = list(biblia_local[livro_pt].keys())
+        cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_capitulos)
 
         if st.button("📖 Ler Capítulo", use_container_width=True):
-            with st.spinner("Buscando textos sagrados..."):
-                url_api = f"githubusercontent.com{livro_api}/{livro_api}.json"
-                try:
-                    resposta = requests.get(url_api, timeout=10)
-                    if resposta.status_code == 200:
-                        dados_livro = resposta.json()
-                        cap_str = str(cap_selecionado)
-                        
-                        if cap_str in dados_livro:
-                            st.divider()
-                            st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
-                            versiculos = dados_livro[cap_str]
-                            for id_ver, texto_ver in versiculos.items():
-                                st.markdown(f"**{id_ver}** {texto_ver.strip()}")
-                        else:
-                            st.error(f"O livro {livro_pt} não possui o capítulo {cap_selecionado}.")
-                    else:
-                        st.error("Erro interno ao localizar arquivo do livro na nuvem.")
-                except Exception as e:
-                    st.error("Ocorreu uma lentidão na rede externa. Por favor, clique novamente.")
+            st.divider()
+            st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
+            
+            # Puxa diretamente da memória sem fazer requisições HTTP
+            versiculos = biblia_local[livro_pt][cap_selecionado]
+            for id_ver, texto_ver in versiculos.items():
+                st.markdown(f"**{id_ver}** {texto_ver}")
