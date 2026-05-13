@@ -10,13 +10,17 @@ import datetime
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-URL_CHAT_RAILWAY = "https://railway.app" # Substitua pela URL real do seu app de chat backend
+URL_CHAT_RAILWAY = "https://railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
-# --- 3. CONEXÕES COM BANCO DE DADOS ---
+# --- 3. CONEXÕES COM BANCO DE DADOS (CORRIGIDO PARA STREAMLIT CLOUD) ---
 @st.cache_resource
 def inicializar_conexoes():
-    engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
+    # Caminho /tmp resolve o erro de permissão de escrita (OperationalError)
+    engine = create_engine(
+        "sqlite:////tmp/agape_v60.db", 
+        connect_args={"check_same_thread": False, "timeout": 10}
+    )
     try:
         r_db = redis.from_url(REDIS_URL, decode_responses=True)
     except Exception:
@@ -36,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação das tabelas necessárias para os novos módulos
+# Inicialização segura das tabelas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +62,7 @@ CREATE TABLE IF NOT EXISTS membros (
 executar_query("""
 CREATE TABLE IF NOT EXISTS financeiro (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tipo TEXT, -- 'Entrada' ou 'Saída'
+    tipo TEXT,
     descricao TEXT,
     valor REAL,
     data TEXT
@@ -83,7 +87,6 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Inserção automática do administrador padrão
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -95,10 +98,9 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. ESTILIZAÇÃO PROFISSIONAL (Cantos Arredondados e Efeitos Flutuantes) ---
+# --- 4. ESTILIZAÇÃO PROFISSIONAL (Elementos Flutuantes e Cantos Arredondados) ---
 st.markdown("""
     <style>
-    /* Estilização dos blocos e cards para parecerem flutuantes com cantos arredondados */
     .stMetric, div[data-testid="stMetricValue"], div[data-testid="metric-container"] {
         background-color: #f8f9fa;
         padding: 15px;
@@ -111,7 +113,6 @@ st.markdown("""
         transform: translateY(-4px);
         box-shadow: 0 8px 15px rgba(0,0,0,0.1);
     }
-    /* Estilização de inputs e botões */
     .stButton>button {
         border-radius: 12px !important;
         padding: 10px 24px;
@@ -120,7 +121,6 @@ st.markdown("""
     div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
         border-radius: 12px !important;
     }
-    /* Card customizado para Avisos e Bíblia */
     .card-flutuante {
         background-color: #ffffff;
         padding: 20px;
@@ -140,7 +140,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. SISTEMA DE AUTENTICAÇÃO ---
+# --- 5. AUTENTICAÇÃO ---
 def autenticar_usuario(usuario, senha):
     df = consultar_db("SELECT senha FROM usuarios WHERE usuario = :user", {"user": usuario})
     if not df.empty:
@@ -174,11 +174,9 @@ else:
         st.session_state.usuario_atual = None
         st.rerun()
 
-# --- 6. MÓDULOS DO SISTEMA ---
+# --- 6. MÓDULOS ---
 
-# MÓDULO: PALAVRA DA BÍBLIA (via API dinâmica)
 def obter_versiculo_do_dia():
-    # Retorna João 3:16 como fallback seguro ou consome API pública ativa
     try:
         r = requests.get("bible-api.com", timeout=3)
         if r.status_code == 200:
@@ -191,7 +189,6 @@ def obter_versiculo_do_dia():
 def modulo_home():
     st.title("⛪ Painel Geral")
     
-    # Exibição do Versículo Flutuante
     texto_v, ref_v = obter_versiculo_do_dia()
     st.markdown(f"""
     <div class="versiculo-box">
@@ -201,11 +198,12 @@ def modulo_home():
     </div>
     """, unsafe_allow_html=True)
     
-    # Métricas Gerais Flutuantes
+    # Processamento de Métricas
     tot_membros = len(consultar_db("SELECT id FROM membros"))
     fin_dados = consultar_db("SELECT tipo, valor FROM financeiro")
-    entradas = fin_dados[fin_dados['tipo'] == 'Entrada']['valor'].sum()
-    saidas = fin_dados[fin_dados['tipo'] == 'Saída']['valor'].sum()
+    
+    entradas = fin_dados[fin_dados['tipo'] == 'Entrada']['valor'].sum() if not fin_dados.empty else 0.0
+    saidas = fin_dados[fin_dados['tipo'] == 'Saída']['valor'].sum() if not fin_dados.empty else 0.0
     saldo = entradas - saidas
     
     col1, col2, col3 = st.columns(3)
@@ -213,7 +211,13 @@ def modulo_home():
     col2.metric("Saldo Financeiro", f"R$ {saldo:,.2f}")
     col3.metric("Conexão Redis", "Estável" if r_db else "Offline")
 
-    # Quadro de Avisos Flutuante
+    # Gráficos Financeiros Dinâmicos
+    if not fin_dados.empty:
+        st.subheader("📊 Resumo Financeiro Visual")
+        df_agrupado = fin_dados.groupby('tipo')['valor'].sum().reset_index()
+        st.bar_chart(data=df_agrupado, x='tipo', y='valor', use_container_width=True)
+
+    # Quadro de Avisos
     st.subheader("📢 Mural de Avisos")
     df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC LIMIT 3")
     if not df_avisos.empty:
@@ -231,7 +235,6 @@ def modulo_home():
 def modulo_membros():
     st.title("👥 Gestão de Membros")
     aba1, aba2 = st.tabs(["Cadastrar Membro", "Visualizar Todos"])
-    
     with aba1:
         with st.form("cadastro_membro"):
             nome = st.text_input("Nome Completo")
@@ -244,15 +247,13 @@ def modulo_membros():
                                {"nome": nome, "tel": tel, "cargo": cargo, "data": data_hoje})
                 st.success("Membro registrado com sucesso!")
                 st.rerun()
-                
     with aba2:
         df_membros = consultar_db("SELECT id as ID, nome as Nome, telefone as Telefone, cargo as Cargo, data_cadastro as 'Data Cadastro' FROM membros")
         st.dataframe(df_membros, use_container_width=True)
 
 def modulo_financeiro():
-    st.title("💰 Controle Financeiro (Dízimos e Despesas)")
+    st.title("💰 Controle Financeiro")
     aba1, aba2 = st.tabs(["Lançar Movimentação", "Fluxo de Caixa"])
-    
     with aba1:
         with st.form("form_financeiro"):
             tipo = st.radio("Tipo de Lançamento", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
@@ -266,46 +267,41 @@ def modulo_financeiro():
                                {"tipo": tipo_limpo, "desc": desc, "valor": valor, "data": data_hoje})
                 st.success("Lançamento computado!")
                 st.rerun()
-                
     with aba2:
         df_fin = consultar_db("SELECT id as ID, tipo as Tipo, descricao as Descrição, valor as 'Valor (R$)', data as Data FROM financeiro ORDER BY id DESC")
         st.dataframe(df_fin, use_container_width=True)
 
 def modulo_biblia():
     st.title("📖 Consulta Bíblica Integrada")
-    col1, col2, col3 = st.columns([2, 1, 1])
-    livro = col1.text_input("Livro (Ex: Joao, Genesis, Romanos)", value="Joao")
+    col1, col2, col3 = st.columns(3)
+    livro = col1.text_input("Livro (Ex: john, genesis, romans)", value="john")
     capitulo = col2.number_input("Capítulo", min_value=1, value=1, step=1)
-    versiculo = col3.text_input("Versículo (Opcional, ex: 1 ou 1-5)", value="")
-    
+    versiculo = col3.text_input("Versículo (Opcional)", value="")
     if st.button("Buscar na Palavra"):
         alvo = f"{livro}+{capitulo}:{versiculo}" if versiculo else f"{livro}+{capitulo}"
         try:
-            r = requests.get(f"bible-api.com{alvo}?translation=almeida")
+            r = requests.get(f"bible-api.com{alvo}")
             if r.status_code == 200:
                 dados = r.json()
                 st.markdown(f"### 📜 {dados['reference']}")
                 st.info(dados['text'])
             else:
-                st.error("Trecho não encontrado. Certifique-se de digitar o nome do livro sem acentos.")
+                st.error("Trecho não encontrado. Use nomes em inglês para a busca na API pública.")
         except Exception:
             st.error("Erro ao conectar à API da Bíblia.")
 
 def modulo_louvores():
     st.title("🎵 Hinário e Louvores")
     aba1, aba2 = st.tabs(["Pesquisar Letras", "Adicionar Novo Louvor"])
-    
     with aba1:
         busca = st.text_input("🔍 Digite o nome do louvor ou artista")
         if busca:
             df_l = consultar_db("SELECT * FROM louvores WHERE titulo LIKE :b OR artista LIKE :b", {"b": f"%{busca}%"})
         else:
             df_l = consultar_db("SELECT * FROM louvores")
-            
         for _, louvor in df_l.iterrows():
             with st.expander(f"🎼 {louvor['titulo']} — {louvor['artista']}"):
                 st.text(louvor['letra'])
-                
     with aba2:
         with st.form("form_louvor"):
             t = st.text_input("Título da Canção")
@@ -333,9 +329,6 @@ def modulo_avisos():
 
 def modulo_chat():
     st.title("💬 Chat da Comunidade")
-    st.write("Conecte-se com a sua equipe pastoral e líderes ministeriais em tempo real.")
-    
-    # Renderização profissional do Chat integrado via Iframe do Railway
     st.markdown(f"""
     <iframe src="{URL_CHAT_RAILWAY}" width="100%" height="600" style="border:none; border-radius:16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>
     """, unsafe_allow_html=True)
