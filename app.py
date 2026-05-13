@@ -28,7 +28,8 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+# DECLARAÇÃO DAS FUNÇÕES (Obrigatório vir antes das chamadas de query)
+def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -39,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização de Tabelas
+# INICIALIZAÇÃO DE TABELAS (Agora chamadas de forma segura após as declarações)
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,26 +130,6 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(0,0,0,0.1) !important;
         border: 1px solid #e0a800 !important;
         color: #212529 !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .stMetric:hover, .card-flutuante:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.15) !important;
-    }
-    .stButton>button {
-        border-radius: 12px !important;
-        background-color: #212529 !important;
-        color: #ffffff !important;
-        font-weight: 600;
-        border: none;
-    }
-    .stButton>button:hover {
-        background-color: #495057 !important;
-        color: #FFD700 !important;
-    }
-    div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
-        border-radius: 12px !important;
-        background-color: #ffffff !important;
     }
     .versiculo-box {
         background: linear-gradient(135deg, #212529 0%, #000000 100%);
@@ -157,11 +138,6 @@ st.markdown("""
         border-radius: 20px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         margin-bottom: 25px;
-    }
-    .cartao-membro {
-        border-left: 8px solid #212529 !important;
-        max-width: 450px;
-        margin: auto;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -215,7 +191,6 @@ if not st.session_state.autenticado:
                 st.session_state.autenticado = True
                 st.session_state.usuario_atual = campo_usuario
                 st.session_state.nivel_atual = df_u.iloc[0]['nivel']
-                st.sidebar.success("Logado!")
                 st.rerun()
             else:
                 st.sidebar.error("Usuário ou senha incorretos.")
@@ -232,7 +207,6 @@ else:
 # --- 7. PAINEL PRINCIPAL DE CONTEÚDO ---
 st.title("⛪ Portal Administrativo Ágape")
 
-# Definição dinâmica de abas dependendo do nível de acesso
 if st.session_state.nivel_atual == "Pastor":
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "👥 Gestão de Membros", "💰 Financeiro", "🎵 Louvores", "🔐 Credenciais"])
 else:
@@ -240,10 +214,7 @@ else:
 
 # ABA 1: MURAL DE AVISOS, VÍDEO, PALAVRA DO DIA E ANIVERSARIANTES
 with abas[0]:
-    # PALAVRA DO DIA E ANIVERSARIANTES NO TOPO
-    st.markdown("---")
     col_topo1, col_topo2 = st.columns(2)
-    
     with col_topo1:
         st.markdown("""
         <div class='versiculo-box'>
@@ -274,7 +245,7 @@ with abas[0]:
     col_aviso, col_video = st.columns()
     
     with col_aviso:
-        st.header("📋 Mural de Avisos da Igreja")
+        st.header("📋 Mural de Avisos")
         if st.session_state.nivel_atual == "Pastor":
             with st.expander("➕ Novo Aviso (Exclusivo Pastor)"):
                 t_aviso = st.text_input("Título do Aviso")
@@ -296,12 +267,10 @@ with abas[0]:
                     <p style='margin:0; color:#333;'>{av['conteudo']}</p>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            st.info("Nenhum aviso publicado no mural.")
 
     with col_video:
         st.header("🎥 Conferência Ao Vivo")
-        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="500" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
+        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="450" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
 
 # ABA 2: BÍBLIA SAGRADA
 with abas[1]:
@@ -309,11 +278,11 @@ with abas[1]:
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
     if tabela_existe.empty:
-        st.warning("A base de dados local da Bíblia precisa ser sincronizada.")
+        st.info("A base de dados local da Bíblia precisa ser sincronizada.")
         if st.button("🚀 Sincronizar Bíblia Sagrada Agora", use_container_width=True):
-            with st.spinner("Estruturando os 66 livros no banco local..."):
+            with st.spinner("Sincronizando base de dados..."):
                 if carregar_biblia_completa():
-                    st.success("Sincronização realizada com sucesso!")
+                    st.success("Sincronização concluída com sucesso!")
                     st.rerun()
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
@@ -324,7 +293,7 @@ with abas[1]:
             else:
                 st.info("Nenhum resultado encontrado.")
 
-# ABA 3: LOUVORES (Aba indexada dinamicamente dependendo do nível de acesso)
+# ABA 3: LOUVORES
 idx_louvores = 4 if st.session_state.nivel_atual == "Pastor" else 2
 with abas[idx_louvores]:
     st.header("🎵 Hinário & Letras de Louvores")
@@ -340,37 +309,25 @@ with abas[idx_louvores]:
                 with engine.begin() as conn:
                     conn.execute(text("INSERT INTO louvores (titulo, artista, letra, arquivo_audio) VALUES (:t, :a, :l, :audio)"),
                                  {"t": t_louvor, "a": a_louvor, "l": l_louvor, "audio": audio_bytes})
-                st.success("Louvor cadastrado com sucesso!")
+                st.success("Louvor cadastrado!")
                 st.rerun()
                 
     lista_louvores = consultar_db("SELECT id, titulo, artista FROM louvores ORDER BY titulo ASC")
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor para exibir", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            partes = selecionado.split(" - ")
-            t_sel = partes[0]
-            
-            # CORREÇÃO CRÍTICA DO AUDIO: Extração correta da linha de bytes sem falha posicional
+            t_sel = selecionado.split(" - ")[0]
             dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             
             if not dados_l.empty:
                 st.subheader(selecionado)
-                
-                # Obtém o conteúdo do blob de áudio de forma segura
                 registro_audio = dados_l.iloc[0]['arquivo_audio']
                 if registro_audio is not None:
-                    # Carrega o player de áudio injetando os bytes diretamente
-                    st.audio(registro_audio, format="audio/mp3")
-                else:
-                    st.caption("Aviso: Este hino não possui arquivo de áudio anexado.")
-                
+                    st.audio(bytes(registro_audio), format="audio/mp3")
                 st.text(dados_l.iloc[0]['letra'])
-    else:
-        st.info("Nenhum hino cadastrado no hinário.")
 
 # ABAS EXCLUSIVAS DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
-    # GESTÃO DE MEMBROS
     with abas[2]:
         st.header("👥 Cadastro de Membros")
         with st.form("form_membro", clear_on_submit=True):
@@ -385,11 +342,9 @@ if st.session_state.nivel_atual == "Pastor":
                     st.success("Membro adicionado!")
                     st.rerun()
         
-        st.subheader("Relação de Membros")
         membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
         st.dataframe(membros_df, use_container_width=True, hide_index=True)
 
-    # FINANCEIRO
     with abas[3]:
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
@@ -412,10 +367,8 @@ if st.session_state.nivel_atual == "Pastor":
                 st.success("Lançamento Realizado!")
                 st.rerun()
         
-        st.markdown("---")
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        
         ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
         sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
         
@@ -424,7 +377,6 @@ if st.session_state.nivel_atual == "Pastor":
         m2.metric("Total Saídas", f"R$ {sai:,.2f}")
         m3.metric("Saldo em Caixa", f"R$ {(ent - sai):,.2f}")
 
-    # CREDENCIAIS / USUÁRIOS
     with abas[5]:
         st.header("🔐 Controle de Usuários do Portal")
         with st.form("novo_usuario_painel"):
