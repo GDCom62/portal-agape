@@ -31,21 +31,10 @@ def consultar_db(sql, params=None):
         except:
             return pd.DataFrame()
 
-# --- ESTILIZAÇÃO CSS (DECLARADA ANTES DE USAR) ---
-def aplicar_estilo():
-    st.markdown("""<style>
-        .stApp { background: linear-gradient(135deg, #f0f2f5 0%, #c9d6ff 100%); }
-        [data-testid="stForm"] { background-color: white !important; padding: 30px !important; border-radius: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; border: none !important; max-width: 450px; margin: auto !important; }
-        .card-post { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #ced0d4; margin-bottom: 10px; }
-        .floating-louvor { position: fixed; bottom: 25px; right: 25px; width: 300px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-left: 6px solid #1877f2; border-radius: 12px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 999999; }
-        header, footer { visibility: hidden; }
-    </style>""", unsafe_allow_html=True)
-
 # --- CARGA AUTOMÁTICA DA BÍBLIA COMPLETA ---
 def carregar_biblia_completa():
     try:
         with st.spinner("📢 Configurando os 66 Livros da Bíblia Sagrada... Aguarde alguns segundos."):
-            # URL corrigida com o protocolo HTTPS completo
             url = "githubusercontent.com"
             resposta = requests.get(url, timeout=15)
             
@@ -77,7 +66,7 @@ def carregar_biblia_completa():
                     for cap_num, versiculos in capitulos.items():
                         for ver_num, texto_txt in versiculos.items():
                             linhas_db.append({
-                                "livro": nome_formatado,
+                                "livro": name_formatado,
                                 "cap": int(cap_num),
                                 "ver": int(ver_num),
                                 "texto": texto_txt.strip()
@@ -128,7 +117,14 @@ def render_louvor():
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'tela' not in st.session_state: st.session_state.tela = "login"
 
-aplicar_estilo()
+# INJEÇÃO DIRETA DE ESTILO LINEAR (Remove de vez o NameError por completo)
+st.markdown("""<style>
+    .stApp { background: linear-gradient(135deg, #f0f2f5 0%, #c9d6ff 100%); }
+    [data-testid="stForm"] { background-color: white !important; padding: 30px !important; border-radius: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; border: none !important; max-width: 450px; margin: auto !important; }
+    .card-post { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #ced0d4; margin-bottom: 10px; }
+    .floating-louvor { position: fixed; bottom: 25px; right: 25px; width: 300px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-left: 6px solid #1877f2; border-radius: 12px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 999999; }
+    header, footer { visibility: hidden; }
+</style>""", unsafe_allow_html=True)
 
 if not st.session_state.logado:
     st.markdown("<br><h1 style='text-align:center; color:#1877f2;'>⛪ Portal Ágape</h1>", unsafe_allow_html=True)
