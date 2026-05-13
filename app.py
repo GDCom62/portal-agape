@@ -35,6 +35,7 @@ def consultar_db(sql, params=None):
 def carregar_biblia_completa():
     try:
         with st.spinner("📢 Configurando os 66 Livros da Bíblia Sagrada... Aguarde alguns segundos."):
+            # NOTA: Substitua pela URL crua (raw) real do JSON da Bíblia desejada
             url = "githubusercontent.com"
             resposta = requests.get(url, timeout=15)
             
@@ -42,168 +43,45 @@ def carregar_biblia_completa():
                 dados_totais = resposta.json()
                 linhas_db = []
                 
+                # Mapeamento completo dos 66 livros (Sigla original do JSON -> Nome em PT-BR)
                 nomes_livros_pt = {
                     "gn": "Gênesis", "ex": "Êxodo", "lv": "Levítico", "num": "Números", "dt": "Deuteronômio",
                     "js": "Josué", "jz": "Juízes", "rt": "Rute", "1sm": "1 Samuel", "2sm": "2 Samuel",
                     "1re": "1 Reis", "2re": "2 Reis", "1cr": "1 Crônicas", "2cr": "2 Crônicas",
                     "ez": "Esdras", "ne": "Neemias", "et": "Ester", "jo": "Jó", "ps": "Salmos",
-                    "pv": "Provérbios", "ec": "Eclesiastes", "ct": "Cânticos", "is": "Isaías",
-                    "jr": "Jeremias", "lm": "Lamentações", "ezq": "Ezequiel", "dn": "Daniel",
-                    "os": "Oséias", "jl": "Joel", "am": "Amós", "ob": "Obadias", "jn": "Jonas",
-                    "mq": "Miqueias", "na": "Naum", "hc": "Habacuque", "sf": "Sofonias",
+                    "pv": "Provérbios", "ec": "Eclesiastes", "ct": "Cantares", "is": "Isaías", 
+                    "jr": "Jeremias", "lm": "Lamentações", "ezk": "Ezequiel", "dn": "Daniel", 
+                    "os": "Oséias", "jl": "Joel", "am": "Amós", "ob": "Obadias", "jn": "Jonas", 
+                    "mq": "Miqueias", "na": "Naum", "hc": "Habacuque", "sf": "Sofonias", 
                     "ag": "Ageu", "zc": "Zacarias", "ml": "Malaquias",
-                    "mt": "Mateus", "mc": "Marcos", "lc": "Lucas", "jo": "João", "at": "Atos",
-                    "rm": "Romanos", "1co": "1 Coríntios", "2co": "2 Coríntios", "gl": "Gálatas",
-                    "ef": "Efésios", "fp": "Filipenses", "cl": "Colossenses",
-                    "1ts": "1 Tessalonicenses", "2ts": "2 Tessalonicenses",
-                    "1tm": "1 Timóteo", "2tm": "2 Timóteo", "tt": "Tito", "fm": "Filemom",
-                    "hb": "Hebreus", "tg": "Tiago", "1pe": "1 Pedro", "2pe": "2 Pedro",
+                    "mt": "Mateus", "mc": "Marcos", "lc": "Lucas", "joao": "João", "at": "Atos", 
+                    "rm": "Romanos", "1co": "1 Coríntios", "2co": "2 Coríntios", "gl": "Gálatas", 
+                    "ef": "Efésios", "fp": "Filipenses", "cl": "Colossenses", "1ts": "1 Tessalonicenses", 
+                    "2ts": "2 Tessalonicenses", "1tm": "1 Timóteo", "2tm": "2 Timóteo", "tt": "Tito", 
+                    "fm": "Filemom", "hb": "Hebreus", "tg": "Tiago", "1pe": "1 Pedro", "2pe": "2 Pedro", 
                     "1jo": "1 João", "2jo": "2 João", "3jo": "3 João", "jd": "Judas", "ap": "Apocalipse"
                 }
                 
-                for livro_sigla, capitulos in dados_totais.items():
-                    nome_formatado = nomes_livros_pt.get(livro_sigla, livro_sigla.upper())
-                    for cap_num, versiculos in capitulos.items():
-                        for ver_num, texto_txt in versiculos.items():
+                # Loop para processar a estrutura padrão de JSONs bíblicos (Livro -> Capítulo -> Versículo)
+                for livro_dados in dados_totais:
+                    sigla = livro_dados.get("abbrev", "").lower()
+                    nome_livro = nomes_livros_pt.get(sigla, livro_dados.get("name", "Desconhecido"))
+                    
+                    for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
+                        for v_idx, versiculo in enumerate(capitulo, start=1):
                             linhas_db.append({
-                                "livro": name_formatado,
-                                "cap": int(cap_num),
-                                "ver": int(ver_num),
-                                "texto": texto_txt.strip()
+                                "livro": nome_livro,
+                                "capitulo": c_idx,
+                                "versiculo": v_idx,
+                                "texto": versiculo
                             })
                 
-                df_salvar = pd.DataFrame(linhas_db)
-                with engine.begin() as conn:
-                    df_salvar.to_sql('biblia', conn, if_exists='replace', index=False)
-                st.success("✅ Todos os 66 livros foram configurados!")
-                st.rerun()
-    except Exception as e:
-        st.error(f"Erro ao estruturar banco da Bíblia: {e}")
-
-def init_db():
-    executar_query('CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY, nome TEXT, email TEXT UNIQUE, senha TEXT, is_admin INTEGER)')
-    executar_query('CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, conteudo TEXT, data TEXT, autor TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS curtidas (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
-    executar_query('CREATE TABLE IF NOT EXISTS biblia (livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
-    
-    pw = generate_password_hash('Agape2026')
-    executar_query("INSERT OR IGNORE INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
-
-    check_biblia = consultar_db("SELECT livro FROM biblia LIMIT 1")
-    if len(check_biblia) == 0:
-        carregar_biblia_completa()
-
-init_db()
-
-# --- COMPONENTES VISUAIS (LOUVOR DO DIA) ---
-def render_louvor():
-    if 'versiculo_dia' not in st.session_state:
-        try:
-            df = consultar_db("SELECT livro, cap, ver, texto FROM biblia ORDER BY RANDOM() LIMIT 1")
-            if len(df) > 0:
-                st.session_state.versiculo_dia = {
-                    "texto": df.iloc[0]['texto'],
-                    "ref": f"{df.iloc[0]['livro']} {df.iloc[0]['cap']}:{df.iloc[0]['ver']}"
-                }
-            else: raise Exception()
-        except:
-            st.session_state.versiculo_dia = {"texto": "O Senhor é o meu pastor, nada me faltará.", "ref": "Salmos 23:1"}
-    
-    v = st.session_state.versiculo_dia
-    st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["ref"]}</b></div></div>', unsafe_allow_html=True)
-
-# --- CONTROLE DE SESSÃO ---
-if 'logado' not in st.session_state: st.session_state.logado = False
-if 'tela' not in st.session_state: st.session_state.tela = "login"
-
-# INJEÇÃO DIRETA DE ESTILO LINEAR (Remove de vez o NameError por completo)
-st.markdown("""<style>
-    .stApp { background: linear-gradient(135deg, #f0f2f5 0%, #c9d6ff 100%); }
-    [data-testid="stForm"] { background-color: white !important; padding: 30px !important; border-radius: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; border: none !important; max-width: 450px; margin: auto !important; }
-    .card-post { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #ced0d4; margin-bottom: 10px; }
-    .floating-louvor { position: fixed; bottom: 25px; right: 25px; width: 300px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-left: 6px solid #1877f2; border-radius: 12px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 999999; }
-    header, footer { visibility: hidden; }
-</style>""", unsafe_allow_html=True)
-
-if not st.session_state.logado:
-    st.markdown("<br><h1 style='text-align:center; color:#1877f2;'>⛪ Portal Ágape</h1>", unsafe_allow_html=True)
-    if st.session_state.tela == "login":
-        with st.form("login_f"):
-            e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
-            if st.form_submit_button("ENTRAR", use_container_width=True):
-                res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e":e})
-                if len(res) > 0 and check_password_hash(res.iloc[0]['senha'], s):
-                    st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
-                    st.rerun()
-                else: st.error("Login inválido")
-        if st.button("Cadastrar novo membro"): st.session_state.tela = "cadastro"; st.rerun()
-    else:
-        with st.form("cad_f"):
-            n, em, se = st.text_input("Nome"), st.text_input("E-mail"), st.text_input("Senha", type="password")
-            if st.form_submit_button("CADASTRAR"):
-                executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES (:n,:em,:s,0)", {"n":n,"em":em,"s":generate_password_hash(se)})
-                st.success("Sucesso!"); st.session_state.tela = "login"; st.rerun()
-        if st.button("Voltar"): st.session_state.tela = "login"; st.rerun()
-
-else:
-    # --- ÁREA LOGADA ---
-    u = st.session_state.user
-    render_louvor()
-    if r_db: r_db.set(f"online:{u['nome']}", "on", ex=60)
-
-    with st.sidebar:
-        st.markdown(f"### Olá, {u['nome']}! 🕊️")
-        if st.button("🔄 Novo Louvor"):
-            if 'versiculo_dia' in st.session_state: del st.session_state['versiculo_dia']
-            st.rerun()
-        if st.button("🚪 Sair"):
-            st.session_state.clear(); st.rerun()
-
-    # ABAS INTERNAS
-    aba_mural, aba_chat, aba_biblia = st.tabs(["🏠 Mural", "💬 Chat Ágape", "📖 Bíblia"])
-
-    with aba_mural:
-        with st.expander("📢 Postar Mensagem"):
-            msg = st.text_area("O que deseja compartilhar?")
-            if st.button("Publicar"):
-                executar_query("INSERT INTO avisos (conteudo, data, autor) VALUES (:c,:d,:a)", {"c":msg, "d":datetime.now().strftime("%d/%m %H:%M"), "a":u['nome']})
-                st.rerun()
-        
-        avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        for _, av in avisos.iterrows():
-            st.markdown(f'<div class="card-post"><b>@{av["autor"]}</b> • <small>{av["data"]}</small><p>{av["conteudo"]}</p></div>', unsafe_allow_html=True)
-            if u['is_admin'] and st.button("🗑️ Excluir", key=f"del_{av['id']}"):
-                executar_query("DELETE FROM avisos WHERE id=:id", {"id":av['id']})
-                st.rerun()
-
-    with aba_chat:
-        st.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700)
-
-    with aba_biblia:
-        st.title("📖 Bíblia Sagrada Completa (Almeida)")
-        
-        df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-        
-        if len(df_livros) > 0:
-            lista_livros = df_livros['livro'].tolist()
-            livro_selecionado = st.selectbox("Escolha o Livro:", lista_livros)
-            
-            if livro_selecionado:
-                df_caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro = :l ORDER BY cap", {"l": livro_selecionado})
-                lista_caps = df_caps['cap'].tolist()
-                cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_caps)
+                # Salva os dados estruturados diretamente no SQLite
+                df_biblia = pd.DataFrame(linhas_db)
+                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
+                st.success("✅ Bíblia Sagrada carregada com sucesso no banco de dados!")
+            else:
+                st.error(f"Erro ao baixar os dados. Código de status: {resposta.status_code}")
                 
-                if cap_selecionado:
-                    st.divider()
-                    st.subheader(f"📖 {livro_selecionado} - Capítulo {cap_selecionado}")
-                    
-                    df_versiculos = consultar_db(
-                        "SELECT ver, texto FROM biblia WHERE livro = :l AND cap = :c ORDER BY ver",
-                        {"l": livro_selecionado, "c": cap_selecionado}
-                    )
-                    
-                    for _, row in df_versiculos.iterrows():
-                        st.markdown(f"**{row['ver']}** {row['texto']}")
-        else:
-            st.warning("O banco de dados bíblico está sendo estruturado. Atualize a página.")
+    except Exception as e:
+        st.error(f"Falha ao carregar a Bíblia: {e}")
