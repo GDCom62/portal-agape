@@ -8,12 +8,12 @@ import redis, random
 # --- CONFIGURAÇÕES BÁSICAS ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# URLs (Substitua pelas suas URLs oficiais no deploy)
-URL_CHAT_RAILWAY = "https://railway.app" 
+# URLs Oficiais
+URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- CONEXÃO BANCO E REDIS ---
-# O 'check_same_thread': False é vital para o Streamlit não cair
+# O 'check_same_thread': False impede que o Streamlit derrube a conexão
 engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
 
 try:
@@ -31,19 +31,21 @@ def consultar_db(sql, params=None):
             return pd.read_sql_query(text(sql), conn, params=params or {})
         except:
             return pd.DataFrame()
+
 def baixar_biblia_automatico():
     import requests
     try:
-        with st.spinner("📖 Configurando a Bíblia Sagrada pela primeira vez... Por favor, aguarde 30 segundos."):
+        with st.spinner("📖 Configurando a Bíblia Sagrada no servidor... Aguarde cerca de 30 segundos."):
+            # URL com a base de dados Almeida Corrigida Fiel original
             url = "githubusercontent.com"
             df = pd.read_csv(url)
             df = df[['livro', 'capitulo', 'versiculo', 'texto']]
             df.columns = ['livro', 'cap', 'ver', 'texto']
             
-            # Grava direto no banco de dados conectado
+            # Grava diretamente no banco de dados SQLite do servidor
             with engine.begin() as conn:
                 df.to_sql('biblia', conn, if_exists='replace', index=False)
-            st.success("✅ Bíblia configurada com sucesso! Atualizando...")
+            st.success("✅ Bíblia configurada com sucesso!")
             st.rerun()
     except Exception as e:
         st.error(f"Erro ao carregar Bíblia automaticamente: {e}")
@@ -54,10 +56,17 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS curtidas (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (id INTEGER PRIMARY KEY, livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
+    
+    # Se a tabela de bíblia não possuir registros, inicia o download automático
+    check_biblia = consultar_db("SELECT livro FROM biblia LIMIT 1")
+    if check_biblia.empty:
+        baixar_biblia_automatico()
+
     if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
 
+# Inicializa banco de dados antes da interface carregar
 init_db()
 
 # --- ESTILIZAÇÃO CSS ---
@@ -70,7 +79,7 @@ def aplicar_estilo():
         header, footer { visibility: hidden; }
     </style>""", unsafe_allow_html=True)
 
-# --- COMPONENTES ---
+# --- COMPONENTES VISUAIS ---
 def render_louvor():
     if 'versiculo_dia' not in st.session_state:
         try:
@@ -82,7 +91,7 @@ def render_louvor():
     v = st.session_state.versiculo_dia
     st.markdown(f'<div class="floating-louvor"><small style="color:#1877f2;font-weight:bold">PALAVRA DE VIDA</small><br><i style="color:#333">"{v["texto"]}"</i><br><div style="text-align:right;color:#555;font-size:14px"><b>{v["livro"]} {v["cap"]}:{v["ver"]}</b></div></div>', unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN ---
+# --- CONTROLE DE SESSÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'tela' not in st.session_state: st.session_state.tela = "login"
 
@@ -109,20 +118,20 @@ if not st.session_state.logado:
         if st.button("Voltar"): st.session_state.tela = "login"; st.rerun()
 
 else:
-    # --- ÁREA DO USUÁRIO ---
+    # --- ÁREA LOGADA DO USUÁRIO ---
     u = st.session_state.user
     render_louvor()
     if r_db: r_db.set(f"online:{u['nome']}", "on", ex=60)
 
     with st.sidebar:
-        st.markdown(f"### Olá, {u['nome']}!")
+        st.markdown(f"### Olá, {u['nome']}! 🕊️")
         if st.button("🔄 Novo Louvor"):
             if 'versiculo_dia' in st.session_state: del st.session_state['versiculo_dia']
             st.rerun()
         if st.button("🚪 Sair"):
             st.session_state.clear(); st.rerun()
 
-       # ORGANIZAÇÃO POR ABAS PARA NÃO TRAVAR
+    # ABAS DE NAVEGAÇÃO INTERNA
     aba_mural, aba_chat, aba_biblia = st.tabs(["🏠 Mural", "💬 Chat Ágape", "📖 Bíblia"])
 
     with aba_mural:
@@ -145,35 +154,30 @@ else:
     with aba_biblia:
         st.title("📖 Leitura Bíblica")
         
-        # 1. Busca todos os livros cadastrados
+        # 1. Carrega todos os livros disponíveis
         df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         
         if not df_livros.empty:
             lista_livros = df_livros['livro'].tolist()
-            
-            # Seletor do Livro
             livro_selecionado = st.selectbox("Escolha o Livro:", lista_livros)
             
             if livro_selecionado:
-                # 2. Busca os capítulos existentes
+                # 2. Carrega dinamicamente os capítulos do livro
                 df_caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro = :l ORDER BY cap", {"l": livro_selecionado})
                 lista_caps = df_caps['cap'].tolist()
-                
-                # Seletor do Capítulo
                 cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_caps)
                 
                 if cap_selecionado:
                     st.divider()
                     st.subheader(f"{livro_selecionado}, Capítulo {cap_selecionado}")
                     
-                    # 3. Busca e exibe todos os versículos
+                    # 3. Exibe em formato de texto contínuo todos os versículos
                     df_versiculos = consultar_db(
                         "SELECT ver, texto FROM biblia WHERE livro = :l AND cap = :c ORDER BY ver",
                         {"l": livro_selecionado, "c": cap_selecionado}
                     )
                     
-                    # Exibe o texto formatado
                     for _, row in df_versiculos.iterrows():
                         st.markdown(f"**{row['ver']}** {row['texto']}")
         else:
-            st.warning("Nenhum livro encontrado no banco de dados. Certifique-se de rodar o script de importação.")
+            st.warning("Nenhum livro encontrado no banco de dados.")
