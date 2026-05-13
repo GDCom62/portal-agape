@@ -9,7 +9,6 @@ import requests
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-# Corrigido: Garantindo os esquemas HTTPS explícitos obrigatórios
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
@@ -54,7 +53,7 @@ if "usuario_atual" not in st.session_state:
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
 def carregar_biblia_completa():
     try:
-        # Corrigido: Protocolo https:// adicionado ao link raw do JSON da Bíblia (versão ARC)
+        # Link RAW estável direto do JSON da Bíblia ARC (Almeida Revista e Corrigida)
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -131,7 +130,6 @@ else:
             st.session_state.usuario_atual = None
             st.rerun()
 
-    # Corrigido: Remoção de caracteres inválidos e atualização de variáveis das abas
     aba1, aba2, aba3 = st.tabs(["📖 Bíblia Sagrada", "🎥 Vídeo Chat Premium", "⚙️ Painel do Sistema"])
 
     with aba1:
@@ -163,15 +161,15 @@ else:
                 st.markdown("---")
                 st.caption("Sugestão de Leitura: Gênesis Capítulo 1")
                 exemplo = consultar_db("SELECT capitulo, versiculo, texto FROM biblia WHERE livro = 'Gênesis' AND capitulo = 1 LIMIT 5")
-                if not ejemplo.empty:
+                if not exemplo.empty:
                     for idx, row in exemplo.iterrows():
                         st.write(f"**{row['versiculo']}.** {row['texto']}")
 
     with aba2:
         st.header("Sala de Conferência Ágape")
         st.caption("Conexão direta com a sala de vídeo oficial.")
-        # Corrigido: Atualizado para st.iframe para remover o aviso de depreciação do console
-        st.iframe(URL_CHAT_RAILWAY, height=700, scrolling=True)
+        # Renderização HTML limpa e imune a erros do Streamlit
+        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="700" style="border:none;" scrolling="yes"></iframe>')
 
     with aba3:
         st.header("Status das Instâncias e Conexões")
