@@ -93,6 +93,10 @@ CREATE TABLE IF NOT EXISTS louvores (
     letra TEXT
 );
 """)
+try:
+    executar_query("ALTER TABLE louvores ADD COLUMN arquivo_audio BLOB;")
+except Exception:
+    pass # Coluna já existe no banco de dados temporário
 
 # FORÇA A ATUALIZAÇÃO SEGURA DO ADMINISTRADOR
 def verificar_e_criar_admin():
@@ -366,52 +370,90 @@ def modulo_financeiro():
                     st.rerun()
 
 def modulo_biblia():
-    st.title("📖 API da Bíblia Sagrada")
+    st.title("📖 Consulta Bíblica Integrada")
     col1, col2, col3 = st.columns(3)
     livro_pt = col1.text_input("Livro (Ex: Joao, Genesis, Lucas)", value="Joao")
-    cap = col2.number_input("Capítulo", min_value=1, value=1)
-    ver = col3.text_input("Versículo (Opcional)", value="")
+    cap = col2.number_input("Capítulo", min_value=1, value=1, step=1)
+    ver = col3.text_input("Versículo (Opcional, ex: 1 ou 1-5)", value="")
     
     if st.button("Consultar Escrituras"):
+        # Remove espaços e normaliza o nome do livro para a API externa
         livro_en = normalizar_livro(livro_pt)
-        alvo = f"{livro_en}+{cap}:{ver}" if ver else f"{livro_en}+{cap}"
+        
+        # Monta o escopo correto da URL com HTTPS obrigatório
+        if ver.strip():
+            alvo = f"{livro_en}+{cap}:{ver.strip()}"
+        else:
+            alvo = f"{livro_en}+{cap}"
+            
+        # URL da API com fallback para tradução Almeida Recebida
+        url_api = f"bible-api.com{alvo}?translation=almeida"
         
         try:
-            r = requests.get(f"bible-api.com{alvo}", timeout=5)
-            if r.status_code == 200:
-                dados = r.json()
-                st.markdown(f"### 📜 {livro_pt.title()} {cap}")
-                st.info(dados['text'])
-            else:
-                st.error("Trecho não localizado. Verifique a ortografia do livro.")
-        except Exception:
-            st.error("Falha ao contatar o servidor de dados da Bíblia.")
+            with st.spinner("Buscando nas escrituras..."):
+                r = requests.get(url_api, timeout=7)
+                if r.status_code == 200:
+                    dados = r.json()
+                    st.markdown(f"### 📜 {livro_pt.title()} {cap}")
+                    # Caixa flutuante branca com o texto retornado
+                    st.info(dados['text'])
+                else:
+                    st.error("Trecho não localizado. Verifique se digitou o nome do livro corretamente.")
+        except Exception as e:
+            st.error(f"Falha de comunicação com o servidor da Bíblia externo.")
 
 def modulo_louvores():
-    st.title("🎵 Acervo Digital de Louvores")
-    aba1, aba2 = st.tabs(["Pesquisar Hinos", "Cadastrar Novo Louvor"])
+    st.title("🎵 Acervo Digital & Playlist de Louvores")
+    aba1, aba2 = st.tabs(["🎵 Ouvir Playlist / Letras", "📤 Upload de Novo Louvor"])
     
     with aba1:
-        busca = st.text_input("🔍 Buscar por título ou artista")
+        busca = st.text_input("🔍 Buscar por título ou artista no acervo")
         if busca:
-            df_l = consultar_db("SELECT * FROM louvores WHERE titulo LIKE :b OR artista LIKE :b", {"b": f"%{busca}%"})
+            df_l = consultar_db("SELECT id, titulo, artista, letra, arquivo_audio FROM louvores WHERE titulo LIKE :b OR artista LIKE :b", {"b": f"%{busca}%"})
         else:
-            df_l = consultar_db("SELECT * FROM louvores")
+            df_l = consultar_db("SELECT id, titulo, artista, letra, arquivo_audio FROM louvores")
             
-        for _, louvor in df_l.iterrows():
-            with st.expander(f"🎼 {louvor['titulo']} — {louvor['artista']}"):
-                st.text(louvor['letra'])
+        if df_l.empty:
+            st.info("Nenhum louvor ou arquivo de áudio disponível na playlist.")
+        else:
+            for _, louvor in df_l.iterrows():
+                with st.expander(f"🎼 {louvor['titulo']} — {louvor['artista']}"):
+                    # Se houver arquivo de áudio atrelado no banco, renderiza o player nativo
+                    if louvor['arquivo_audio'] is not None:
+                        st.write("▶️ **Ouvir Louvor:**")
+                        st.audio(louvor['arquivo_audio'], format="audio/mp3")
+                    else:
+                        st.caption("ℹ️ Este louvor possui apenas letra (sem arquivo de áudio carregado).")
+                    
+                    st.text(louvor['letra'])
                 
     with aba2:
         if e_administrador():
-            with st.form("form_louvor"):
-                t = st.text_input("Título")
-                a = st.text_input("Ministério / Cantor")
-                letra = st.text_area("Letra Completa", height=200)
-                if st.form_submit_button("Salvar no Acervo") and t and letra:
-                    executar_query("INSERT INTO louvores (titulo, artista, letra) VALUES (:t, :a, :l)", {"t": t, "a": a, "l": letra})
-                    st.success("Louvor indexado com sucesso!")
-                    st.rerun()
+            with st.form("form_louvor", clear_on_submit=True):
+                t = st.text_input("Título da Canção")
+                a = st.text_input("Ministério / Cantor / Banda")
+                letra = st.text_area("Letra ou Cifra da Música", height=150)
+                
+                # Campo de Upload do arquivo de música
+                audio_upload = st.file_uploader("Selecione o arquivo de áudio (MP3 ou WAV)", type=["mp3", "wav"])
+                
+                if st.form_submit_button("Indexar na Playlist"):
+                    if t and letra:
+                        bytes_audio = None
+                        if audio_upload is not None:
+                            bytes_audio = audio_upload.read()
+                        
+                        executar_query(
+                            "INSERT INTO louvores (titulo, artista, letra, arquivo_audio) VALUES (:t, :a, :l, :audio)", 
+                            {"t": t, "a": a, "l": letra, "audio": bytes_audio}
+                        )
+                        st.success(f"📌 '{t}' foi adicionado com sucesso à playlist do portal!")
+                        st.rerun()
+                    else:
+                        st.warning("O título e a letra são obrigatórios para o registro.")
+        else:
+            st.warning("⚠️ Apenas pastores e líderes do ministério de louvor podem fazer upload de músicas.")
+
 
 def modulo_avisos():
     st.title("📢 Gerenciador do Quadro de Avisos")
