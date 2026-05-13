@@ -199,6 +199,14 @@ if "autenticado" not in st.session_state:
 
 st.sidebar.title("🔐 Portal Ágape")
 
+# --- 6. AUTENTICAÇÃO INTEGRADA (CORRIGIDA) ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+    st.session_state.usuario_atual = None
+    st.session_state.nivel_atual = "Membro"
+
+st.sidebar.title("🔐 Portal Ágape")
+
 if not st.session_state.autenticado:
     with st.sidebar.form(key="form_login"):
         campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com")
@@ -206,10 +214,11 @@ if not st.session_state.autenticado:
         botao_entrar = st.form_submit_button("Entrar")
         if botao_entrar:
             df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-            if not df_u.empty and check_password_hash(df_u.iloc['senha'], campo_senha):
+            # CORREÇÃO DA INDEXAÇÃO DO PANDAS: .iloc[0] extrai a primeira linha encontrada
+            if not df_u.empty and check_password_hash(df_u.iloc[0]['senha'], campo_senha):
                 st.session_state.autenticado = True
                 st.session_state.usuario_atual = campo_usuario
-                st.session_state.nivel_atual = df_u.iloc['nivel']
+                st.session_state.nivel_atual = df_u.iloc[0]['nivel']
                 st.rerun()
             else:
                 st.sidebar.error("Usuário ou senha incorretos.")
@@ -222,6 +231,7 @@ else:
         st.session_state.usuario_atual = None
         st.session_state.nivel_atual = "Membro"
         st.rerun()
+
 
 def e_administrador():
     return st.session_state.nivel_atual in ["Pastor", "Admin"]
