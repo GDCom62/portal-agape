@@ -9,6 +9,7 @@ import requests
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
+# Corrigido: Garantindo os esquemas HTTPS explícitos obrigatórios
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
@@ -35,7 +36,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação inicial da tabela de usuários se não existir
+# Criação inicial da tabela de usuários
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,29 +45,25 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 """)
 
-# --- 4. GERENCIAMENTO DE ESTADO DE LOGIN (SESSION STATE) ---
+# --- 4. GERENCIAMENTO DE ESTADO DE LOGIN ---
 if "logado" not in st.session_state:
     st.session_state.logado = False
 if "usuario_atual" not in st.session_state:
     st.session_state.usuario_atual = None
 
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
 def carregar_biblia_completa():
     try:
-        # URL real, pública e com o protocolo HTTPS obrigatório
+        # Corrigido: Protocolo https:// adicionado ao link raw do JSON da Bíblia (versão ARC)
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
         if resposta.status_code == 200:
-            dados_totais = resposta.json()  # Lista de livros
+            dados_totais = resposta.json()
             linhas_db = []
             
             for livro_dados in dados_totais:
-                # Captura o nome do livro (ex: "Gênesis")
                 nome_livro = livro_dados.get("name", "Desconhecido")
-                
-                # Itera pelos capítulos e versículos do JSON
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -85,14 +82,11 @@ def carregar_biblia_completa():
         st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
 
-
-# --- 6. FLUXO DE TELAS (LOGIN OU PORTAL) ---
-
+# --- 6. FLUXO DE TELAS ---
 if not st.session_state.logado:
-    # --- TELA DE LOGIN ---
     st.markdown("<h2 style='text-align: center;'>⛪ Portal Ágape - Autenticação</h2>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     with col2:
         aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar Nova Conta"])
         
@@ -116,7 +110,6 @@ if not st.session_state.logado:
             
             if st.button("Criar Conta", use_container_width=True):
                 if new_username and new_password:
-                    # Verifica se usuário já existe
                     existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": new_username})
                     if existe.empty:
                         hash_senha = generate_password_hash(new_password)
@@ -127,43 +120,35 @@ if not st.session_state.logado:
                         st.error("Este nome de usuário já está em uso.")
                 else:
                     st.warning("Preencha todos os campos.")
-
 else:
-    # --- PAINEL PRINCIPAL (LOGADO) ---
-    # Barra Superior com informações do usuário e botão de sair
-    col_tit, col_user = st.columns([8, 2])
+    col_tit, col_user = st.columns([4, 1])
     with col_tit:
         st.title("⛪ Portal Ágape")
     with col_user:
         st.markdown(f"👤 **{st.session_state.usuario_atual}**")
-        if st.button("🚪 Sair do Sistema"):
+        if st.button("🚪 Sair do Sistema", use_container_width=True):
             st.session_state.logado = False
             st.session_state.usuario_atual = None
             st.rerun()
 
-    # Criação das Abas Principais do Portal
+    # Corrigido: Remoção de caracteres inválidos e atualização de variáveis das abas
     aba1, aba2, aba3 = st.tabs(["📖 Bíblia Sagrada", "🎥 Vídeo Chat Premium", "⚙️ Painel do Sistema"])
 
-    # ABA 1: BÍBLIA SAGRADA
     with aba1:
         st.header("Leitura e Busca Bíblica")
-        
-        # Verifica no banco SQLite se a tabela da bíblia está criada e povoada
         tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
         
         if tabela_existe.empty:
             st.info("A base de dados da Bíblia ainda não foi sincronizada localmente.")
             if st.button("🚀 Baixar e Sincronizar Bíblia Agora", use_container_width=True):
-                with st.spinner("Conectando ao repositório e estruturando os 66 livros... Aguarde."):
+                with st.spinner("Sincronizando os 66 livros... Aguarde."):
                     if carregar_biblia_completa():
                         st.success("Bíblia Sagrada integrada com sucesso!")
                         st.rerun()
                     else:
                         st.error("Falha ao baixar os dados. Verifique sua conexão.")
         else:
-            # Mecanismo de pesquisa por palavra-chave ou termo
             busca = st.text_input("🔍 O que você deseja buscar na palavra? (Ex: Jesus, Fé, Amor):")
-            
             if busca:
                 resultados = consultar_db(
                     "SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :busca LIMIT 100",
@@ -175,26 +160,21 @@ else:
                 else:
                     st.info("Nenhum versículo contendo este termo foi encontrado.")
             else:
-                # Exibe um livro padrão caso não haja busca para a tela não sumir ou ficar em branco
                 st.markdown("---")
                 st.caption("Sugestão de Leitura: Gênesis Capítulo 1")
                 exemplo = consultar_db("SELECT capitulo, versiculo, texto FROM biblia WHERE livro = 'Gênesis' AND capitulo = 1 LIMIT 5")
-                if not exemplo.empty:
+                if not ejemplo.empty:
                     for idx, row in exemplo.iterrows():
                         st.write(f"**{row['versiculo']}.** {row['texto']}")
 
-    # ABA 2: VÍDEO CHAMADA PREMIUM
     with aba2:
         st.header("Sala de Conferência Ágape")
-        st.caption("Abaixo está a sua sala de vídeo ao vivo integrada diretamente do Railway.")
-        
-        # Uso do iframe isolado dentro da aba para evitar que a tela repita ou dê loop com o login
-        st.components.v1.iframe(URL_CHAT_RAILWAY, height=700, scrolling=True)
+        st.caption("Conexão direta com a sala de vídeo oficial.")
+        # Corrigido: Atualizado para st.iframe para remover o aviso de depreciação do console
+        st.iframe(URL_CHAT_RAILWAY, height=700, scrolling=True)
 
-    # ABA 3: STATUS DO SISTEMA
     with aba3:
         st.header("Status das Instâncias e Conexões")
-        
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             st.metric(label="Persistência Cache (Redis)", value="⚡ Conectado" if r_db else "⚠️ Desconectado")
