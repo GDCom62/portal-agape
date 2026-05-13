@@ -1,89 +1,103 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
-import redis, random, requests
+import redis
+import requests
 
-# --- CONFIGURAÇÕES BÁSICAS ---
+# --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# URLs Oficiais (Substitua pelas suas URLs reais do Railway)
-URL_CHAT_RAILWAY = "railway.app" 
+# --- 2. CONFIGURAÇÕES DE AMBIENTE (RAILWAY / UPSTASH) ---
+URL_CHAT_RAILWAY = "railway.app"
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
-# Comunicação direta via rede interna do container
-URL_API_LOCAL = "http://127.0.0.1:8000"
 
-# --- CONEXÃO BANCO E REDIS ---
-engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
+# --- 3. CONEXÕES COM BANCO DE DADOS ---
+@st.cache_resource
+def inicializar_conexoes():
+    # Cria conexão persistente com o SQLite
+    engine = create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False})
+    
+    # Cria conexão com o Redis
+    try:
+        r_db = redis.from_url(REDIS_URL, decode_responses=True)
+    except Exception:
+        r_db = None
+        
+    return engine, r_db
 
-try:
-    r_db = redis.from_url(REDIS_URL, decode_responses=True)
-except:
-    r_db = None
-
-def executar_query(sql, params=None):
-    with engine.begin() as conn:
-        conn.execute(text(sql), params or {})
+engine, r_db = inicializar_conexoes()
 
 def consultar_db(sql, params=None):
     with engine.connect() as conn:
         try:
             return pd.read_sql_query(text(sql), conn, params=params or {})
-        except:
+        except Exception:
             return pd.DataFrame()
 
-# --- CARGA AUTOMÁTICA DA BÍBLIA COMPLETA ---
+# --- 4. FUNÇÃO DE CARGA DA BÍBLIA ---
 def carregar_biblia_completa():
     try:
-        with st.spinner("📢 Configurando os 66 Livros da Bíblia Sagrada... Aguarde alguns segundos."):
-            # NOTA: Substitua pela URL crua (raw) real do JSON da Bíblia desejada
-            url = "githubusercontent.com"
-            resposta = requests.get(url, timeout=15)
+        # URL exemplo de JSON bíblico estruturado em PT-BR
+        url = "githubusercontent.com"
+        resposta = requests.get(url, timeout=15)
+        
+        if resposta.status_code == 200:
+            dados_totais = resposta.json()
+            linhas_db = []
             
-            if resposta.status_code == 200:
-                dados_totais = resposta.json()
-                linhas_db = []
-                
-                # Mapeamento completo dos 66 livros (Sigla original do JSON -> Nome em PT-BR)
-                nomes_livros_pt = {
-                    "gn": "Gênesis", "ex": "Êxodo", "lv": "Levítico", "num": "Números", "dt": "Deuteronômio",
-                    "js": "Josué", "jz": "Juízes", "rt": "Rute", "1sm": "1 Samuel", "2sm": "2 Samuel",
-                    "1re": "1 Reis", "2re": "2 Reis", "1cr": "1 Crônicas", "2cr": "2 Crônicas",
-                    "ez": "Esdras", "ne": "Neemias", "et": "Ester", "jo": "Jó", "ps": "Salmos",
-                    "pv": "Provérbios", "ec": "Eclesiastes", "ct": "Cantares", "is": "Isaías", 
-                    "jr": "Jeremias", "lm": "Lamentações", "ezk": "Ezequiel", "dn": "Daniel", 
-                    "os": "Oséias", "jl": "Joel", "am": "Amós", "ob": "Obadias", "jn": "Jonas", 
-                    "mq": "Miqueias", "na": "Naum", "hc": "Habacuque", "sf": "Sofonias", 
-                    "ag": "Ageu", "zc": "Zacarias", "ml": "Malaquias",
-                    "mt": "Mateus", "mc": "Marcos", "lc": "Lucas", "joao": "João", "at": "Atos", 
-                    "rm": "Romanos", "1co": "1 Coríntios", "2co": "2 Coríntios", "gl": "Gálatas", 
-                    "ef": "Efésios", "fp": "Filipenses", "cl": "Colossenses", "1ts": "1 Tessalonicenses", 
-                    "2ts": "2 Tessalonicenses", "1tm": "1 Timóteo", "2tm": "2 Timóteo", "tt": "Tito", 
-                    "fm": "Filemom", "hb": "Hebreus", "tg": "Tiago", "1pe": "1 Pedro", "2pe": "2 Pedro", 
-                    "1jo": "1 João", "2jo": "2 João", "3jo": "3 João", "jd": "Judas", "ap": "Apocalipse"
-                }
-                
-                # Loop para processar a estrutura padrão de JSONs bíblicos (Livro -> Capítulo -> Versículo)
-                for livro_dados in dados_totais:
-                    sigla = livro_dados.get("abbrev", "").lower()
-                    nome_livro = nomes_livros_pt.get(sigla, livro_dados.get("name", "Desconhecido"))
-                    
-                    for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
-                        for v_idx, versiculo in enumerate(capitulo, start=1):
-                            linhas_db.append({
-                                "livro": nome_livro,
-                                "capitulo": c_idx,
-                                "versiculo": v_idx,
-                                "texto": versiculo
-                            })
-                
-                # Salva os dados estruturados diretamente no SQLite
-                df_biblia = pd.DataFrame(linhas_db)
-                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-                st.success("✅ Bíblia Sagrada carregada com sucesso no banco de dados!")
-            else:
-                st.error(f"Erro ao baixar os dados. Código de status: {resposta.status_code}")
-                
+            for livro_dados in dados_totais:
+                nome_livro = livro_dados.get("name")
+                for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
+                    for v_idx, versiculo in enumerate(capitulo, start=1):
+                        linhas_db.append({
+                            "livro": nome_livro,
+                            "capitulo": c_idx,
+                            "versiculo": v_idx,
+                            "texto": versiculo
+                        })
+            
+            df_biblia = pd.DataFrame(linhas_db)
+            df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
+            return True
     except Exception as e:
-        st.error(f"Falha ao carregar a Bíblia: {e}")
+        st.error(f"Erro na carga: {e}")
+        return False
+
+# --- 5. INTERFACE DO USUÁRIO (STREAMLIT) ---
+st.title("⛪ Portal Ágape")
+
+- abas = st.tabs(["📖 Bíblia Sagrada", "🎥 Vídeo Chat Premium", "⚙️ Configurações"])
+
+with abas[0]:
+    st.header("Leitura e Busca Bíblica")
+    
+    # Verifica se a tabela bíblia existe no banco
+    verificar_tabela = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
+    
+    if verificar_tabela.empty:
+        st.warning("A base de dados da Bíblia ainda não foi configurada.")
+        if st.button("🚀 Baixar e Configurar Bíblia Agora"):
+            with st.spinner("Carregando livros..."):
+                if carregar_biblia_completa():
+                    st.success("Bíblia carregada com sucesso! Atualize a página.")
+    else:
+        # Sistema de busca simples
+        termo_busca = st.text_input("🔍 Digite uma palavra ou versículo para buscar:")
+        if termo_busca:
+            resultados = consultar_db(
+                "SELECT livro, capitulo, versiculo, texto FROM biblia WHERE texto LIKE :busca LIMIT 50",
+                {"busca": f"%{termo_busca}%"}
+            )
+            if not resultados.empty:
+                st.dataframe(resultados, use_container_width=True)
+            else:
+                st.info("Nenhum resultado encontrado.")
+
+with abas[1]:
+    st.header("Sala de Transmissão Ágape")
+    # Incorpora o seu app de chat do Railway diretamente aqui dentro
+    st.components.v1.iframe(URL_CHAT_RAILWAY, height=650, scrolling=True)
+
+with abas[2]:
+    st.header("Status do Sistema")
+    st.metric(label="Conexão Redis", value="Ativo" if r_db else "Inativo")
