@@ -39,15 +39,19 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização de Tabelas
+# --- 3.1 CRREÇÃO E EXECUÇÃO DAS TABELAS ---
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario TEXT UNIQUE,
-    senha TEXT,
-    nivel TEXT DEFAULT 'Membro'
+    senha TEXT
 );
 """)
+
+try:
+    executar_query("ALTER TABLE usuarios ADD COLUMN nivel TEXT DEFAULT 'Membro';")
+except Exception:
+    pass 
 
 executar_query("""
 CREATE TABLE IF NOT EXISTS membros (
@@ -67,7 +71,8 @@ CREATE TABLE IF NOT EXISTS financeiro (
     descricao TEXT,
     valor REAL,
     data TEXT,
-    mes_ano TEXT
+    mes_ano TEXT,
+    membro_id INTEGER
 );
 """)
 
@@ -89,26 +94,30 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
+# FORÇA A ATUALIZAÇÃO SEGURA DO ADMINISTRADOR
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
+    hash_admin = generate_password_hash(admin_senha_pura, method="scrypt")
+    
     existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": admin_usuario})
+    
     if existe.empty:
-        hash_admin = generate_password_hash(admin_senha_pura, method="scrypt")
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
+                       {"user": admin_usuario, "senha": hash_admin})
+    else:
+        executar_query("UPDATE usuarios SET senha = :senha, nivel = 'Pastor' WHERE usuario = :user", 
                        {"user": admin_usuario, "senha": hash_admin})
 
 verificar_e_criar_admin()
 
-# --- 4. ESTILIZAÇÃO CUSTOMIZADA (FUNDO AMARELO OURO PROFISSIONAL) ---
+# --- 4. ESTILIZAÇÃO CUSTOMIZADA (FUNDO AMARELO OURO) ---
 st.markdown("""
     <style>
-    /* Fundo Geral do App em Amarelo Ouro com gradiente suave para leitura confortável */
     .stApp {
         background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
     }
-    /* Estilização dos blocos e containers brancos para alto contraste */
-    .stMetric, div[data-testid="stMetricValue"], div[data-testid="metric-container"], .card-flutuante {
+    .stMetric, div[data-testid="stMetricValue"], div[data-testid="metric-container"], .card-flutuante, .cartao-membro {
         background-color: #ffffff !important;
         padding: 20px;
         border-radius: 16px !important;
@@ -121,7 +130,6 @@ st.markdown("""
         transform: translateY(-5px);
         box-shadow: 0 12px 24px rgba(0,0,0,0.15) !important;
     }
-    /* Botões robustos e arredondados */
     .stButton>button {
         border-radius: 12px !important;
         background-color: #212529 !important;
@@ -133,12 +141,10 @@ st.markdown("""
         background-color: #495057 !important;
         color: #FFD700 !important;
     }
-    /* Ajustes de inputs */
     div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
         border-radius: 12px !important;
         background-color: #ffffff !important;
     }
-    /* Caixa da Palavra do Dia */
     .versiculo-box {
         background: linear-gradient(135deg, #212529 0%, #000000 100%);
         color: #FFD700;
@@ -146,6 +152,11 @@ st.markdown("""
         border-radius: 20px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         margin-bottom: 25px;
+    }
+    .cartao-membro {
+        border-left: 8px solid #212529 !important;
+        max-width: 450px;
+        margin: auto;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -176,7 +187,7 @@ def normalizar_livro(nome_livro):
             return valor
     return nome_limpo
 
-# --- 6. AUTENTICAÇÃO E PERMISSÕES ---
+# --- 6. AUTENTICAÇÃO INTEGRADA ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -211,7 +222,7 @@ else:
 def e_administrador():
     return st.session_state.nivel_atual in ["Pastor", "Admin"]
 
-# --- 7. MÓDULOS DE GERENCIAMENTO ---
+# --- 7. MÓDULOS ---
 
 def obter_versiculo_do_dia():
     try:
@@ -235,7 +246,6 @@ def modulo_home():
     </div>
     """, unsafe_allow_html=True)
     
-    # Métricas Gerais
     tot_membros = len(consultar_db("SELECT id FROM membros"))
     fin_dados = consultar_db("SELECT tipo, valor FROM financeiro")
     entradas = fin_dados[fin_dados['tipo'] == 'Entrada']['valor'].sum() if not fin_dados.empty else 0.0
@@ -246,7 +256,6 @@ def modulo_home():
     col2.metric("Caixa Atual", f"R$ {entradas - saidas:,.2f}")
     col3.metric("Sessão Redis", "Ativa" if r_db else "Local")
 
-    # Aniversariantes do Mês
     st.subheader("🎂 Aniversariantes do Mês Atual")
     mes_atual_nome = datetime.date.today().strftime("%B")
     df_niver = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :mes", {"mes": mes_atual_nome})
@@ -256,7 +265,6 @@ def modulo_home():
     else:
         st.info("Nenhum aniversariante registrado para este mês.")
 
-    # Mural de Avisos
     st.subheader("📢 Últimos Comunicados Fixados")
     df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC LIMIT 2")
     if not df_avisos.empty:
@@ -270,11 +278,11 @@ def modulo_home():
             """, unsafe_allow_html=True)
 
 def modulo_membros():
-    st.title("👥 Gestão Integrada de Membros")
-    aba1, aba2 = st.tabs(["Lista de Membros", "Registrar Novo"])
+    st.title("👥 Gestão Integrada & Credenciais")
+    aba1, aba2, aba3 = st.tabs(["Lista de Membros", "Registrar Novo", "Cartão de Membro Digital"])
     
     with aba1:
-        df_membros = consultar_db("SELECT id, nome as Nome, telefone as Telefone, cargo as Cargo, mes_aniversario as Aniversário FROM membros")
+        df_membros = consultar_db("SELECT id as ID, nome as Nome, telefone as Telefone, cargo as Cargo, mes_aniversario as Aniversário FROM membros")
         st.dataframe(df_membros, use_container_width=True)
         if not df_membros.empty:
             st.download_button("📥 Baixar Cadastro (CSV)", df_membros.to_csv(index=False).encode('utf-8'), "membros.csv")
@@ -294,38 +302,72 @@ def modulo_membros():
                     st.rerun()
         else:
             st.warning("Apenas administradores podem cadastrar.")
+            
+    with aba3:
+        st.subheader("🪪 Emissão de Credencial")
+        df_seletor = consultar_db("SELECT id, nome FROM membros")
+        if not df_seletor.empty:
+            membro_sel = st.selectbox("Selecione o Membro para Gerar o Cartão", df_seletor['nome'].tolist())
+            membro_dados = consultar_db("SELECT * FROM membros WHERE nome = :n", {"n": membro_sel}).iloc[0]
+            
+            qr_code_url = f"qrserver.com:{membro_dados['id']}"
+            
+            st.markdown(f"""
+            <div class="cartao-membro">
+                <h3 style="margin-top:0; color:#212529;">⛪ PORTAL ÁGAPE</h3>
+                <hr style="border-color:#e0a800;">
+                <p><b>Nome:</b> {membro_dados['nome']}</p>
+                <p><b>Função:</b> {membro_dados['cargo']}</p>
+                <p><b>Contato:</b> {membro_dados['telefone']}</p>
+                <p><b>Data de Emissão:</b> {membro_dados['data_cadastro']}</p>
+                <div style="text-align: center; margin-top: 15px;">
+                    <img src="{qr_code_url}" width="120" style="border: 2px solid #212529; border-radius: 8px;">
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("Nenhum membro cadastrado para gerar credencial.")
 
 def modulo_financeiro():
-    st.title("💰 Movimentações Financeiras")
+    st.title("💰 Movimentações & Dízimos")
     
-    # Filtro por Mês/Ano
     df_filtros = consultar_db("SELECT DISTINCT mes_ano FROM financeiro")
     lista_meses = ["Todos"] + df_filtros['mes_ano'].tolist() if not df_filtros.empty else ["Todos"]
     mes_sel = st.selectbox("Filtrar por Mês", lista_meses)
     
     if mes_sel == "Todos":
-        df_fin = consultar_db("SELECT id, tipo as Tipo, descricao as Descrição, valor as Valor, data as Data FROM financeiro ORDER BY id DESC")
+        df_fin = consultar_db("SELECT f.id, f.tipo, f.descricao, m.nome as Membro, f.valor, f.data FROM financeiro f LEFT JOIN membros m ON f.membro_id = m.id ORDER BY f.id DESC")
     else:
-        df_fin = consultar_db("SELECT id, tipo as Tipo, descricao as Descrição, valor as Valor, data as Data FROM financeiro WHERE mes_ano = :m ORDER BY id DESC", {"m": mes_sel})
+        df_fin = consultar_db("SELECT f.id, f.tipo, f.descricao, m.nome as Membro, f.valor, f.data FROM financeiro f LEFT JOIN membros m ON f.membro_id = m.id WHERE f.mes_ano = :m ORDER BY f.id DESC", {"m": mes_sel})
         
     st.dataframe(df_fin, use_container_width=True)
     
     if e_administrador():
-        with st.expander("💸 Lançar Nova Entrada/Saída"):
+        with st.expander("💸 Lançar Entrada ou Dízimo de Membro"):
             with st.form("form_fin"):
-                tipo = st.radio("Tipo", ["Entrada", "Saída"])
+                tipo = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída"])
                 desc = st.text_input("Histórico / Descrição")
                 val = st.number_input("Valor (R$)", min_value=0.0)
+                
+                df_m = consultar_db("SELECT id, nome FROM membros")
+                lista_membros = ["Nenhum / Oferta Geral"] + df_m['nome'].tolist() if not df_m.empty else ["Nenhum / Oferta Geral"]
+                membro_vinc = st.selectbox("Vincular a um Membro (Opcional)", lista_membros)
+                
                 if st.form_submit_button("Gravar Transação") and desc and val > 0:
                     hoje = datetime.date.today()
-                    executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano) VALUES (:t, :desc, :v, :d, :ma)",
-                                   {"t": tipo, "desc": desc, "v": val, "d": hoje.strftime("%d/%m/%Y"), "ma": hoje.strftime("%m/%Y")})
-                    st.success("Lançamento adicionado!")
+                    m_id = None
+                    if membro_vinc != "Nenhum / Oferta Geral":
+                        m_id = int(df_m[df_m['nome'] == membro_vinc]['id'].values[0])
+                        
+                    tipo_limpo = "Entrada" if "Entrada" in tipo else "Saída"
+                    executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id) VALUES (:t, :desc, :v, :d, :ma, :m_id)",
+                                   {"t": tipo_limpo, "desc": desc, "v": val, "d": hoje.strftime("%d/%m/%Y"), "ma": hoje.strftime("%m/%Y"), "m_id": m_id})
+                    st.success("Lançamento adicionado com sucesso!")
                     st.rerun()
 
 def modulo_biblia():
     st.title("📖 API da Bíblia Sagrada")
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2, col3 = st.columns(3)
     livro_pt = col1.text_input("Livro (Ex: Joao, Genesis, Lucas)", value="Joao")
     cap = col2.number_input("Capítulo", min_value=1, value=1)
     ver = col3.text_input("Versículo (Opcional)", value="")
@@ -335,16 +377,15 @@ def modulo_biblia():
         alvo = f"{livro_en}+{cap}:{ver}" if ver else f"{livro_en}+{cap}"
         
         try:
-            # Consome a API pública estável sem necessidade de Token/Chaves complexas
             r = requests.get(f"bible-api.com{alvo}", timeout=5)
             if r.status_code == 200:
                 dados = r.json()
                 st.markdown(f"### 📜 {livro_pt.title()} {cap}")
                 st.info(dados['text'])
             else:
-                st.error("Trecho não localizado na API. Certifique-se de escrever o nome do livro corretamente.")
+                st.error("Trecho não localizado. Verifique a ortografia do livro.")
         except Exception:
-            st.error("Falha ao contatar servidor de dados da Bíblia.")
+            st.error("Falha ao contatar o servidor de dados da Bíblia.")
 
 def modulo_louvores():
     st.title("🎵 Acervo Digital de Louvores")
@@ -386,9 +427,6 @@ def modulo_avisos():
 
 def modulo_chat():
     st.title("💬 Chat em Tempo Real (Liderança e Pastores)")
-    st.write("Módulo de comunicação operacional interna rodando em contêiner dedicado.")
-    
-    # Renderização via iframe com proteção contra falhas de conexão externa
     st.markdown(f"""
     <iframe src="{URL_CHAT_RAILWAY}" width="100%" height="600" style="border:3px solid #212529; border-radius:16px; background-color: #ffffff; box-shadow: 0 8px 24px rgba(0,0,0,0.2);"></iframe>
     """, unsafe_allow_html=True)
