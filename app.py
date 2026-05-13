@@ -37,7 +37,9 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS curtidas (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
     
-    if consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'").empty:
+    # CORREÇÃO CRÍTICA: Usa len() no DataFrame para garantir validação correta e evitar duplicação
+    check_admin = consultar_db("SELECT id FROM membros WHERE email='admin@agape.com'")
+    if len(check_admin) == 0:
         pw = generate_password_hash('Agape2026')
         executar_query("INSERT INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
 
@@ -53,11 +55,11 @@ def aplicar_estilo():
         header, footer { visibility: hidden; }
     </style>""", unsafe_allow_html=True)
 
-# --- BASE DE DADOS NATIVA DA BÍBLIA (100% OFFLINE E INSTANTÂNEA) ---
+# --- BASE DE DADOS NATIVA DA BÍBLIA (100% OFFLINE) ---
 biblia_local = {
     "Salmos": {
         "23": {"1": "O Senhor é o meu pastor, nada me faltará.", "2": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "3": "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.", "4": "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo.", "5": "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.", "6": "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."},
-        "91": {"1": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei.", "3": "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4": "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."}
+        "91": {"1": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confarei.", "3": "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4": "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."}
     },
     "João": {
         "3": {"16": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."}
@@ -73,7 +75,6 @@ biblia_local = {
 # --- COMPONENTES VISUAIS (LOUVOR FIXADO) ---
 def render_louvor():
     if 'versiculo_dia' not in st.session_state:
-        # Sorteia um versículo da nossa base local offline
         livro = random.choice(list(biblia_local.keys()))
         cap = random.choice(list(biblia_local[livro].keys()))
         ver = random.choice(list(biblia_local[livro][cap].keys()))
@@ -97,7 +98,7 @@ if not st.session_state.logado:
             e, s = st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("ENTRAR", use_container_width=True):
                 res = consultar_db("SELECT * FROM membros WHERE email=:e", {"e":e})
-                if not res.empty and check_password_hash(res.iloc[0]['senha'], s):
+                if len(res) > 0 and check_password_hash(res.iloc[0]['senha'], s):
                     st.session_state.update({"logado": True, "user": res.iloc[0].to_dict()})
                     st.rerun()
                 else: st.error("Login inválido")
@@ -142,24 +143,20 @@ else:
                 st.rerun()
 
     with aba_chat:
-        st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
+        # CORREÇÃO DO AVISO: Substituído st.components.v1.iframe por st.iframe moderno
+        st.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
     with aba_biblia:
         st.title("📖 Leitura Bíblica Local")
         st.write("Acesso ultrarrápido aos principais livros e capítulos.")
 
-        # Seletores baseados estritamente no nosso dicionário local estável
         livro_pt = st.selectbox("Escolha o Livro:", list(biblia_local.keys()))
-        
-        # Filtra os capítulos do livro selecionado
         lista_capitulos = list(biblia_local[livro_pt].keys())
         cap_selecionado = st.selectbox("Escolha o Capítulo:", lista_capitulos)
 
         if st.button("📖 Ler Capítulo", use_container_width=True):
             st.divider()
             st.subheader(f"📖 {livro_pt} - Capítulo {cap_selecionado}")
-            
-            # Puxa diretamente da memória sem fazer requisições HTTP
             versiculos = biblia_local[livro_pt][cap_selecionado]
             for id_ver, texto_ver in versiculos.items():
                 st.markdown(f"**{id_ver}** {texto_ver}")
