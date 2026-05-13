@@ -87,7 +87,6 @@ def init_db():
     executar_query('CREATE TABLE IF NOT EXISTS comentarios (id INTEGER PRIMARY KEY, aviso_id INTEGER, usuario TEXT, texto TEXT, data TEXT)')
     executar_query('CREATE TABLE IF NOT EXISTS biblia (livro TEXT, cap INTEGER, ver INTEGER, texto TEXT)')
     
-    # CORREÇÃO DEFINITIVA DO INTEGRITYERROR: Blindagem com cláusula nativa INSERT OR IGNORE
     pw = generate_password_hash('Agape2026')
     executar_query("INSERT OR IGNORE INTO membros (nome, email, senha, is_admin) VALUES ('Admin', 'admin@agape.com', :pw, 1)", {"pw": pw})
 
@@ -182,8 +181,8 @@ else:
                 st.rerun()
 
     with aba_chat:
-        # RETORNO DA FUNÇÃO SEGURA: Substituído st.iframe por st.components.v1.iframe para resolver o traceback
-        st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
+        # CORREÇÃO DEFINITIVA: Usando a sintaxe st.iframe recomendada nativamente pela nova versão do Streamlit
+        st.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700)
 
     with aba_biblia:
         st.title("📖 Bíblia Sagrada Completa (Almeida)")
