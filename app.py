@@ -106,7 +106,7 @@ else:
         if st.button("🚪 Sair"):
             st.session_state.clear(); st.rerun()
 
-    # ORGANIZAÇÃO POR ABAS PARA NÃO TRAVAR
+       # ORGANIZAÇÃO POR ABAS PARA NÃO TRAVAR
     aba_mural, aba_chat, aba_biblia = st.tabs(["🏠 Mural", "💬 Chat Ágape", "📖 Bíblia"])
 
     with aba_mural:
@@ -124,12 +124,12 @@ else:
                 st.rerun()
 
     with aba_chat:
-        st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=600, scrolling=True)
+        st.components.v1.iframe(f"{URL_CHAT_RAILWAY}?user={u['nome']}&room=agape", height=700, scrolling=True)
 
-        with aba_biblia:
+    with aba_biblia:
         st.title("📖 Leitura Bíblica")
         
-        # 1. Busca todos os livros cadastrados no banco para criar a lista de opções
+        # 1. Busca todos os livros cadastrados
         df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
         
         if not df_livros.empty:
@@ -139,7 +139,7 @@ else:
             livro_selecionado = st.selectbox("Escolha o Livro:", lista_livros)
             
             if livro_selecionado:
-                # 2. Busca os capítulos existentes para o livro selecionado
+                # 2. Busca os capítulos existentes
                 df_caps = consultar_db("SELECT DISTINCT cap FROM biblia WHERE livro = :l ORDER BY cap", {"l": livro_selecionado})
                 lista_caps = df_caps['cap'].tolist()
                 
@@ -150,13 +150,13 @@ else:
                     st.divider()
                     st.subheader(f"{livro_selecionado}, Capítulo {cap_selecionado}")
                     
-                    # 3. Busca e exibe todos os versículos do capítulo selecionado
+                    # 3. Busca e exibe todos os versículos
                     df_versiculos = consultar_db(
                         "SELECT ver, texto FROM biblia WHERE livro = :l AND cap = :c ORDER BY ver",
                         {"l": livro_selecionado, "c": cap_selecionado}
                     )
                     
-                    # Exibe o texto formatado versículo por versículo
+                    # Exibe o texto formatado
                     for _, row in df_versiculos.iterrows():
                         st.markdown(f"**{row['ver']}** {row['texto']}")
         else:
