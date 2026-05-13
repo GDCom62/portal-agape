@@ -66,7 +66,7 @@ def carregar_biblia_completa():
 # --- 5. INTERFACE DO USUÁRIO (STREAMLIT) ---
 st.title("⛪ Portal Ágape")
 
-- abas = st.tabs(["📖 Bíblia Sagrada", "🎥 Vídeo Chat Premium", "⚙️ Configurações"])
+abas = st.tabs(["📖 Bíblia Sagrada", "🎥 Vídeo Chat Premium", "⚙️ Configurações"])
 
 with abas[0]:
     st.header("Leitura e Busca Bíblica")
