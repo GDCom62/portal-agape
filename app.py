@@ -112,10 +112,61 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL - ACF) ---
+# --- 4. ESTILIZAÇÃO CUSTOMIZADA RESTAURADA (FUNDO AMARELO OURO E LEITURA CINEMA) ---
+st.markdown("""
+    <style>
+    /* Força o Amarelo Ouro de ponta a ponta na tela */
+    .stApp, div[data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+    }
+    /* Estilização dos Cartões Flutuantes Brancos */
+    .stMetric, div[data-testid="stMetricValue"], div[data-testid="metric-container"], .card-flutuante, .cartao-membro {
+        background-color: #ffffff !important;
+        padding: 20px;
+        border-radius: 16px !important;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1) !important;
+        border: 1px solid #e0a800 !important;
+        color: #212529 !important;
+    }
+    /* Caixa Suspensa para a Palavra do Dia e Versículos Grandes */
+    .versiculo-box {
+        background: linear-gradient(135deg, #212529 0%, #0d0d0d 100%) !important;
+        color: #FFD700 !important;
+        padding: 30px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+        margin-bottom: 25px !important;
+        border: 2px solid #FFD700 !important;
+        text-align: center !important;
+    }
+    /* Fonte Grande e Suspensa do Modo Leitura de Versículos */
+    .texto-sagrado-grande {
+        font-size: 24px !important;
+        font-family: 'Georgia', serif !important;
+        line-height: 1.6 !important;
+        margin-bottom: 15px !important;
+        color: #FFD700 !important;
+        text-align: justify !important;
+    }
+    .numero-versiculo {
+        color: #ffffff !important;
+        font-weight: bold !important;
+        margin-right: 8px !important;
+    }
+    .pix-card {
+        background-color: #ffffff !important;
+        padding: 30px;
+        border-radius: 20px;
+        border: 2px dashed #008080;
+        text-align: center;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL - ACF) ---
 def carregar_biblia_completa():
     try:
-        # Injeção de URL absoluta oficial estável em formato RAW JSON
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -140,18 +191,15 @@ def carregar_biblia_completa():
                 return True
         return False
     except Exception:
-        # Contingência local: se a rede falhar, monta a árvore de cabeçalhos estrutural para não quebrar o app
         livros_backup = ["Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute", "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias", "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cantares", "Isaías", "Jeremias", "Lamentações", "Ezequiel", "Daniel", "Oséias", "Joel", "Amós", "Obadias", "Jonas", "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias", "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios", "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses", "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro", "1 João", "2 João", "3 João", "Judas", "Apocalipse"]
         linhas_db = []
         for l in livros_backup:
-            for c in range(1, 3):
-                for v in range(1, 6):
-                    linhas_db.append({"livro": l, "capitulo": c, "versiculo": v, "texto": f"Versículo {v} do Capítulo {c} de {l} sincronizado em modo de contingência local."})
+            linhas_db.append({"livro": l, "capitulo": 1, "versiculo": 1, "texto": f"Sincronizado em contingência local. Lâmpada para os meus pés é a Tua Palavra!"})
         df_biblia = pd.DataFrame(linhas_db)
         df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
         return True
 
-# --- 5. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
+# --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -226,7 +274,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 6. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
+# --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
 st.title("⛪ Portal Administrativo Ágape")
 
 if st.session_state.nivel_atual == "Pastor":
@@ -235,10 +283,19 @@ else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos"])
 
 # ABA 1: CONTEÚDO INICIAL (MURAL E CONFERÊNCIA)
-with abas[0]:
+with abas:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
-        st.info("📖 **Palavra do Dia:** \"O Senhor é o meu pastor, nada me faltará. Guia-me mansamente a águas tranquilas.\" — Salmos 23:1-2")
+        # Palavra do Dia no Box Caixa Suspensa e com Fonte Maior
+        st.markdown("""
+        <div class='versiculo-box'>
+            <h3 style='margin:0; color:#FFD700; font-family: Georgia, serif;'>📖 Palavra do Dia</h3>
+            <p style='font-size: 20px; font-style: italic; margin-top:12px; color:#ffffff;'>
+                "O Senhor é o meu pastor, nada me faltará. Deita-me em verdes pastos, guia-me mansamente a águas tranquilas."
+            </p>
+            <p style='text-align: right; font-weight: bold; margin:0; color:#FFD700;'>Salmos 23:1-2</p>
+        </div>
+        """, unsafe_allow_html=True)
         
     with col_topo2:
         meses_pt = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
@@ -274,8 +331,8 @@ with abas[0]:
         st.caption("Acesse a sala de conferência oficial da igreja em alta definição.")
         st.link_button("🚀 Entrar na Vídeo Chamada Ao Vivo", URL_CHAT_RAILWAY, width="stretch")
 
-# ABA 2: BÍBLIA SAGRADA (INTERFACE COMPLETA NATIVA)
-with abas[1]:
+# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM FONTES GRANDES)
+with abas:
     st.header("📖 Leitura e Pesquisa Bíblica")
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
@@ -286,31 +343,32 @@ with abas[1]:
                 st.success("Bíblia sincronizada com sucesso!")
                 st.rerun()
     else:
-        # Menu de Abas Internas para separar a Leitura Avançada da Busca Textual comum
         sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
         
         with sub_aba_leitura:
-            # Obtém a lista real de livros gravados no banco
             df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
             lista_livros = df_livros['livro'].tolist() if not df_livros.empty else ["Gênesis"]
             
-            c_livro, c_cap, c_ver = st.columns(3)
+            c_livro, c_cap = st.columns(2)
             with c_livro:
                 livro_sel = st.selectbox("Escolha o Livro", lista_livros)
             
-            # Obtém a quantidade real de capítulos do livro selecionado
             df_caps = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro = :l ORDER BY capitulo ASC", {"l": livro_sel})
             lista_caps = df_caps['capitulo'].tolist() if not df_caps.empty else [1]
             with c_cap:
                 cap_sel = st.selectbox("Capítulo", lista_caps)
                 
-            # Obtém os versículos correspondentes
             df_versiculos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": livro_sel, "c": cap_sel})
             
-            st.markdown(f"### 📖 {livro_sel} - Capítulo {cap_sel}")
+            # Caixa Suspensa Negra de Alta Definição (Modo Leitura Cinema)
+            st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+            
             if not df_versiculos.empty:
+                conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
                 for _, row in df_versiculos.iterrows():
-                    st.markdown(f"**{row['versiculo']}.** {row['texto']}")
+                    conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{row['versiculo']}.</span> {row['texto']}</p>"
+                conteudo_html += "</div>"
+                st.markdown(conteudo_html, unsafe_allow_html=True)
             else:
                 st.info("Nenhum texto encontrado para esta seleção.")
                 
@@ -325,7 +383,7 @@ with abas[1]:
                     st.info("Nenhum versículo contendo este termo foi localizado.")
 
 # ABA 3: LOUVORES
-with abas[2]:
+with abas:
     st.header("🎵 Hinário & Letras de Louvores")
     if st.session_state.nivel_atual == "Pastor":
         with st.expander("➕ Adicionar Novo Louvor"):
@@ -345,17 +403,17 @@ with abas[2]:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")[0]
+            t_sel = selecionado.split(" - ")
             dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             if not dados_l.empty:
                 st.subheader(selecionado)
-                reg_audio = dados_l.iloc[0]['arquivo_audio']
+                reg_audio = dados_l.iloc['arquivo_audio']
                 if reg_audio is not None:
                     st.audio(bytes(reg_audio), format="audio/mp3")
-                st.text(dados_l.iloc[0]['letra'])
+                st.text(dados_l.iloc['letra'])
 
 # ABA 4: OFERTAS E DÍZIMOS VIA PIX
-with abas[3]:
+with abas:
     st.header("💝 Dízimos, Ofertas e Contribuições")
     st.markdown("""
     <div class='pix-card'>
@@ -367,7 +425,7 @@ with abas[3]:
 
 # ABAS GESTÃO EXCLUSIVA DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
-    with abas[4]:
+    with abas:
         st.header("👥 Gestão de Membros")
         with st.form("form_membro", clear_on_submit=True):
             n_m = st.text_input("Nome")
@@ -382,7 +440,7 @@ if st.session_state.nivel_atual == "Pastor":
         membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
-    with abas[5]:
+    with abas:
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
         with c1:
@@ -396,15 +454,15 @@ if st.session_state.nivel_atual == "Pastor":
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
-        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
+        ent = float(df_ent.iloc['total']) if not df_ent.empty and df_ent.iloc['total'] is not None else 0.0
+        sai = float(df_sai.iloc['total']) if not df_sai.empty and df_sai.iloc['total'] is not None else 0.0
         
         with c2:
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
             st.metric("Total Saídas", f"R$ {sai:,.2f}")
             st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
 
-    with abas[6]:
+    with abas:
         st.header("🔐 Controle de Usuários")
         with st.form("novo_user"):
             u_nome = st.text_input("E-mail").strip()
