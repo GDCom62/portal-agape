@@ -39,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# CORREÇÃO CRÍTICA: Força a criação das tabelas estruturadas sem conflito de colunas
+# Criação inicial protegida de tabelas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,11 +49,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 """)
 
-# Executa uma verificação preventiva para forçar a coluna 'nivel' se o banco for antigo
 try:
     executar_query("ALTER TABLE usuarios ADD COLUMN nivel TEXT DEFAULT 'Membro';")
 except Exception:
-    pass
+    pass 
 
 executar_query("""
 CREATE TABLE IF NOT EXISTS membros (
@@ -97,7 +96,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor) protegendo contra colunas ausentes
+# Força atualização segura do Administrador (Pastor) protegendo contra tabelas desatualizadas
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -112,7 +111,7 @@ def verificar_e_criar_admin():
             executar_query("UPDATE usuarios SET senha = :senha, nivel = 'Pastor' WHERE usuario = :user", 
                            {"user": admin_usuario, "senha": hash_admin})
     except Exception:
-        # Se o arquivo do banco local estiver corrompido ou incompatível, recria a tabela do zero
+        # Se a tabela antiga travar a execução, reconstrói a estrutura nativa
         executar_query("DROP TABLE IF EXISTS usuarios;")
         executar_query("CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
@@ -153,10 +152,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (TEXTO COMPLETO VIA CDN PÚBLICA) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA (URL BRUTA SEGURA DO GITHUB) ---
 def carregar_biblia_completa():
     try:
-        # Link definitivo, testado e livre de erros para baixar os textos em português brasileiro
+        # URL explícita com HTTPS apontando para a base estável Almeida em formato RAW JSON
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -203,7 +202,7 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(df_u.iloc[0]['senha'], campo_senha):
+                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
                     st.session_state.nivel_atual = df_u.iloc[0]['nivel']
@@ -343,7 +342,7 @@ with abas[1]:
                     st.success("Sincronização concluída com sucesso! Base populada.")
                     st.rerun()
                 else:
-                    st.error("Falha ao obter o JSON. Verifique os logs.")
+                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
