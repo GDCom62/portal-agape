@@ -147,35 +147,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL DESCOMPACTADA) ---
+import json
+
 def carregar_biblia_completa():
     try:
-        # LINK CORRIGIDO: Injetada URL estável com protocolo HTTPS explícito apontando para o JSON real da Bíblia ACF em português
-        url = "githubusercontent.com"
-        resposta = requests.get(url, timeout=30)
+        # Lê o arquivo diretamente da pasta do seu projeto
+        with open("acf.json", "r", encoding="utf-8") as f:
+            dados_totais = json.load(f)
+            
+        linhas_db = []
+        for livro_dados in dados_totais:
+            nome_livro = livro_dados.get("name", "Desconhecido")
+            for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
+                for v_idx, versiculo in enumerate(capitulo, start=1):
+                    linhas_db.append({
+                        "livro": str(nome_livro),
+                        "capitulo": int(c_idx),
+                        "versiculo": int(v_idx),
+                        "texto": str(versiculo)
+                    })
         
-        if resposta.status_code == 200:
-            dados_totais = resposta.json()
-            linhas_db = []
-            
-            for livro_dados in dados_totais:
-                nome_livro = livro_dados.get("name", "Desconhecido")
-                for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
-                    for v_idx, versiculo in enumerate(capitulo, start=1):
-                        linhas_db.append({
-                            "livro": str(nome_livro),
-                            "capitulo": int(c_idx),
-                            "versiculo": int(v_idx),
-                            "texto": str(versiculo)
-                        })
-            
-            if linhas_db:
-                df_biblia = pd.DataFrame(linhas_db)
-                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-                return True
+        if linhas_db:
+            df_biblia = pd.DataFrame(linhas_db)
+            df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
+            return True
         return False
     except Exception as e:
-        st.error(f"Erro técnico na carga do acf.json: {e}")
+        st.error(f"Erro ao ler arquivo local acf.json: {e}")
         return False
+
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
 if "autenticado" not in st.session_state:
