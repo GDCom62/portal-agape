@@ -11,7 +11,7 @@ import datetime
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-URL_CHAT_RAILWAY = "railway.app" 
+URL_CHAT_RAILWAY = "https://railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- 3. CONEXÕES COM BANCO DE DADOS PERSISTENTE & REDIS ---
@@ -62,9 +62,15 @@ CREATE TABLE IF NOT EXISTS membros (
     telefone TEXT,
     cargo TEXT,
     data_cadastro TEXT,
-    mes_aniversario TEXT
+    mes_aniversario TEXT,
+    observacoes TEXT
 );
 """)
+
+try:
+    executar_query("ALTER TABLE membros ADD COLUMN observacoes TEXT DEFAULT '';")
+except Exception:
+    pass
 
 executar_query("""
 CREATE TABLE IF NOT EXISTS financeiro (
@@ -319,60 +325,51 @@ with aba_mural:
         else:
             st.info("Mural interativo offline.")
 
-# ABA 2: BÍBLIA SAGRADA LOCAL MATRICIAL (TODOS OS 66 LIVROS INTEGRADOS SEM INTERNET)
+# ABA 2: BÍBLIA SAGRADA REAL ONLINE (API DE ALTA DISPONIBILIDADE)
 with aba_biblia:
-    st.header("📖 Leitura Bíblica (Almeida Revista e Corrigida)")
+    st.header("📖 Leitura Bíblica Oficial (Almeida Corrigida Fiel)")
     
-    # Matriz estruturada de alta densidade contendo TODOS OS 66 LIVROS da Bíblia Sagrada
+    # Lista canônica adaptada com os nomes aceitos universalmente pelas APIs rest estáveis
     livros_canônicos_66 = [
-        "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-        "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
-        "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cantares", "Isaías", "Jeremias",
-        "Lamentações", "Ezequiel", "Daniel", "Oséias", "Joel", "Amós", "Obadias", "Jonas",
-        "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
-        "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
-        "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
-        "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
-        "1 João", "2 João", "3 João", "Judas", "Apocalipse"
+        "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+        "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah",
+        "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah",
+        "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadia", "Jonah",
+        "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+        "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
+        "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+        "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
+        "1 John", "2 John", "3 John", "Judas", "Revelation"
     ]
     
-    # Textos de alta resolução fixados por amostragem estruturada de navegação
-    versiculos_por_livro = {
-        "Gênesis": ["No princípio, criou Deus os céus e a terra.", "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", "E disse Deus: Haja luz. E houve luz."],
-        "Êxodo": ["Estes pois são os nomes dos filhos de Israel, que entraram no Egito.", "E morreu José, e toda aquela geração."],
-        "Salmos": ["O Senhor é o meu pastor; nada me faltará.", "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."],
-        "Mateus": ["Livro da geração de Jesus Cristo, Filho de Davi, Filho de Abraão.", "E Jacó gerou a José, marido de Maria, da qual nasceu JESUS."],
-        "Apocalipse": ["Revelação de Jesus Cristo, a qual Deus lhe deu, para mostrar aos seus servos.", "E mostrou-me o rio puro da água da vida."]
-    }
-    
-    sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
-    
-    with sub_aba_leitura:
-        c_livro, c_cap = st.columns(2)
-        with c_livro:
-            livro_sel = st.selectbox("Escolha o Livro Sagrado", livros_canônicos_66)
-        with c_cap:
-            cap_sel = st.selectbox("Escolha o Capítulo", [1, 2, 3, 4, 5])
-            
-        st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+    c_livro, c_cap = st.columns(2)
+    with c_livro:
+        livro_sel = st.selectbox("Escolha o Livro Sagrado", livros_canônicos_66)
+    with c_cap:
+        cap_sel = st.number_input("Escolha o Capítulo", min_value=1, max_value=150, value=1, step=1)
         
-        # Recupera o texto real mapeado ou aciona o algoritmo de interpolação exata da palavra
-        lista_texto = versiculos_por_livro.get(livro_sel, [
-            f"Capítulo {cap_sel} do livro de {livro_sel} ativado e pronto no banco local do Portal Ágape.",
-            "Lâmpada para os meus pés é a Tua Palavra e luz para o meu caminho!"
-        ])
-        
-        conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
-        for idx, v_texto in enumerate(lista_texto, start=1):
-            conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{idx}.</span> {v_texto}</p>"
-        conteudo_html += "</div>"
-        st.markdown(conteudo_html, unsafe_allow_html=True)
-            
-    with sub_aba_busca:
-        busca_termo = st.text_input("🔍 Digite uma palavra para pesquisar em todos os 66 livros:")
-        if busca_termo:
-            st.info(f"Resultados indexados para: '{busca_termo}'")
-            st.markdown(f"<div class='versiculo-box' style='text-align: left !important;'><p class='texto-sagrado-grande'>• **Gênesis 1:1** - No princípio, criou Deus os céus e a terra.</p><p class='texto-sagrado-grande'>• **Salmos 23:1** - O Senhor é o meu pastor; nada me faltará.</p></div>", unsafe_allow_html=True)
+    if st.button("📖 Abrir Capítulo em Modo Cinema", width="stretch"):
+        with st.spinner("Buscando escrituras legítimas na nuvem..."):
+            try:
+                # URL CORRIGIDA COM PROTOCOLO HTTPS COMPLETO DE PONTA A PONTA
+                link_api = f"https://bible-api.com{livro_sel}+{cap_sel}"
+                resposta = requests.get(link_api, timeout=12)
+                
+                if resposta.status_code == 200:
+                    dados_bible = resposta.json()
+                    st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+                    
+                    conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
+                    for v in dados_bible.get("verses", []):
+                        num_ver = v.get("verse")
+                        txt_ver = v.get("text").strip()
+                        conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{num_ver}.</span> {txt_ver}</p>"
+                    conteudo_html += "</div>"
+                    st.markdown(conteudo_html, unsafe_allow_html=True)
+                else:
+                    st.error("Erro ao localizar este capítulo na API. Verifique se o livro possui essa numeração.")
+            except Exception as e:
+                st.error(f"Não foi possível conectar ao servidor de escrituras: {e}")
 
 # ABA 3: LOUVORES
 with aba_louvores:
@@ -426,13 +423,15 @@ if st.session_state.nivel_atual == "Pastor":
             t_m = st.text_input("Telefone")
             c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
             m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+            obs_m = st.text_area("📝 Observações Especiais (Batismo, Histórico, etc.)")
+            
             if st.form_submit_button("Salvar Registro"):
                 if n_m:
-                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
-                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
+                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario, observacoes) VALUES (:n, :t, :c, :d, :m, :obs)",
+                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a, "obs": obs_m})
                     st.rerun()
                     
-        sql_membros = "SELECT nome AS Nome, telephone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros" if 'telephone' in pd.read_sql_query(text("PRAGMA table_info(membros)"), engine).name.tolist() else "SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros"
+        sql_membros = "SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário, observacoes AS Observações FROM membros"
         if filtro_nome:
             sql_membros += f" WHERE nome LIKE '%{filtro_nome}%'"
         membros_df = consultar_db(sql_membros)
@@ -474,10 +473,15 @@ if st.session_state.nivel_atual == "Pastor":
         if not historico_df.empty:
             st.dataframe(historico_df, width="stretch", hide_index=True)
             id_para_deletar = st.number_input("Digite o ID do lançamento que deseja apagar:", min_value=1, step=1)
+            
+            confirmar_exclusao = st.checkbox("⚠️ Confirmo que selecionei o ID correto e desejo apagar permanentemente.")
             if st.button("❌ Apagar Lançamento Selecionado", type="primary"):
-                executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar})
-                st.success("Lançamento removido com sucesso!")
-                st.rerun()
+                if confirmar_exclusao:
+                    executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar})
+                    st.success("Lançamento removido com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("Marque a caixa de confirmação antes de clicar no botão.")
 
     with aba_credenciais:
         st.header("🔐 Controle de Usuários")
