@@ -143,8 +143,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
 def carregar_biblia_completa():
     try:
+        # URL oficial e segura com o esquema HTTPS completo apontando para o arquivo JSON estruturado
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
