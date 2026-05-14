@@ -13,10 +13,9 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
-# --- 3. CONEXÕES COM BANCO DE DADOS ---
+# --- 3. CONEXÕES COM BANCO DE DADOS PERSISTENTE ---
 @st.cache_resource
 def inicializar_conexoes():
-    # Banco local persistente (não apaga ao reiniciar o container)
     engine = create_engine(
         "sqlite:///agape_v60.db", 
         connect_args={"check_same_thread": False, "timeout": 30}
@@ -29,7 +28,6 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-# Definição das funções de manipulação do banco (Devem vir antes das chamadas)
 def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
@@ -41,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização segura de todas as tabelas estruturais
+# Inicialização de tabelas relacionais locais
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +99,7 @@ try:
 except Exception:
     pass
 
-# Sincronização automática do Administrador do Portal
+# Força atualização segura do Administrador (Pastor)
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -143,10 +141,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (URL REAL E ATIVA) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA (URL EM PRODUÇÃO TOTALMENTE ATIVA) ---
 def carregar_biblia_completa():
     try:
-        # URL Real e pública contendo a Bíblia Sagrada estruturada em formato bruto (RAW)
+        # URL Real pública contendo a árvore estruturada JSON da Bíblia ARC (Almeida Revista e Corrigida)
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -156,10 +154,11 @@ def carregar_biblia_completa():
             
             for livro_dados in dados_totais:
                 nome_livro = livro_dados.get("name", "Desconhecido")
+                # Itera de forma posicional os capítulos e versículos do JSON padronizado
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
-                            "livro": nome_livro,
+                            "livro": str(nome_livro),
                             "capitulo": int(c_idx),
                             "versiculo": int(v_idx),
                             "texto": str(versiculo)
@@ -260,7 +259,7 @@ if st.session_state.nivel_atual == "Pastor":
 else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
 
-# ABA 1: CONTEÚDO INICIAL (MURAL, VIDEO, PALAVRA DO DIA, ANIVERSARIANTES)
+# ABA 1: CONTEÚDO INICIAL
 with abas[0]:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
@@ -328,18 +327,20 @@ with abas[1]:
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
         if st.button("🚀 Sincronizar Bíblia Sagrada Agora", use_container_width=True):
-            with st.spinner("Sincronizando base de dados de forma segura... Aguarde."):
+            with st.spinner("Conectando ao servidor e baixando os 66 Livros... Aguarde alguns segundos."):
                 if carregar_biblia_completa():
-                    st.success("Sincronização concluída com sucesso!")
+                    st.success("Sincronização concluída com sucesso! Base populada.")
                     st.rerun()
+                else:
+                    st.error("Falha de rede ao tentar obter o JSON. Verifique os logs.")
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
-            res_b = consultar_db("SELECT livro, capitulo, versiculo, texto FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
+            res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
             if not res_b.empty:
                 st.dataframe(res_b, use_container_width=True, hide_index=True)
             else:
-                st.info("Nenhum resultado encontrado.")
+                st.info("Nenhum resultado encontrado para esta palavra.")
 
 # ABA 3: LOUVORES
 idx_louvores = 4 if st.session_state.nivel_atual == "Pastor" else 2
@@ -406,7 +407,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
             
             if st.button("Confirmar Lançamento", use_container_width=True):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
