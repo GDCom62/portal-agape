@@ -138,23 +138,31 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         margin-bottom: 25px;
     }
+    .pix-card {
+        background-color: #ffffff !important;
+        padding: 30px;
+        border-radius: 20px;
+        border: 2px dashed #008080;
+        text-align: center;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA E COMPLETA (LINK EM PRODUÇÃO ATIVO) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK DIRETO E COMPLETO COM HTTPS) ---
 def carregar_biblia_completa():
     try:
-        # Corrigido: Inserida a URL completa, segura e funcional com o esquema HTTPS explícito
+        # Corrigido: Endpoint final absoluto em formato RAW contendo a Bíblia NVI em Português
         url = "githubusercontent.com"
-        resposta = requests.get(url, timeout=25)
+        resposta = requests.get(url, timeout=30)
         
         if resposta.status_code == 200:
             dados_totais = resposta.json()
             linhas_db = []
             
             for livro_dados in dados_totais:
-                # O JSON do repositório thiagobodruk utiliza a chave 'name' para identificar o livro
-                nome_livro = livro_dados.get("name", "Desconhecido")
+                # Extração mapeada conforme a árvore nativa do JSON (keys: 'book' ou 'name')
+                nome_livro = livro_dados.get("book", livro_dados.get("name", "Desconhecido"))
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -255,9 +263,9 @@ else:
 st.title("⛪ Portal Administrativo Ágape")
 
 if st.session_state.nivel_atual == "Pastor":
-    abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "👥 Gestão de Membros", "💰 Financeiro", "🎵 Louvores", "🔐 Credenciais"])
+    abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos", "👥 Gestão de Membros", "💰 Financeiro", "🔐 Credenciais"])
 else:
-    abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
+    abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos"])
 
 # ABA 1: CONTEÚDO INICIAL
 with abas[0]:
@@ -343,8 +351,7 @@ with abas[1]:
                 st.info("Nenhum resultado encontrado para esta palavra.")
 
 # ABA 3: LOUVORES
-idx_louvores = 4 if st.session_state.nivel_atual == "Pastor" else 2
-with abas[idx_louvores]:
+with abas[2]:
     st.header("🎵 Hinário & Letras de Louvores")
     if st.session_state.nivel_atual == "Pastor":
         with st.expander("➕ Adicionar Novo Louvor"):
@@ -375,9 +382,39 @@ with abas[idx_louvores]:
                     st.audio(bytes(registro_audio), format="audio/mp3")
                 st.text(dados_l.iloc[0]['letra'])
 
-# ABAS GESTÃO EXCLUSIVA DO PASTOR
+# ABA 4: DOAÇÕES E DÍZIMOS VIA PIX (Disponível para todos)
+with abas[3]:
+    st.header("💝 Dízimos, Ofertas e Contribuições")
+    st.caption("Gere a sua contribuição diretamente via Pix de forma prática e segura.")
+    
+    col_pix_info, col_pix_qr = st.columns(2)
+    with col_pix_info:
+        st.markdown("""
+        <div class='pix-card'>
+            <h3 style='color: #008080; margin: 0;'>🔑 Chave Pix Oficial</h3>
+            <p style='font-size: 14px; color: gray; margin-top: 5px;'>Clique duas vezes no campo abaixo para copiar:</p>
+            <code style='font-size: 20px; background-color: #f1f3f5; padding: 10px 15px; border-radius: 8px; color: #333; display: block; border: 1px solid #ced4da;'>
+                admin@agape.com
+            </code>
+            <br>
+            <p style='text-align: left; font-size: 15px; color: #495057;'>
+                <b>Banco Destino:</b> Banco Nu Pagamentos (Nubank)<br>
+                <b>Favorecido:</b> Igreja Evangélica Ágape de Saquarema<br>
+                <b>Finalidade:</b> Manutenção da obra, missões locais e expansão social.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_pix_qr:
+        st.subheader("📷 Escaneie o QR Code")
+        # Espaço reservado para o upload ou exibição estática do QR Code da igreja
+        st.info("Pastor: Você pode fixar o arquivo de imagem do seu QR Code estático do banco aqui substituindo este bloco por st.image('caminho_da_foto.png').")
+        # Demonstração visual de área limpa para receber o QR Code
+        st.markdown("<div style='background: #f8f9fa; border: 1px solid #ddd; height:200px; border-radius:15px; display:flex; align-items:center; justify-content:center; color:gray;'>[Área do QR Code Pix]</div>", unsafe_allow_html=True)
+
+# ABAS EXCLUSIVAS GESTÃO DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
-    with abas[2]:
+    with abas[4]:
         st.header("👥 Cadastro de Membros")
         with st.form("form_membro", clear_on_submit=True):
             n_m = st.text_input("Nome Completo")
@@ -394,7 +431,7 @@ if st.session_state.nivel_atual == "Pastor":
         membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
         st.dataframe(membros_df, use_container_width=True, hide_index=True)
 
-    with abas[3]:
+    with abas[5]:
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
         with c1:
@@ -407,7 +444,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
             
             if st.button("Confirmar Lançamento", use_container_width=True):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
@@ -426,7 +463,7 @@ if st.session_state.nivel_atual == "Pastor":
         m2.metric("Total Saídas", f"R$ {sai:,.2f}")
         m3.metric("Saldo em Caixa", f"R$ {(ent - sai):,.2f}")
 
-    with abas[5]:
+    with abas[6]:
         st.header("🔐 Controle de Usuários do Portal")
         with st.form("novo_usuario_painel"):
             u_nome = st.text_input("E-mail de Acesso").strip()
