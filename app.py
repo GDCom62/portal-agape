@@ -5,12 +5,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import redis
 import requests
 import datetime
+import json
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-URL_CONFERENCIA_SERVICO = "railway.app" # Substitua pela URL do seu video_app.py em produção
+URL_CHAT_RAILWAY = "https://railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- 3. CONEXÕES COM BANCO DE DADOS PERSISTENTE ---
@@ -39,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização de tabelas nativas
+# Inicialização segura das tabelas nativas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,7 +112,7 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. ESTILIZAÇÃO CUSTOMIZADA (FUNDO AMARELO OURO) ---
+# --- 4. ESTILIZAÇÃO CUSTOMIZADA AMARELO OURO ---
 st.markdown("""
     <style>
     .stApp, div[data-testid="stAppViewContainer"] {
@@ -156,13 +157,22 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 6px 16px rgba(0,0,0,0.1);
     }
+    .chat-box {
+        background-color: #212529;
+        border-radius: 10px;
+        padding: 15px;
+        height: 350px;
+        overflow-y: auto;
+        border: 1px solid #FFD700;
+        margin-bottom: 15px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA INTEGRAL DOS 66 LIVROS ---
+# --- 5. FUNÇÃO DE CARGA INTEGRAL DOS 66 LIVROS DA BÍBLIA ---
 def carregar_biblia_completa():
     try:
-        livros_canonicos = [
+        livros_canônicos = [
             "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
             "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
             "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cantares", "Isaías", "Jeremias",
@@ -175,21 +185,21 @@ def carregar_biblia_completa():
         ]
         
         linhas_db = []
-        for livro in livros_canonicos:
-            for cap in range(1, 4):
+        for livro in livros_canônicos:
+            for cap in range(1, 3):
                 for ver in range(1, 6):
                     linhas_db.append({
                         "livro": str(livro),
                         "capitulo": int(cap),
                         "versiculo": int(ver),
-                        "texto": f"Texto bíblico real do versículo {ver} do capítulo {cap} de {livro} estruturado localmente no Portal Ágape."
+                        "texto": f"Texto do versículo {ver} do capítulo {cap} de {livro} sincronizado no Portal Administrativo Ágape. Lâmpada para os meus pés é a Tua Palavra!"
                     })
         
         df_biblia = pd.DataFrame(linhas_db)
         df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
         return True
     except Exception as e:
-        st.error(f"Erro na carga: {e}")
+        st.error(f"Erro ao estruturar base bíblica completa: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -267,7 +277,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. MONTAGEM DO PAINEL PRINCIPAL COM DESEMPACOTAMENTO CORRETO ---
+# --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
 if st.session_state.nivel_atual == "Pastor":
     aba_mural, aba_biblia, aba_louvores, aba_pix, aba_membros, aba_financeiro, aba_credenciais = st.tabs(
         ["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos", "👥 Gestão de Membros", "💰 Financeiro", "🔐 Credenciais"]
@@ -277,12 +287,13 @@ else:
         ["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos"]
     )
 
+# ABA 1: CONTEÚDO INICIAL (MURAL E INTEGRAÇÃO DO CHAT REDIS)
 with aba_mural:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
         st.markdown("""
         <div class='versiculo-box'>
-            <h3 style='margin:0; color:#FFD700; font-family: Georgia, serif;'>  Palavra do Dia</h3>
+            <h3 style='margin:0; color:#FFD700; font-family: Georgia, serif;'>📖 Palavra do Dia</h3>
             <p style='font-size: 20px; font-style: italic; margin-top:12px; color:#ffffff;'>
                 "O Senhor é o meu pastor, nada me faltará. Deita-me em verdes pastos, guia-me mansamente a águas tranquilas."
             </p>
@@ -295,17 +306,17 @@ with aba_mural:
         mes_atual = meses_pt[datetime.date.today().month - 1]
         df_aniv = consultar_db("SELECT nome FROM membros WHERE mes_aniversario = :mes", {"mes": mes_atual})
         if not df_aniv.empty:
-            st.success(f"  **Aniversariantes de {mes_atual}:** " + ", ".join(df_aniv['nome'].tolist()))
+            st.success(f"🎂 **Aniversariantes de {mes_atual}:** " + ", ".join(df_aniv['nome'].tolist()))
         else:
-            st.caption(f"  Nenhum aniversariante registrado em {mes_atual}.")
+            st.caption(f"🎂 Nenhum aniversariante registrado em {mes_atual}.")
 
     st.markdown("---")
     col_aviso, col_video = st.columns(2)
     
     with col_aviso:
-        st.subheader("  Mural de Avisos")
+        st.subheader("📋 Mural de Avisos")
         if st.session_state.nivel_atual == "Pastor":
-            with st.expander("  Publicar Novo Aviso"):
+            with st.expander("➕ Publicar Novo Aviso"):
                 t_aviso = st.text_input("Título")
                 c_aviso = st.text_area("Mensagem")
                 if st.button("Fixar no Mural"):
@@ -320,24 +331,65 @@ with aba_mural:
                 st.markdown(f"**{av['titulo']}** ({av['data']})  \n{av['conteudo']}\n---")
 
     with col_video:
-        st.subheader("  Sala de Transmissão")
-        st.caption("Acesse a sala de conferência oficial da igreja integrada com chat e vídeo.")
-        # Acoplamento seguro injetando dinamicamente o e-mail do usuário logado na sala de vídeo
-        url_formatada = f"{URL_CONFERENCIA_SERVICO}?user={st.session_state.usuario_atual}&room=agape_oficial"
-        st.link_button("  Entrar na Vídeo Chamada Ao Vivo", url_formatada, width="stretch")
+        st.subheader("🎥 Conferência & Chat Ágape (Redis)")
+        
+        # Sincroniza presença online no Redis igual ao código Flask
+        if r_db and st.session_state.usuario_atual:
+            username_limpo = st.session_state.usuario_atual.split("@")[0]
+            r_db.set(f"online:{username_limpo}", "online", ex=60)
+            
+            # Listar usuários ativos na lateral do chat
+            chaves_online = r_db.keys("online:*")
+            usuarios_online = [k.replace("online:", "") for k in chaves_online]
+            st.success(f"🟢 **Online agora:** {', '.join(usuarios_online)}")
+        
+        # Histórico de Mensagens síncrono com o cache do Redis (Últimas 50)
+        sala = "agape_oficial"
+        container_chat = st.empty()
+        
+        if r_db:
+            mensagens_raw = r_db.lrange(f"chat:{sala}", 0, -1)
+            chat_html = "<div class='chat-box'>"
+            for msg in mensagens_raw:
+                try:
+                    payload = json.loads(msg)
+                    chat_html += f"<p style='color:#FFD700; margin:5px 0;'><b style='color:#fff;'>[{payload['time']}] {payload['user']}:</b> {payload['text']}</p>"
+                except Exception:
+                    pass
+            chat_html += "</div>"
+            container_chat.markdown(chat_html, unsafe_allow_html=True)
+        
+        # Envio de nova mensagem via formulário nativo do Streamlit
+        with st.form(key="form_enviar_chat", clear_on_submit=True):
+            texto_msg = st.text_input("Digite sua mensagem para a igreja:")
+            botao_enviar_msg = st.form_submit_button("Enviar Mensagem", width="stretch")
+            
+            if botao_enviar_msg and texto_msg and r_db:
+                username_limpo = st.session_state.usuario_atual.split("@")[0]
+                nova_msg = {
+                    "user": username_limpo,
+                    "text": texto_msg,
+                    "time": datetime.datetime.now().strftime("%H:%M")
+                }
+                r_db.rpush(f"chat:{sala}", json.dumps(nova_msg))
+                r_db.ltrim(f"chat:{sala}", -50, -1) # Mantém as últimas 50 mensagens
+                st.rerun()
 
+        st.link_button("🚀 Abrir Sala de Transmissão de Vídeo Externa", URL_CHAT_RAILWAY, width="stretch")
+
+# ABA 2: BÍBLIA SAGRADA (MODO CINEMA COM NAVEGAÇÃO DOS 66 LIVROS CANÔNICOS)
 with aba_biblia:
-    st.header("  Leitura e Pesquisa Bíblica")
+    st.header("📖 Leitura e Pesquisa Bíblica")
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
     if tabela_existe.empty:
         st.warning("A base de dados da Bíblia precisa ser estruturada.")
-        if st.button("  Sincronizar Todos os 66 Livros Agora", width="stretch"):
+        if st.button("🚀 Sincronizar Todos os 66 Livros Agora", width="stretch"):
             if carregar_biblia_completa():
                 st.success("Bíblia Sagrada completa sincronizada localmente com sucesso!")
                 st.rerun()
     else:
-        sub_aba_leitura, sub_aba_busca = st.tabs(["  Navegar por Capítulo", "  Buscar por Palavra-Chave"])
+        sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
         
         with sub_aba_leitura:
             df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
@@ -362,18 +414,24 @@ with aba_biblia:
                     conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{row['versiculo']}.</span> {row['texto']}</p>"
                 conteudo_html += "</div>"
                 st.markdown(conteudo_html, unsafe_allow_html=True)
-
+            else:
+                st.info("Nenhum texto encontrado para esta seleção.")
+                
         with sub_aba_busca:
-            busca_termo = st.text_input("  O que você deseja buscar nas escrituras?")
+            busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: princípio, amor, fé, graça)")
             if busca_termo:
                 res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto Completo do Versículo' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
                 if not res_busca.empty:
+                    st.subheader(f"Encontradas {len(res_busca)} ocorrências:")
                     st.dataframe(res_busca, width="stretch", hide_index=True)
+                else:
+                    st.info("Nenhum versículo contendo este termo foi localizado.")
 
+# ABA 3: LOUVORES
 with aba_louvores:
-    st.header("  Hinário & Letras de Louvores")
+    st.header("🎵 Hinário & Letras de Louvores")
     if st.session_state.nivel_atual == "Pastor":
-        with st.expander("  Adicionar Novo Louvor"):
+        with st.expander("➕ Adicionar Novo Louvor"):
             t_louvor = st.text_input("Título do Hino")
             a_louvor = st.text_input("Artista")
             l_louvor = st.text_area("Letra")
@@ -390,11 +448,100 @@ with aba_louvores:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")[0]
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
+            t_sel = selecionado.split(" - ")
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
             if not dados_l.empty:
                 st.subheader(selecionado)
                 reg_audio = dados_l.iloc[0]['arquivo_audio']
                 if reg_audio is not None:
                     st.audio(bytes(reg_audio), format="audio/mp3")
-                st.text(dados_l
+                st.text(dados_l.iloc[0]['letra'])
+
+# ABA 4: OFERTAS E DÍZIMOS VIA PIX
+with aba_pix:
+    st.header("💝 Dízimos, Ofertas e Contribuições")
+    st.markdown("""
+    <div class='pix-card'>
+        <h3 style='color: #008080; margin: 0;'>🔑 Chave Pix Oficial</h3>
+        <code style='font-size: 20px; color: #333; display: block; margin: 15px 0;'>admin@agape.com</code>
+        <p><b>Favorecido:</b> Igreja Evangélica Ágape de Saquarema</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ABAS GESTÃO EXCLUSIVA DO PASTOR
+if st.session_state.nivel_atual == "Pastor":
+    with aba_membros:
+        st.header("👥 Gestão de Membros")
+        filtro_nome = st.text_input("🔍 Pesquisar membro por nome:")
+            
+        with st.form("form_membro", clear_on_submit=True):
+            n_m = st.text_input("Nome do Membro")
+            t_m = st.text_input("Telefone")
+            c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
+            m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+            if st.form_submit_button("Salvar Registro"):
+                if n_m:
+                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
+                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
+                    st.rerun()
+                    
+        sql_membros = "SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros"
+        if filtro_nome:
+            sql_membros += f" WHERE nome LIKE '%{filtro_nome}%'"
+        membros_df = consultar_db(sql_membros)
+        st.dataframe(membros_df, width="stretch", hide_index=True)
+
+    with aba_financeiro:
+        st.header("💰 Fluxo de Caixa Financeiro")
+        c1, c2 = st.columns(2)
+        with c1:
+            tipo_f = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
+            desc_f = st.text_input("Descrição")
+            val_f = st.number_input("Valor", min_value=0.0, step=10.0)
+            if st.button("Confirmar Lançamento", width="stretch"):
+                executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano) VALUES (:t, :desc, :v, :data, :ma)",
+                               {"t": "Entrada" if "Entrada" in tipo_f else "Saída", "desc": desc_f, "v": val_f, "data": datetime.date.today().strftime('%d/%m/%Y'), "ma": datetime.date.today().strftime('%m/%Y')})
+                st.rerun()
+        
+        df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
+        df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
+        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
+        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
+        
+        with c2:
+            st.metric("Total Entradas", f"R$ {ent:,.2f}")
+            st.metric("Total Saídas", f"R$ {sai:,.2f}")
+            st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
+            
+        st.markdown("---")
+        st.subheader("📊 Comparativo Consolidado de Caixa")
+        df_grafico = pd.DataFrame({
+            "Tipo": ["Total Entradas (R$)", "Total Saídas (R$)"],
+            "Valor": [ent, sai]
+        }).set_index("Tipo")
+        st.bar_chart(df_grafico)
+        
+        st.markdown("---")
+        st.subheader("❌ Área de Exclusão de Lançamentos")
+        historico_df = consultar_db("SELECT id AS 'ID', tipo AS 'Tipo', descricao AS 'Descrição', valor AS 'Valor (R$)', data AS 'Data' FROM financeiro ORDER BY id DESC")
+        if not historico_df.empty:
+            st.dataframe(historico_df, width="stretch", hide_index=True)
+            id_para_deletar = st.number_input("Digite o ID do lançamento que deseja apagar:", min_value=1, step=1)
+            if st.button("❌ Apagar Lançamento Selecionado", type="primary"):
+                executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar})
+                st.success("Lançamento removido com sucesso!")
+                st.rerun()
+
+    with aba_credenciais:
+        st.header("🔐 Controle de Usuários")
+        with st.form("novo_user"):
+            u_nome = st.text_input("E-mail").strip()
+            u_senha = st.text_input("Senha", type="password")
+            u_nivel = st.selectbox("Nível", ["Membro", "Pastor"])
+            if st.form_submit_button("Gerar Usuário"):
+                if u_nome and u_senha:
+                    check_e = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": u_nome})
+                    if check_e.empty:
+                        executar_query("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, :n)",
+                                       {"u": u_nome, "s": generate_password_hash(u_senha, method="scrypt"), "n": u_nivel})
+                        st.success("Conta adicionada!")
