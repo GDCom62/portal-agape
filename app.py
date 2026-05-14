@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor)
+# Força atualização segura do Administrator (Pastor)
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -164,7 +164,6 @@ st.markdown("""
 def carregar_biblia_completa():
     try:
         linhas_db = [
-            # Gênesis Capítulo 1
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 1, "texto": "No princípio, criou Deus os céus e a terra."},
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 2, "texto": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas."},
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 3, "texto": "E disse Deus: Haja luz. E houve luz."},
@@ -175,30 +174,23 @@ def carregar_biblia_completa():
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 8, "texto": "E chamou Deus à expansão Céus; e foi a tarde e a manhã: o dia segundo."},
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 9, "texto": "E disse Deus: Ajuntem-se as águas debaixo dos céus num lugar; e apareça a porção seca. E assim foi."},
             {"livro": "Gênesis", "capitulo": 1, "versiculo": 10, "texto": "E chamou Deus à porção seca Terra; e ao ajuntamento das águas chamou Mares. E viu Deus que era bom."},
-            
-            # Gênesis Capítulo 2
             {"livro": "Gênesis", "capitulo": 2, "versiculo": 1, "texto": "Assim os céus, e a terra, e todo o seu exército foram acabados."},
             {"livro": "Gênesis", "capitulo": 2, "versiculo": 2, "texto": "E, havendo Deus acabado no dia sétimo a sua obra, que tinha feito, descansou no sétimo dia de toda a sua obra, que tinha feito."},
             {"livro": "Gênesis", "capitulo": 2, "versiculo": 3, "texto": "E abençoou Deus o dia sétimo e o santificou; porque nele descansou de toda a sua obra, que Deus criara e fizera."},
             {"livro": "Gênesis", "capitulo": 2, "versiculo": 4, "texto": "Estas são as origens dos céus e da terra, quando foram criados; no dia em que o Senhor Deus fez a terra e os céus."},
             {"livro": "Gênesis", "capitulo": 2, "versiculo": 5, "texto": "E toda planta do campo antes que estivesse na terra, e toda erva do campo antes que brotasse; porque ainda o Senhor Deus não tinha feito chover sobre a terra, e não havia homem para lavrar a terra."},
-
-            # Salmos Capítulo 23
             {"livro": "Salmos", "capitulo": 23, "versiculo": 1, "texto": "O Senhor é o meu pastor; nada me faltará."},
             {"livro": "Salmos", "capitulo": 23, "versiculo": 2, "texto": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."},
             {"livro": "Salmos", "capitulo": 23, "versiculo": 3, "texto": "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."},
             {"livro": "Salmos", "capitulo": 23, "versiculo": 4, "texto": "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam."},
             {"livro": "Salmos", "capitulo": 23, "versiculo": 5, "texto": "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda."},
             {"livro": "Salmos", "capitulo": 23, "versiculo": 6, "texto": "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na Casa do Senhor por longos dias."},
-
-            # Salmos Capítulo 91
             {"livro": "Salmos", "capitulo": 91, "versiculo": 1, "texto": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."},
             {"livro": "Salmos", "capitulo": 91, "versiculo": 2, "texto": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a sua fortaleza, e nele confiarei."},
             {"livro": "Salmos", "capitulo": 91, "versiculo": 3, "texto": "Porque ele te livrará do laço do passarinheiro e da peste perniciosa."},
             {"livro": "Salmos", "capitulo": 91, "versiculo": 4, "texto": "Ele te cobrirá com as suas penas, e debaixo das suas asas estarás seguro; a sua verdade será o teu escudo e broquel."},
             {"livro": "Salmos", "capitulo": 91, "versiculo": 5, "texto": "Não temerás espanto noturno, nem seta que voe de dia."}
         ]
-        
         df_biblia = pd.DataFrame(linhas_db)
         df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
         return True
@@ -382,7 +374,6 @@ with aba_biblia:
         with sub_aba_busca:
             busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: princípio, trevas, pastor)")
             if busca_termo:
-                # MELHORIA: O resultado agora exibe a coluna 'Texto' diretamente na visualização da tabela
                 res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto Completo do Versículo' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
                 if not res_busca.empty:
                     st.subheader(f"Encontradas {len(res_busca)} ocorrências com texto completo:")
@@ -435,17 +426,28 @@ with aba_pix:
 if st.session_state.nivel_atual == "Pastor":
     with aba_membros:
         st.header("👥 Gestão de Membros")
-        with st.form("form_membro", clear_on_submit=True):
-            n_m = st.text_input("Nome")
-            t_m = st.text_input("Telefone")
-            c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
-            m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-            if st.form_submit_button("Salvar Registro"):
-                if n_m:
-                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
-                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
-                    st.rerun()
-        membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
+        
+        # MELHORIA: Barra de pesquisa por nome integrada
+        busca_membro = st.text_input("🔍 Buscar membro pelo nome:")
+        
+        with st.expander("➕ Registrar Novo Membro"):
+            with st.form("form_membro", clear_on_submit=True):
+                n_m = st.text_input("Nome")
+                t_m = st.text_input("Telefone")
+                c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
+                m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+                if st.form_submit_button("Salvar Registro"):
+                    if n_m:
+                        executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
+                                       {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
+                        st.rerun()
+        
+        # Renderiza a lista aplicando o filtro caso haja texto digitado
+        if busca_membro:
+            membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros WHERE nome LIKE :b", {"b": f"%{busca_membro}%"})
+        else:
+            membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
+        
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
     with aba_financeiro:
@@ -470,7 +472,6 @@ if st.session_state.nivel_atual == "Pastor":
             st.metric("Total Saídas", f"R$ {sai:,.2f}")
             st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
             
-        # MELHORIA: Gráfico de barras visual para consolidação de entradas vs saídas
         st.markdown("---")
         st.subheader("📊 Comparativo Consolidado de Caixa")
         df_grafico = pd.DataFrame({
@@ -478,15 +479,18 @@ if st.session_state.nivel_atual == "Pastor":
             "Valor": [ent, sai]
         }).set_index("Tipo")
         st.bar_chart(df_grafico)
-
-    with aba_credenciais:
-        st.header("🔐 Controle de Usuários")
-        with st.form("novo_user"):
-            u_nome = st.text_input("E-mail").strip()
-            u_senha = st.text_input("Senha", type="password")
-            u_nivel = st.selectbox("Nível", ["Membro", "Pastor"])
-            if st.form_submit_button("Gerar Usuário"):
-                if u_nome and u_senha:
-                    executar_query("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, :n)",
-                                   {"u": u_nome, "s": generate_password_hash(u_senha, method="scrypt"), "n": u_nivel})
-                    st.success("Conta adicionada!")
+        
+        # MELHORIA: Painel operacional para remoção de lançamentos errados
+        st.markdown("---")
+        st.subheader("⚙️ Histórico e Correção de Lançamentos")
+        historico_df = consultar_db("SELECT id, tipo AS Tipo, descricao AS Descrição, valor AS 'Valor (R$)', data AS Data FROM financeiro ORDER BY id DESC")
+        
+        if not historico_df.empty:
+            col_id_del, col_btn_del = st.columns([1, 3])
+            with col_id_del:
+                id_para_deletar = st.number_input("Digite o ID do lançamento:", min_value=1, step=1, value=int(historico_df.iloc[0]['id']))
+            with col_btn_del:
+                st.write("") # Espaçador visual
+                st.write("") 
+                if st.button("❌ Excluir Lançamento Selecionado", width="stretch"):
+                    executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar
