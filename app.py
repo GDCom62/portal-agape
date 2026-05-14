@@ -2,38 +2,38 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
-import redis
-import requests
-import datetime
-import json
+importar redis
+solicitações de importação
+importar data e hora
+importar json
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
-st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
+st. set_page_config ( page_title= "Portal Ágape" , layout= "wide" , page_icon= "⛪" )
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-URL_CHAT_RAILWAY = "https://railway.app" 
+URL_CHAT_RAILWAY = "https://chat-agape-production.up.railway.app/" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- 3. CONEXÕES COM BANCO DE DADOS PERSISTENTE ---
-@st.cache_resource
-def inicializar_conexoes():
-    engine = create_engine(
-        "sqlite:///agape_v60.db", 
-        connect_args={"check_same_thread": False, "timeout": 30}
+@ st.cache_resource
+def  inicializar_conexoes ( ) :
+    motor = criar_motor (
+        "sqlite:///agape_v60.db" ,
+        connect_args= { "check_same_thread" : False , "timeout" : 30 }
     )
-    try:
-        r_db = redis.from_url(REDIS_URL, decode_responses=True)
-    except Exception:
-        r_db = None
-    return engine, r_db
+    tentar :
+        r_db = redis.from_url ( REDIS_URL , decode_responses= True )
+    exceto Exceção:
+        r_db = Nenhum
+    mecanismo de retorno , r_db
 
-engine, r_db = inicializar_conexoes()
+motor, r_db = inicializar_conexoes()inicializar_conexoes()
 
-def executar_query(sql, params=None):
-    with engine.begin() as conn:
-        conn.execute(text(sql), params or {})
+def executar_query(sql, params=None): executar_query(sql, params=None):
+    com engine.begin() como conn:with engine.begin() as conn:
+        conn.execute(text(sql), params ou {})execute(text(sql), params or {})
 
-def consultar_db(sql, params=None):
+def consultar_db(sql, params=None): consultar_db(sql, params=None):
     with engine.connect() as conn:
         try:
             return pd.read_sql_query(text(sql), conn, params=params or {})
