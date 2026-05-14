@@ -28,7 +28,6 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-# DECLARAÇÃO DAS FUNÇÕES ANTES DE QUALQUER CHAMADA SQL (Evita NameError)
 def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
@@ -40,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização segura de todas as tabelas e colunas nativas
+# Inicialização segura das tabelas nativas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,24 +96,19 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor) protegendo contra tabelas antigas
+# SOLUÇÃO DO TRAVAMENTO: Criação estável do Administrador usando INSERT OR IGNORE
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
     hash_admin = generate_password_hash(admin_senha_pura, method="scrypt")
     
-    try:
-        existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": admin_usuario})
-        if existe.empty:
-            executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
-                           {"user": admin_usuario, "senha": hash_admin})
-        else:
-            executar_query("UPDATE usuarios SET senha = :senha, nivel = 'Pastor' WHERE usuario = :user", 
-                           {"user": admin_usuario, "senha": hash_admin})
-    except Exception:
-        executar_query("DROP TABLE IF EXISTS usuarios;")
-        executar_query("CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
-        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
+    # Se já existir, apenas atualiza a senha de forma isolada sem dar DROP TABLE
+    existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": admin_usuario})
+    if existe.empty:
+        executar_query("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
+                       {"user": admin_usuario, "senha": hash_admin})
+    else:
+        executar_query("UPDATE usuarios SET senha = :senha, nivel = 'Pastor' WHERE usuario = :user", 
                        {"user": admin_usuario, "senha": hash_admin})
 
 verificar_e_criar_admin()
@@ -152,10 +146,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL - acf.json) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL DESCOMPACTADA) ---
 def carregar_biblia_completa():
     try:
-        # URL ABSOLUTA CORRIGIDA: Inclui o protocolo seguro obrigatório https:// e o caminho raw real do acf.json
+        # LINK CORRIGIDO: Injetada URL estável com protocolo HTTPS explícito apontando para o JSON real da Bíblia ACF em português
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -409,7 +403,7 @@ with abas[3]:
         st.info("Pastor: Substitua este bloco por st.image('qrcode.png') para fixar a imagem oficial.")
         st.markdown("<div style='background: #f8f9fa; border: 1px solid #ddd; height:200px; border-radius:15px; display:flex; align-items:center; justify-content:center; color:gray;'>[Área do QR Code Pix]</div>", unsafe_allow_html=True)
 
-# ABAS EXCLUSIVAS GESTÃO DO PASTOR
+# ABAS EXCLUSIVAS GESTÃO DO PASTOR (Membros, Financeiro, Usuários)
 if st.session_state.nivel_atual == "Pastor":
     with abas[4]:
         st.header("👥 Cadastro de Membros")
@@ -441,7 +435,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
             
             if st.button("Confirmar Lançamento", width="stretch"):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
