@@ -13,10 +13,10 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
-# --- 3. CONEXÕES COM BANCO DE DADOS CORRIGIDA (Caminho Persistente Local) ---
+# --- 3. CONEXÕES COM BANCO DE DADOS ---
 @st.cache_resource
 def inicializar_conexoes():
-    # Removido /tmp/ para evitar apagamentos automáticos do sistema operacional
+    # Banco local persistente (não apaga ao reiniciar o container)
     engine = create_engine(
         "sqlite:///agape_v60.db", 
         connect_args={"check_same_thread": False, "timeout": 30}
@@ -29,7 +29,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-# Definição das funções de manipulação do banco
+# Definição das funções de manipulação do banco (Devem vir antes das chamadas)
 def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
@@ -41,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação das tabelas relacionais do sistema
+# Inicialização segura de todas as tabelas estruturais
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +101,7 @@ try:
 except Exception:
     pass
 
-# Sincronização do Administrador Nativo
+# Sincronização automática do Administrador do Portal
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -118,7 +118,7 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. ESTILIZAÇÃO CUSTOMIZADA ---
+# --- 4. ESTILIZAÇÃO CUSTOMIZADA (FUNDO AMARELO OURO) ---
 st.markdown("""
     <style>
     .stApp {
@@ -143,9 +143,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (URL REAL E ATIVA) ---
 def carregar_biblia_completa():
     try:
+        # URL Real e pública contendo a Bíblia Sagrada estruturada em formato bruto (RAW)
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -173,7 +174,7 @@ def carregar_biblia_completa():
         st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
 
-# --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO) ---
+# --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -182,30 +183,76 @@ if "autenticado" not in st.session_state:
 st.sidebar.title("🔐 Portal Ágape")
 
 if not st.session_state.autenticado:
-    with st.sidebar.form(key="form_login"):
-        campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com")
-        campo_senha = st.text_input("Senha", type="password", value="agape2026")
-        botao_entrar = st.form_submit_button("Entrar")
-        if botao_entrar:
-            df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-            if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
-                st.session_state.autenticado = True
-                st.session_state.usuario_atual = campo_usuario
-                st.session_state.nivel_atual = df_u.iloc[0]['nivel']
-                st.rerun()
-            else:
-                st.sidebar.error("Usuário ou senha incorretos.")
+    aba_side_login, aba_side_novo, aba_side_esqueci = st.sidebar.tabs(["Entrar", "Novo Acesso", "Esqueci a Senha"])
+    
+    with aba_side_login:
+        with st.form(key="form_login_novo"):
+            campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com").strip()
+            campo_senha = st.text_input("Senha", type="password", value="agape2026")
+            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            
+            if botao_entrar:
+                df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
+                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_atual = campo_usuario
+                    st.session_state.nivel_atual = df_u.iloc[0]['nivel']
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+                    
+    with aba_side_novo:
+        with st.form(key="form_cadastro_autonomo"):
+            reg_user = st.text_input("E-mail para Acesso").strip()
+            reg_pass = st.text_input("Defina uma Senha", type="password")
+            botao_registrar = st.form_submit_button("Solicitar Acesso", use_container_width=True)
+            
+            if botao_registrar:
+                if reg_user and reg_pass:
+                    if len(reg_pass) < 4:
+                        st.error("A senha precisa ter no mínimo 4 caracteres.")
+                    else:
+                        check_existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reg_user})
+                        if check_existe.empty:
+                            hash_nova_senha = generate_password_hash(reg_pass, method="scrypt")
+                            executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')",
+                                           {"u": reg_user, "s": hash_nova_senha})
+                            st.success("Acesso criado! Mude para a aba 'Entrar'.")
+                        else:
+                            st.error("Este e-mail de usuário já está cadastrado.")
+                else:
+                    st.warning("Preencha todos os campos obrigatórios.")
+
+    with aba_side_esqueci:
+        with st.form(key="form_reset_senha"):
+            st.caption("Insira o seu e-mail cadastrado e defina a nova senha abaixo.")
+            reset_user = st.text_input("E-mail Cadastrado").strip()
+            nova_senha_pura = st.text_input("Nova Senha Desejada", type="password")
+            botao_resetar = st.form_submit_button("Resetar e Atualizar Senha", use_container_width=True)
+            
+            if botao_resetar:
+                if reset_user and nova_senha_pura:
+                    check_user = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reset_user})
+                    if not check_user.empty:
+                        hash_recuperado = generate_password_hash(nova_senha_pura, method="scrypt")
+                        executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", 
+                                       {"s": hash_recuperado, "u": reset_user})
+                        st.success("Senha atualizada! Prossiga para o Login.")
+                    else:
+                        st.error("E-mail não encontrado no sistema.")
+                else:
+                    st.warning("Preencha o e-mail e a nova senha.")
     st.stop()
 else:
     st.sidebar.write(f"Usuário: **{st.session_state.usuario_atual}**")
     st.sidebar.info(f"Acesso: {st.session_state.nivel_atual}")
-    if st.sidebar.button("🚪 Sair do Sistema"):
+    if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
         st.session_state.autenticado = False
         st.session_state.usuario_atual = None
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. MONTAGEM DO PAINEL DE CONTEÚDO ---
+# --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
 st.title("⛪ Portal Administrativo Ágape")
 
 if st.session_state.nivel_atual == "Pastor":
@@ -213,7 +260,7 @@ if st.session_state.nivel_atual == "Pastor":
 else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
 
-# ABA 1: CONTEÚDO INICIAL
+# ABA 1: CONTEÚDO INICIAL (MURAL, VIDEO, PALAVRA DO DIA, ANIVERSARIANTES)
 with abas[0]:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
@@ -281,7 +328,7 @@ with abas[1]:
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
         if st.button("🚀 Sincronizar Bíblia Sagrada Agora", use_container_width=True):
-            with st.spinner("Sincronizando base de dados..."):
+            with st.spinner("Sincronizando base de dados de forma segura... Aguarde."):
                 if carregar_biblia_completa():
                     st.success("Sincronização concluída com sucesso!")
                     st.rerun()
@@ -317,7 +364,7 @@ with abas[idx_louvores]:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor para exibir", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")[0] # Filtra puramente o título textual antes do separador
+            t_sel = selecionado.split(" - ")[0]
             dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             
             if not dados_l.empty:
