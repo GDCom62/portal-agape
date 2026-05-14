@@ -39,15 +39,17 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização de tabelas relacionais locais
+# CORREÇÃO DA CRIAÇÃO DE TABELA COM TODAS AS COLUNAS NATIVAS
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario TEXT UNIQUE,
-    senha TEXT
+    senha TEXT,
+    nivel TEXT DEFAULT 'Membro'
 );
 """)
 
+# Migração de contingência caso a tabela tenha sido criada antiga sem a coluna nível
 try:
     executar_query("ALTER TABLE usuarios ADD COLUMN nivel TEXT DEFAULT 'Membro';")
 except Exception:
@@ -149,10 +151,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK DIRETO E COMPLETO COM HTTPS) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK PUBLICO DIRETO E TESTADO) ---
 def carregar_biblia_completa():
     try:
-        # Corrigido: Endpoint final absoluto em formato RAW contendo a Bíblia NVI em Português
+        # Repositório de dados limpos do ARC em português estável
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -161,8 +163,7 @@ def carregar_biblia_completa():
             linhas_db = []
             
             for livro_dados in dados_totais:
-                # Extração mapeada conforme a árvore nativa do JSON (keys: 'book' ou 'name')
-                nome_livro = livro_dados.get("book", livro_dados.get("name", "Desconhecido"))
+                nome_livro = livro_dados.get("name", "Desconhecido")
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -340,7 +341,7 @@ with abas[1]:
                     st.success("Sincronização concluída com sucesso! Base populada.")
                     st.rerun()
                 else:
-                    st.error("Falha de rede ao tentar obter o JSON. Verifique os logs.")
+                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
@@ -382,7 +383,7 @@ with abas[2]:
                     st.audio(bytes(registro_audio), format="audio/mp3")
                 st.text(dados_l.iloc[0]['letra'])
 
-# ABA 4: DOAÇÕES E DÍZIMOS VIA PIX (Disponível para todos)
+# ABA 4: DOAÇÕES E DÍZIMOS VIA PIX
 with abas[3]:
     st.header("💝 Dízimos, Ofertas e Contribuições")
     st.caption("Gere a sua contribuição diretamente via Pix de forma prática e segura.")
@@ -407,12 +408,10 @@ with abas[3]:
         
     with col_pix_qr:
         st.subheader("📷 Escaneie o QR Code")
-        # Espaço reservado para o upload ou exibição estática do QR Code da igreja
-        st.info("Pastor: Você pode fixar o arquivo de imagem do seu QR Code estático do banco aqui substituindo este bloco por st.image('caminho_da_foto.png').")
-        # Demonstração visual de área limpa para receber o QR Code
+        st.info("Pastor: Fixe a imagem do QR Code substituindo este bloco por st.image('seu_qrcode.png').")
         st.markdown("<div style='background: #f8f9fa; border: 1px solid #ddd; height:200px; border-radius:15px; display:flex; align-items:center; justify-content:center; color:gray;'>[Área do QR Code Pix]</div>", unsafe_allow_html=True)
 
-# ABAS EXCLUSIVAS GESTÃO DO PASTOR
+# ABAS EXCLUSIVAS GESTÃO DO PASTOR (Indexadas com segurança por fatiamento fixo)
 if st.session_state.nivel_atual == "Pastor":
     with abas[4]:
         st.header("👥 Cadastro de Membros")
@@ -444,7 +443,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
             
             if st.button("Confirmar Lançamento", use_container_width=True):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
