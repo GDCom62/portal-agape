@@ -29,7 +29,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -186,7 +186,6 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                # CORREÇÃO CRÍTICA: Uso de .loc[0, 'coluna'] em vez de .iloc para evitar erro do Pandas
                 if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
@@ -411,10 +410,9 @@ with aba_louvores:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
             t_sel = selecionado.split(" - ")
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             if not dados_l.empty:
                 st.subheader(selecionado)
-                # CORREÇÃO: Leitura correta do BLOB via .loc
                 reg_audio = dados_l.loc[0, 'arquivo_audio']
                 if reg_audio is not None:
                     st.audio(bytes(reg_audio), format="audio/mp3")
@@ -435,7 +433,13 @@ with aba_pix:
 if st.session_state.nivel_atual == "Pastor":
     with aba_membros:
         st.header("👥 Gestão de Membros")
-        filtro_nome = st.text_input("🔍 Pesquisar membro por nome:")
+        
+        # MELHORIA: Filtros Avançados combinados por Nome e Cargo Eclesiástico
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            filtro_nome = st.text_input("🔍 Filtrar por nome:")
+        with col_f2:
+            filtro_cargo = st.selectbox("👔 Filtrar por Cargo Eclesiástico:", ["Todos", "Membro", "Diácono", "Presbítero", "Pastor"])
             
         with st.form("form_membro", clear_on_submit=True):
             n_m = st.text_input("Nome do Membro")
@@ -450,9 +454,12 @@ if st.session_state.nivel_atual == "Pastor":
                                    {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a, "obs": obs_m})
                     st.rerun()
                     
-        sql_membros = "SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário, observacoes AS Observações FROM membros"
+        sql_membros = "SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário, observacoes AS Observações FROM membros WHERE 1=1"
         if filtro_nome:
-            sql_membros += f" WHERE nome LIKE '%{filtro_nome}%'"
+            sql_membros += f" AND nome LIKE '%{filtro_nome}%'"
+        if filtro_cargo != "Todos":
+            sql_membros += f" AND cargo = '{filtro_cargo}'"
+            
         membros_df = consultar_db(sql_membros)
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
@@ -470,7 +477,6 @@ if st.session_state.nivel_atual == "Pastor":
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        # CORREÇÃO: Uso seguro de .loc para evitar o erro do Pandas nas métricas do painel
         ent = float(df_ent.loc[0, 'total']) if not df_ent.empty and df_ent.loc[0, 'total'] is not None else 0.0
         sai = float(df_sai.loc[0, 'total']) if not df_sai.empty and df_sai.loc[0, 'total'] is not None else 0.0
         
@@ -488,9 +494,21 @@ if st.session_state.nivel_atual == "Pastor":
         st.bar_chart(df_grafico)
         
         st.markdown("---")
-        st.subheader("❌ Área de Exclusão de Lançamentos")
+        st.subheader("❌ Área de Exclusão & Exportação Excel")
         historico_df = consultar_db("SELECT id AS 'ID', tipo AS 'Tipo', descricao AS 'Descrição', valor AS 'Valor (R$)', data AS 'Data' FROM financeiro ORDER BY id DESC")
+        
         if not historico_df.empty:
+            # MELHORIA: Botão para Exportar Relatório Geral de Caixa diretamente para o Excel (CSV)
+            csv_dados = historico_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Exportar Histórico Financeiro para o Excel",
+                data=csv_dados,
+                file_name=f"fluxo_caixa_agape_{datetime.date.today().strftime('%Y_%m_%d')}.csv",
+                mime="text/csv",
+                width="stretch"
+            )
+            st.markdown(" ")
+            
             st.dataframe(historico_df, width="stretch", hide_index=True)
             id_para_deletar = st.number_input("Digite o ID do lançamento que deseja apagar:", min_value=1, step=1)
             
