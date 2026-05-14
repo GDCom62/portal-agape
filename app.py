@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrator (Pastor)
+# Força atualização segura do Administrador (Pastor)
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -217,10 +217,10 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
+                if not df_u.empty and check_password_hash(str(df_u.iloc['senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.iloc[0]['nivel']
+                    st.session_state.nivel_atual = df_u.iloc['nivel']
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -425,35 +425,35 @@ with aba_pix:
 # ABAS GESTÃO EXCLUSIVA DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
     with aba_membros:
-        st.header("👥 Gestão de Membros")
+        st.header("👥 Gestão e Filtro de Membros")
         
-        # MELHORIA: Barra de pesquisa por nome integrada
+        # FEATURE B: Campo de busca por nome para filtrar membros cadastrados
         busca_membro = st.text_input("🔍 Buscar membro pelo nome:")
         
-        with st.expander("➕ Registrar Novo Membro"):
-            with st.form("form_membro", clear_on_submit=True):
-                n_m = st.text_input("Nome")
-                t_m = st.text_input("Telefone")
-                c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
-                m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                if st.form_submit_button("Salvar Registro"):
-                    if n_m:
-                        executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
-                                       {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
-                        st.rerun()
+        with st.form("form_membro", clear_on_submit=True):
+            st.subheader("➕ Adicionar Novo Membro")
+            n_m = st.text_input("Nome")
+            t_m = st.text_input("Telefone")
+            c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
+            m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+            if st.form_submit_button("Salvar Registro"):
+                if n_m:
+                    executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
+                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
+                    st.rerun()
         
-        # Renderiza a lista aplicando o filtro caso haja texto digitado
         if busca_membro:
-            membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros WHERE nome LIKE :b", {"b": f"%{busca_membro}%"})
+            membros_df = consultar_db("SELECT nome AS Nome, telephone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros WHERE nome LIKE :b", {"b": f"%{busca_membro}%"})
         else:
-            membros_df = consultar_db("SELECT nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
-        
+            membros_df = consultar_db("SELECT nome AS Nome, telephone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
+            
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
     with aba_financeiro:
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
         with c1:
+            st.subheader("➕ Lançar Transação")
             tipo_f = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
             desc_f = st.text_input("Descrição")
             val_f = st.number_input("Valor", min_value=0.0, step=10.0)
@@ -468,6 +468,7 @@ if st.session_state.nivel_atual == "Pastor":
         sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
         
         with c2:
+            st.subheader("📊 Resumo do Caixa")
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
             st.metric("Total Saídas", f"R$ {sai:,.2f}")
             st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
@@ -480,17 +481,13 @@ if st.session_state.nivel_atual == "Pastor":
         }).set_index("Tipo")
         st.bar_chart(df_grafico)
         
-        # MELHORIA: Painel operacional para remoção de lançamentos errados
+        # FEATURE A: Histórico completo com opção para o Pastor deletar lançamentos com erro
         st.markdown("---")
-        st.subheader("⚙️ Histórico e Correção de Lançamentos")
-        historico_df = consultar_db("SELECT id, tipo AS Tipo, descricao AS Descrição, valor AS 'Valor (R$)', data AS Data FROM financeiro ORDER BY id DESC")
+        st.subheader("📋 Histórico e Exclusão de Lançamentos")
+        historico_df = consultar_db("SELECT id, tipo AS Tipo, descricao AS Descrição, valor AS Valor, data AS Data FROM financeiro ORDER BY id DESC")
         
         if not historico_df.empty:
-            col_id_del, col_btn_del = st.columns([1, 3])
-            with col_id_del:
-                id_para_deletar = st.number_input("Digite o ID do lançamento:", min_value=1, step=1, value=int(historico_df.iloc[0]['id']))
-            with col_btn_del:
-                st.write("") # Espaçador visual
-                st.write("") 
-                if st.button("❌ Excluir Lançamento Selecionado", width="stretch"):
-                    executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar
+            st.dataframe(historico_df, width="stretch", hide_index=True)
+            # Dicionário corrigido com fechamento correto de parênteses e chaves
+            id_para_deletar = st.number_input("Digite o ID do lançamento que deseja apagar:", min_value=1, step=1)
+            if st.button("❌ Apagar Lançamento Selecionado", type
