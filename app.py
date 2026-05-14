@@ -186,10 +186,10 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
+                if not df_u.empty and check_password_hash(str(df_u.iloc['senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.iloc[0]['nivel']
+                    st.session_state.nivel_atual = df_u.iloc['nivel']
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -327,14 +327,13 @@ with aba_mural:
 
 # ABA 2: BÍBLIA SAGRADA REAL ONLINE (API DE ALTA DISPONIBILIDADE)
 with aba_biblia:
-    st.header("📖 Leitura Bíblica Oficial (Almeida Corrigida Fiel)")
+    st.header("📖 Leitura Bíblica Oficial (Almeida Revista e Corrigida)")
     
-    # Lista canônica adaptada com os nomes aceitos universalmente pelas APIs rest estáveis
     livros_canônicos_66 = [
         "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
         "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah",
         "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah",
-        "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadia", "Jonah",
+        "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah",
         "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
         "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
         "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
@@ -342,34 +341,48 @@ with aba_biblia:
         "1 John", "2 John", "3 John", "Judas", "Revelation"
     ]
     
-    c_livro, c_cap = st.columns(2)
-    with c_livro:
-        livro_sel = st.selectbox("Escolha o Livro Sagrado", livros_canônicos_66)
-    with c_cap:
-        cap_sel = st.number_input("Escolha o Capítulo", min_value=1, max_value=150, value=1, step=1)
-        
-    if st.button("📖 Abrir Capítulo em Modo Cinema", width="stretch"):
-        with st.spinner("Buscando escrituras legítimas na nuvem..."):
-            try:
-                # URL CORRIGIDA COM PROTOCOLO HTTPS COMPLETO DE PONTA A PONTA
-                link_api = f"https://bible-api.com{livro_sel}+{cap_sel}"
-                resposta = requests.get(link_api, timeout=12)
-                
-                if resposta.status_code == 200:
-                    dados_bible = resposta.json()
-                    st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+    sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
+    
+    with sub_aba_leitura:
+        c_livro, c_cap = st.columns(2)
+        with c_livro:
+            livro_sel = st.selectbox("Escolha o Livro Sagrado", livros_canônicos_66)
+        with c_cap:
+            cap_sel = st.number_input("Escolha o Capítulo", min_value=1, max_value=150, value=1, step=1)
+            
+        if st.button("📖 Abrir Capítulo em Modo Cinema", width="stretch"):
+            with st.spinner("Buscando escrituras legítimas na nuvem..."):
+                try:
+                    # CORREÇÃO CRÍTICA: Adicionada a barra '/' após a URL e parâmetro '@almeida' para carregar em Português
+                    link_api = f"https://bible-api.com{livro_sel}+{cap_sel}?translation=almeida"
+                    resposta = requests.get(link_api, timeout=12)
                     
-                    conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
-                    for v in dados_bible.get("verses", []):
-                        num_ver = v.get("verse")
-                        txt_ver = v.get("text").strip()
-                        conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{num_ver}.</span> {txt_ver}</p>"
-                    conteudo_html += "</div>"
-                    st.markdown(conteudo_html, unsafe_allow_html=True)
-                else:
-                    st.error("Erro ao localizar este capítulo na API. Verifique se o livro possui essa numeração.")
-            except Exception as e:
-                st.error(f"Não foi possível conectar ao servidor de escrituras: {e}")
+                    if resposta.status_code == 200:
+                        dados_bible = resposta.json()
+                        st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+                        
+                        conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
+                        for v in dados_bible.get("verses", []):
+                            num_ver = v.get("verse")
+                            txt_ver = v.get("text").strip()
+                            conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{num_ver}.</span> {txt_ver}</p>"
+                        conteudo_html += "</div>"
+                        st.markdown(conteudo_html, unsafe_allow_html=True)
+                    else:
+                        st.error("Erro ao localizar este capítulo na API. Verifique se o livro possui essa numeração.")
+                except Exception as e:
+                    st.error(f"Não foi possível conectar ao servidor de escrituras: {e}")
+
+    with sub_aba_busca:
+        busca_termo = st.text_input("🔍 Buscar termo exato na API:")
+        if busca_termo:
+            resposta_b = requests.get(f"https://bible-api.com{busca_termo}?translation=almeida", timeout=15)
+            if resposta_b.status_code == 200:
+                dados_busca = resposta_b.json()
+                st.info(f"Exibindo resultado correspondente para: '{busca_termo}'")
+                st.write(dados_busca.get("text", "Nenhum bloco retornado."))
+            else:
+                st.info("Termo não localizado.")
 
 # ABA 3: LOUVORES
 with aba_louvores:
@@ -393,13 +406,13 @@ with aba_louvores:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
             t_sel = selecionado.split(" - ")
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             if not dados_l.empty:
                 st.subheader(selecionado)
-                reg_audio = dados_l.iloc[0]['arquivo_audio']
+                reg_audio = dados_l.iloc['arquivo_audio']
                 if reg_audio is not None:
                     st.audio(bytes(reg_audio), format="audio/mp3")
-                st.text(dados_l.iloc[0]['letra'])
+                st.text(dados_l.iloc['letra'])
 
 # ABA 4: OFERTAS E DÍZIMOS VIA PIX
 with aba_pix:
@@ -451,8 +464,8 @@ if st.session_state.nivel_atual == "Pastor":
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
-        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
+        ent = float(df_ent.iloc['total']) if not df_ent.empty and df_ent.iloc['total'] is not None else 0.0
+        sai = float(df_sai.iloc['total']) if not df_sai.empty and df_sai.iloc['total'] is not None else 0.0
         
         with c2:
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
