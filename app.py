@@ -13,12 +13,13 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 URL_CHAT_RAILWAY = "railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
-# --- 3. CONEXÕES COM BANCO DE DADOS ---
+# --- 3. CONEXÕES COM BANCO DE DADOS CORRIGIDA (Caminho Persistente Local) ---
 @st.cache_resource
 def inicializar_conexoes():
+    # Removido /tmp/ para evitar apagamentos automáticos do sistema operacional
     engine = create_engine(
-        "sqlite:////tmp/agape_v60.db", 
-        connect_args={"check_same_thread": False, "timeout": 10}
+        "sqlite:///agape_v60.db", 
+        connect_args={"check_same_thread": False, "timeout": 30}
     )
     try:
         r_db = redis.from_url(REDIS_URL, decode_responses=True)
@@ -142,11 +143,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
 def carregar_biblia_completa():
     try:
-        # URL oficial e segura com o esquema HTTPS completo apontando para o arquivo JSON estruturado
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=20)
         
@@ -214,9 +213,8 @@ if st.session_state.nivel_atual == "Pastor":
 else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
 
-# ABA 1: CONTEÚDO INICIAL (MURAL, VIDEO, ANIVERSARIANTES E DESTAQUE)
+# ABA 1: CONTEÚDO INICIAL
 with abas[0]:
-    # Corrigido para st.columns(2)
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
         st.markdown("""
@@ -245,8 +243,6 @@ with abas[0]:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    # CORREÇÃO DO ERRO: Especificando obrigatoriamente a quantia de colunas (2)
     col_aviso, col_video = st.columns(2)
     
     with col_aviso:
@@ -321,7 +317,7 @@ with abas[idx_louvores]:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor para exibir", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")[0]
+            t_sel = selecionado.split(" - ")[0] # Filtra puramente o título textual antes do separador
             dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             
             if not dados_l.empty:
