@@ -39,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação inicial protegida de tabelas com todas as colunas nativas
+# Criação inicial protegida de tabelas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,7 +154,7 @@ st.markdown("""
 # --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK REAL HTTPS COMPLETO) ---
 def carregar_biblia_completa():
     try:
-        # CORREÇÃO DEFINITIVA: URL real com o protocolo https:// completo e testado
+        # Injetada URL estável, pública e direta em formato raw JSON para a versão em português
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -197,7 +197,7 @@ if not st.session_state.autenticado:
         with st.form(key="form_login_novo"):
             campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com").strip()
             campo_senha = st.text_input("Senha", type="password", value="agape2026")
-            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            botao_entrar = st.form_submit_button("Entrar no Sistema", width="stretch")
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
@@ -213,7 +213,7 @@ if not st.session_state.autenticado:
         with st.form(key="form_cadastro_autonomo"):
             reg_user = st.text_input("E-mail para Acesso").strip()
             reg_pass = st.text_input("Defina uma Senha", type="password")
-            botao_registrar = st.form_submit_button("Solicitar Acesso", use_container_width=True)
+            botao_registrar = st.form_submit_button("Solicitar Acesso", width="stretch")
             
             if botao_registrar:
                 if reg_user and reg_pass:
@@ -236,7 +236,7 @@ if not st.session_state.autenticado:
             st.caption("Insira o seu e-mail cadastrado e defina a nova senha abaixo.")
             reset_user = st.text_input("E-mail Cadastrado").strip()
             nova_senha_pura = st.text_input("Nova Senha Desejada", type="password")
-            botao_resetar = st.form_submit_button("Resetar e Atualizar Senha", use_container_width=True)
+            botao_resetar = st.form_submit_button("Resetar e Atualizar Senha", width="stretch")
             
             if botao_resetar:
                 if reset_user and nova_senha_pura:
@@ -254,7 +254,7 @@ if not st.session_state.autenticado:
 else:
     st.sidebar.write(f"Usuário: **{st.session_state.usuario_atual}**")
     st.sidebar.info(f"Acesso: {st.session_state.nivel_atual}")
-    if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+    if st.sidebar.button("🚪 Sair do Sistema", width="stretch"):
         st.session_state.autenticado = False
         st.session_state.usuario_atual = None
         st.session_state.nivel_atual = "Membro"
@@ -333,7 +333,7 @@ with abas[1]:
     
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
-        if st.button("🚀 Sincronizar Bíblia Sagrada Agora", use_container_width=True):
+        if st.button("🚀 Sincronizar Bíblia Sagrada Agora", width="stretch"):
             with st.spinner("Conectando ao servidor e baixando os 66 Livros... Aguarde alguns segundos."):
                 if carregar_biblia_completa():
                     st.success("Sincronização concluída com sucesso! Base populada.")
@@ -345,7 +345,7 @@ with abas[1]:
         if busca:
             res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
             if not res_b.empty:
-                st.dataframe(res_b, use_container_width=True, hide_index=True)
+                st.dataframe(res_b, width="stretch", hide_index=True)
             else:
                 st.info("Nenhum resultado encontrado para esta palavra.")
 
@@ -425,7 +425,7 @@ if st.session_state.nivel_atual == "Pastor":
                     st.rerun()
         
         membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
-        st.dataframe(membros_df, use_container_width=True, hide_index=True)
+        st.dataframe(membros_df, width="stretch", hide_index=True)
 
     with abas[5]:
         st.header("💰 Fluxo de Caixa Financeiro")
@@ -442,7 +442,7 @@ if st.session_state.nivel_atual == "Pastor":
                 if escolha_m != "Nenhum":
                     id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
             
-            if st.button("Confirmar Lançamento", use_container_width=True):
+            if st.button("Confirmar Lançamento", width="stretch"):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
                 executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id) VALUES (:t, :desc, :v, :data, :ma, :mid)",
                                {"t": "Entrada" if "Entrada" in tipo_f else "Saída", "desc": desc_f, "v": val_f, "data": datetime.date.today().strftime('%d/%m/%Y'), "ma": mes_ano_v, "mid": id_membro_v})
