@@ -28,7 +28,8 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+# CORREÇÃO CRÍTICA: Declaração das funções movida para antes de qualquer chamada SQL
+def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -39,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação inicial protegida de tabelas
+# Inicialização segura de todas as tabelas e colunas nativas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +97,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor)
+# Força atualização segura do Administrador (Pastor) protegendo contra tabelas antigas
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -151,37 +152,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA LOCAL (100% IMUNE A ERROS DE LINK) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (INDETRUTÍVEL E COM PROTOCOLO HTTPS) ---
 def carregar_biblia_completa():
     try:
-        # Lista com a estrutura oficial dos 66 livros da Bíblia Sagrada
-        livros_lista = [
-            "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-            "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
-            "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cantares", "Isaías", "Jeremias",
-            "Lamentações", "Ezequiel", "Daniel", "Oséias", "Joel", "Amós", "Obadias", "Jonas",
-            "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
-            "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
-            "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
-            "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
-            "1 João", "2 João", "3 João", "Judas", "Apocalipse"
-        ]
+        # URL absoluta estável contendo a versão Almeida Corrigida Fiel (ACF) em formato RAW bruto
+        url = "githubusercontent.com"
+        resposta = requests.get(url, timeout=30)
         
-        linhas_db = []
-        for livro in livros_lista:
-            # Inicializa a estrutura indexada no banco local para leitura e futuras buscas de termos
-            linhas_db.append({
-                "livro": str(livro),
-                "capitulo": 1,
-                "versiculo": 1,
-                "texto": f"Estrutura do livro de {livro} carregada com sucesso localmente. Lâmpada para os meus pés é a Tua Palavra!"
-            })
+        if resposta.status_code == 200:
+            dados_totais = resposta.json()
+            linhas_db = []
             
-        df_biblia = pd.DataFrame(linhas_db)
-        df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-        return True
+            for livro_dados in dados_totais:
+                nome_livro = livro_dados.get("name", "Desconhecido")
+                for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
+                    for v_idx, versiculo in enumerate(capitulo, start=1):
+                        linhas_db.append({
+                            "livro": str(nome_livro),
+                            "capitulo": int(c_idx),
+                            "versiculo": int(v_idx),
+                            "texto": str(versiculo)
+                        })
+            
+            if linhas_db:
+                df_biblia = pd.DataFrame(linhas_db)
+                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
+                return True
+        return False
     except Exception as e:
-        st.error(f"Erro na geração local da Bíblia: {e}")
+        st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -203,10 +202,10 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.iloc['senha']), campo_senha):
+                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.iloc['nivel']
+                    st.session_state.nivel_atual = df_u.iloc[0]['nivel']
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -247,7 +246,7 @@ if not st.session_state.autenticado:
                         hash_recuperado = generate_password_hash(nova_senha_pura, method="scrypt")
                         executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", 
                                        {"s": hash_recuperado, "u": reset_user})
-                        st.success("Senha updated! Prossiga para o Login.")
+                        st.success("Senha atualizada! Prossiga para o Login.")
                     else:
                         st.error("E-mail não encontrado no sistema.")
                 else:
@@ -269,7 +268,7 @@ else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos"])
 
 # ABA 1: CONTEÚDO INICIAL
-with abas:
+with abas[0]:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
         st.markdown("""
@@ -329,33 +328,30 @@ with abas:
         st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="450" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
 
 # ABA 2: BÍBLIA SAGRADA
-with abas:
+with abas[1]:
     st.header("📖 Leitura e Pesquisa Bíblica")
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
-        if st.button("🚀 Inicializar Estrutura Bíblica Agora", width="stretch"):
-            with st.spinner("Estruturando índice dos 66 Livros localmente..."):
+        if st.button("🚀 Sincronizar Bíblia Sagrada Agora", width="stretch"):
+            with st.spinner("Conectando ao repositório seguro e baixando os 66 Livros... Aguarde."):
                 if carregar_biblia_completa():
-                    st.success("Bíblia Sagrada inicializada com sucesso!")
+                    st.success("Sincronização realizada com sucesso! Base populada.")
                     st.rerun()
+                else:
+                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
     else:
-        busca = st.text_input("🔍 Digite o nome do livro ou palavra para filtrar:")
+        busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
-            res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE livro LIKE :b OR texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
+            res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
             if not res_b.empty:
                 st.dataframe(res_b, width="stretch", hide_index=True)
             else:
                 st.info("Nenhum resultado encontrado para esta palavra.")
-        else:
-            st.subheader("Livros Disponíveis para Consulta")
-            df_livros_lista = consultar_db("SELECT DISTINCT livro AS 'Livros Sincronizados' FROM biblia")
-            if not df_livros_lista.empty:
-                st.dataframe(df_livros_lista, width="stretch", hide_index=True)
 
 # ABA 3: LOUVORES
-with abas:
+with abas[2]:
     st.header("🎵 Hinário & Letras de Louvores")
     if st.session_state.nivel_atual == "Pastor":
         with st.expander("➕ Adicionar Novo Louvor"):
@@ -375,18 +371,18 @@ with abas:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor para exibir", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")
+            t_sel = selecionado.split(" - ")[0]
             dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             
             if not dados_l.empty:
                 st.subheader(selecionado)
-                registro_audio = dados_l.iloc['arquivo_audio']
+                registro_audio = dados_l.iloc[0]['arquivo_audio']
                 if registro_audio is not None:
                     st.audio(bytes(registro_audio), format="audio/mp3")
-                st.text(dados_l.iloc['letra'])
+                st.text(dados_l.iloc[0]['letra'])
 
 # ABA 4: DOAÇÕES E DÍZIMOS VIA PIX
-with abas:
+with abas[3]:
     st.header("💝 Dízimos, Ofertas e Contribuições")
     st.caption("Gere a sua contribuição diretamente via Pix de forma prática e segura.")
     
@@ -415,7 +411,7 @@ with abas:
 
 # ABAS EXCLUSIVAS GESTÃO DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
-    with abas:
+    with abas[4]:
         st.header("👥 Cadastro de Membros")
         with st.form("form_membro", clear_on_submit=True):
             n_m = st.text_input("Nome Completo")
@@ -432,7 +428,7 @@ if st.session_state.nivel_atual == "Pastor":
         membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
-    with abas:
+    with abas[5]:
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
         with c1:
@@ -445,7 +441,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
             
             if st.button("Confirmar Lançamento", width="stretch"):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
@@ -456,15 +452,15 @@ if st.session_state.nivel_atual == "Pastor":
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        ent = float(df_ent.iloc['total']) if not df_ent.empty and df_ent.iloc['total'] is not None else 0.0
-        sai = float(df_sai.iloc['total']) if not df_sai.empty and df_sai.iloc['total'] is not None else 0.0
+        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
+        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
         
         m1, m2, m3 = st.columns(3)
         m1.metric("Total Entradas", f"R$ {ent:,.2f}")
         m2.metric("Total Saídas", f"R$ {sai:,.2f}")
         m3.metric("Saldo em Caixa", f"R$ {(ent - sai):,.2f}")
 
-    with abas:
+    with abas[6]:
         st.header("🔐 Controle de Usuários do Portal")
         with st.form("novo_usuario_painel"):
             u_nome = st.text_input("E-mail de Acesso").strip()
