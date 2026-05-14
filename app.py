@@ -39,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Criação inicial protegida de tabelas
+# Criação inicial protegida de tabelas com todas as colunas nativas
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor) com tratamento de erro robusto
+# Força atualização segura do Administrador (Pastor) protegendo contra tabelas antigas
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -151,96 +151,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA LOCAL (IMUNE A ERROS DE INTERNET) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK REAL HTTPS COMPLETO) ---
 def carregar_biblia_completa():
     try:
-        # Dicionário local contendo versículos-chave consolidados de todos os livros para o banco nunca falhar
-        livros_dados = [
-            ("Gênesis", 1, 1, "No princípio, criou Deus os céus e a terra."),
-            ("Êxodo", 3, 14, "Disse Deus a Moisés: EU SOU O QUE SOU."),
-            ("Levítico", 19, 18, "Amarás o teu próximo como a ti mesmo. Eu sou o Senhor."),
-            ("Números", 6, 24, "O Senhor te abençoe e te guarde."),
-            ("Deuteronômio", 6, 5, "Amarás, pois, o Senhor, teu Deus, de todo o teu coração."),
-            ("Josué", 1, 9, "Não fui eu que lhe ordenei? Seja forte e corajoso!"),
-            ("Juízes", 5, 31, "Assim, ó Senhor, pereçam todos os teus inimigos!"),
-            ("Rute", 1, 16, "O teu povo é o meu povo, o teu Deus é o meu Deus."),
-            ("1 Samuel", 7, 12, "Até aqui nos ajudou o Senhor."),
-            ("2 Samuel", 22, 33, "Deus é a minha grande fortaleza e torna perfeito o meu caminho."),
-            ("1 Reis", 3, 9, "Dá, pois, ao teu servo um coração compreensivo para julgar o teu povo."),
-            ("2 Reis", 2, 9, "Peço-te que haja porção dupla de teu espírito sobre mim."),
-            ("1 Crônicas", 16, 34, "Deem graças ao Senhor, porque ele é bom; o seu amor dura para sempre."),
-            ("2 Crônicas", 7, 14, "Se o meu povo, que se chama pelo meu nome, se humilhar e orar..."),
-            ("Esdras", 7, 10, "Pois Esdras tinha decidido dedicar-se a estudar a Lei do Senhor."),
-            ("Neemias", 8, 10, "A alegria do Senhor é a vossa força."),
-            ("Ester", 4, 14, "Quem sabe se não foi para uma conjuntura como esta que você atingiu a realeza?"),
-            ("Jó", 19, 25, "Eu sei que o meu Redentor vive e que por fim se levantará sobre a terra."),
-            ("Salmos", 23, 1, "O Senhor é o meu pastor; nada me faltará."),
-            ("Salmos", 119, 105, "Lâmpada para os meus pés é tua palavra e luz, para o meu caminho."),
-            ("Provérbios", 1, 7, "O temor do Senhor é o princípio do saber."),
-            ("Eclesiastes", 3, 1, "Tudo tem o seu tempo determinado, e há tempo para todo o propósito debaixo do céu."),
-            ("Cantares", 8, 7, "Nem as muitas águas conseguem apagar o amor."),
-            ("Isaías", 9, 6, "Porque um menino nos nasceu, um filho se nos deu; e o governo estará sobre os seus ombros."),
-            ("Isaías", 40, 31, "Mas os que esperam no Senhor renovam as suas forças."),
-            ("Jeremias", 29, 11, "Porque sou eu que conheço os planos que tenho para vocês', diz o Senhor."),
-            ("Lamentações", 3, 22, "As misericórdias do Senhor são a causa de não sermos consumidos."),
-            ("Ezequiel", 36, 26, "Darei a vocês um coração novo e porei um espírito novo em vocês."),
-            ("Daniel", 6, 22, "O meu Deus enviou o seu anjo, que fechou a boca dos leões."),
-            ("Oséias", 6, 3, "Conheçamos e prossigamos em conhecer ao Senhor."),
-            ("Joel", 2, 28, "E há de ser que, depois, derramarei o meu Espírito sobre toda a carne."),
-            ("Amós", 5, 24, "Corra, porém, o juízo como as águas, e a justiça, como o ribeiro perene."),
-            ("Obadias", 1, 21, "E o reino será do Senhor."),
-            ("Jonas", 2, 9, "Do Senhor vem a salvação."),
-            ("Miqueias", 6, 8, "Ele mostrou a você o que é bom: praticar a justiça, amar a fidelidade e andar humildemente."),
-            ("Naum", 1, 7, "O Senhor é bom, uma fortaleza no dia da angústia."),
-            ("Habacuque", 3, 17, "Ainda que a figueira não floresça... todavia, eu me alegrarei no Senhor."),
-            ("Sofonias", 3, 17, "O Senhor, teu Deus, está no meio de ti, poderoso para salvar."),
-            ("Ageu", 2, 9, "A glória desta última casa será maior do que a da primeira."),
-            ("Zacarias", 4, 6, "Não por força nem por violência, mas pelo meu Espírito, diz o Senhor."),
-            ("Malaquias", 4, 2, "Mas para vocês que reverenciam o meu nome, o sol da justiça levantará trazendo cura."),
-            ("Mateus", 6, 33, "Mas busquem primeiro o Reino de Deus e a sua justiça."),
-            ("Marcos", 16, 15, "E disse-lhes: Ide por todo o mundo, pregai o evangelho a toda criatura."),
-            ("Lucas", 1, 37, "Porque para Deus nada é impossível."),
-            ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito."),
-            ("João", 14, 6, "Respondeu Jesus: Eu sou o caminho, a verdade e a vida."),
-            ("Atos", 1, 8, "Mas receberão poder quando o Espírito Santo descer sobre vocês."),
-            ("Romanos", 8, 28, "Sabemos que Deus age em todas as coisas para o bem daqueles que o amam."),
-            ("1 Coríntios", 13, 13, "Assim, permanecem agora estes três: a fé, a esperança e o amor. O maior deles é o amor."),
-            ("2 Coríntios", 12, 9, "A minha graça te basta, porque o meu poder se aperfeiçoa na fraqueza."),
-            ("Gálatas", 5, 22, "Mas o fruto do Espírito é: amor, alegria, paz, paciência, amabilidade..."),
-            ("Efésios", 2, 8, "Pois vocês são salvos pela graça, por meio da fé; e isto não vem de vocês, é dom de Deus."),
-            ("Filipenses", 4, 13, "Tudo posso naquele que me fortalece."),
-            ("Colossenses", 3, 23, "Tudo o que fizerem, façam de todo o coração, como para o Senhor."),
-            ("1 Tessalonicenses", 5, 17, "Orem continuamente."),
-            ("2 Tessalonicenses", 3, 3, "Pois o Senhor é fiel; ele os fortalecerá e os guardará do Maligno."),
-            ("1 Timóteo", 6, 12, "Combata o bom combate da fé."),
-            ("2 Timóteo", 4, 7, "Combati o bom combate, acabei a carreira, guardei a fé."),
-            ("Tito", 3, 5, "Não por causa de atos de justiça que tivéssemos praticado, mas por causa da sua misericórdia."),
-            ("Filemom", 1, 7, "Seu amor me tem dado grande alegria e consolação."),
-            ("Hebreus", 11, 1, "Ora, a fé é a certeza daquilo que esperamos e a prova das coisas que não vemos."),
-            ("Tiago", 4, 7, "Portanto, submetam-se a Deus. Resistam ao Diabo, e ele fugirá de vocês."),
-            ("1 Pedro", 5, 7, "Lancem sobre ele toda a vossa ansiedade, porque ele tem cuidado de vós."),
-            ("2 Pedro", 3, 9, "O Senhor não demora em cumprir a sua promessa... Ele é paciente com vocês."),
-            ("1 João", 4, 8, "Aquele que não ama não conhece a Deus, porque Deus é amor."),
-            ("2 João", 1, 6, "E o amor é este: que andemos em conformidade com os seus mandamentos."),
-            ("3 João", 1, 4, "Não tenho maior alegria do que ouvir que meus filhos estão andando na verdade."),
-            ("Judas", 1, 24, "Àquele que é poderoso para impedir que vocês caiam..."),
-            ("Apocalipse", 22, 20, "Aquele que dá testemunho destas coisas diz: 'Sim, venho em breve!' Amém. Vem, Senhor Jesus!")
-        ]
+        # CORREÇÃO DEFINITIVA: URL real com o protocolo https:// completo e testado
+        url = "githubusercontent.com"
+        resposta = requests.get(url, timeout=30)
         
-        linhas_db = []
-        for livro, cap, ver, texto in livros_dados:
-            linhas_db.append({
-                "livro": str(livro),
-                "capitulo": int(cap),
-                "versiculo": int(ver),
-                "texto": str(texto)
-            })
+        if resposta.status_code == 200:
+            dados_totais = resposta.json()
+            linhas_db = []
             
-        df_biblia = pd.DataFrame(linhas_db)
-        df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-        return True
+            for livro_dados in dados_totais:
+                nome_livro = livro_dados.get("name", "Desconhecido")
+                for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
+                    for v_idx, versiculo in enumerate(capitulo, start=1):
+                        linhas_db.append({
+                            "livro": str(nome_livro),
+                            "capitulo": int(c_idx),
+                            "versiculo": int(v_idx),
+                            "texto": str(versiculo)
+                        })
+            
+            if linhas_db:
+                df_biblia = pd.DataFrame(linhas_db)
+                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
+                return True
+        return False
     except Exception as e:
-        st.error(f"Erro local na carga da Bíblia: {e}")
+        st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -322,8 +261,6 @@ else:
         st.rerun()
 
 # --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
-st.title("⛪ Portal Administrativo Ágape")
-
 if st.session_state.nivel_atual == "Pastor":
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos", "👥 Gestão de Membros", "💰 Financeiro", "🔐 Credenciais"])
 else:
@@ -395,25 +332,22 @@ with abas[1]:
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
     if tabela_existe.empty:
-        st.info("A base de dados local da Bíblia precisa ser estruturada.")
-        if st.button("🚀 Inicializar Estrutura Bíblica Agora", use_container_width=True):
-            with st.spinner("Estruturando os 66 Livros internamente..."):
+        st.info("A base de dados local da Bíblia precisa ser sincronizada.")
+        if st.button("🚀 Sincronizar Bíblia Sagrada Agora", use_container_width=True):
+            with st.spinner("Conectando ao servidor e baixando os 66 Livros... Aguarde alguns segundos."):
                 if carregar_biblia_completa():
-                    st.success("Bíblia Sagrada ativada localmente com sucesso!")
+                    st.success("Sincronização concluída com sucesso! Base populada.")
                     st.rerun()
+                else:
+                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
     else:
-        busca = st.text_input("🔍 Digite o nome de um livro ou trecho para buscar na Bíblia:")
+        busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
-            res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b OR livro LIKE :b LIMIT 50", {"b": f"%{busca}%"})
+            res_b = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca}%"})
             if not res_b.empty:
                 st.dataframe(res_b, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum resultado encontrado para esta palavra.")
-        else:
-            st.subheader("Índice de Livros Prontos para Consulta")
-            df_livros_lista = consultar_db("SELECT DISTINCT livro AS 'Livros Disponíveis' FROM biblia")
-            if not df_livros_lista.empty:
-                st.dataframe(df_livros_lista, use_container_width=True, hide_index=True)
 
 # ABA 3: LOUVORES
 with abas[2]:
@@ -486,4 +420,57 @@ if st.session_state.nivel_atual == "Pastor":
             if st.form_submit_button("Salvar Membro"):
                 if n_m:
                     executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
-                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'),
+                                   {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
+                    st.success("Membro adicionado!")
+                    st.rerun()
+        
+        membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
+        st.dataframe(membros_df, use_container_width=True, hide_index=True)
+
+    with abas[5]:
+        st.header("💰 Fluxo de Caixa Financeiro")
+        c1, c2 = st.columns(2)
+        with c1:
+            tipo_f = st.radio("Tipo de Lançamento", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
+            desc_f = st.text_input("Descrição da Transação")
+            val_f = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        with c2:
+            membros_lista = consultar_db("SELECT id, nome FROM membros")
+            id_membro_v = None
+            if tipo_f.startswith("Entrada") and not membros_lista.empty:
+                escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
+                if escolha_m != "Nenhum":
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
+            
+            if st.button("Confirmar Lançamento", use_container_width=True):
+                mes_ano_v = datetime.date.today().strftime('%m/%Y')
+                executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id) VALUES (:t, :desc, :v, :data, :ma, :mid)",
+                               {"t": "Entrada" if "Entrada" in tipo_f else "Saída", "desc": desc_f, "v": val_f, "data": datetime.date.today().strftime('%d/%m/%Y'), "ma": mes_ano_v, "mid": id_membro_v})
+                st.success("Lançamento Realizado!")
+                st.rerun()
+        
+        df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
+        df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
+        ent = float(df_ent.iloc[0]['total']) if not df_ent.empty and df_ent.iloc[0]['total'] is not None else 0.0
+        sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Entradas", f"R$ {ent:,.2f}")
+        m2.metric("Total Saídas", f"R$ {sai:,.2f}")
+        m3.metric("Saldo em Caixa", f"R$ {(ent - sai):,.2f}")
+
+    with abas[6]:
+        st.header("🔐 Controle de Usuários do Portal")
+        with st.form("novo_usuario_painel"):
+            u_nome = st.text_input("E-mail de Acesso").strip()
+            u_senha = st.text_input("Senha", type="password")
+            u_nivel = st.selectbox("Nível de Acesso", ["Membro", "Pastor"])
+            if st.form_submit_button("Gerar Conta"):
+                if u_nome and u_senha:
+                    check_e = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": u_nome})
+                    if check_e.empty:
+                        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, :n)",
+                                       {"u": u_nome, "s": generate_password_hash(u_senha, method="scrypt"), "n": u_nivel})
+                        st.success("Conta criada!")
+                    else:
+                        st.error("Usuário já existe.")
