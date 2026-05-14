@@ -160,7 +160,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA COM TEXTOS VERDADEIROS (BLINDADA CONTRA LINKS) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL LOCAL (TEXTOS VERDADEIROS) ---
 def carregar_biblia_completa():
     try:
         linhas_db = [
@@ -268,7 +268,7 @@ if not st.session_state.autenticado:
                         hash_recuperado = generate_password_hash(nova_senha_pura, method="scrypt")
                         executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", 
                                        {"s": hash_recuperado, "u": reset_user})
-                        st.success("Senha actualizada com sucesso!")
+                        st.success("Senha atualizada com sucesso!")
                     else:
                         st.error("E-mail não encontrado.")
     st.stop()
@@ -339,7 +339,7 @@ with aba_mural:
         st.caption("Acesse a sala de conferência oficial da igreja em alta definição.")
         st.link_button("🚀 Entrar na Vídeo Chamada Ao Vivo", URL_CHAT_RAILWAY, width="stretch")
 
-# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM TEXTO HISTÓRICO REAL)
+# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM VERSÍCULOS DIRETOS)
 with aba_biblia:
     st.header("📖 Leitura e Pesquisa Bíblica")
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
@@ -382,9 +382,10 @@ with aba_biblia:
         with sub_aba_busca:
             busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: princípio, trevas, pastor)")
             if busca_termo:
-                res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
+                # MELHORIA: O resultado agora exibe a coluna 'Texto' diretamente na visualização da tabela
+                res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto Completo do Versículo' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
                 if not res_busca.empty:
-                    st.subheader(f"Encontradas {len(res_busca)} ocorrências:")
+                    st.subheader(f"Encontradas {len(res_busca)} ocorrências com texto completo:")
                     st.dataframe(res_busca, width="stretch", hide_index=True)
                 else:
                     st.info("Nenhum versículo contendo este termo foi localizado.")
@@ -410,8 +411,8 @@ with aba_louvores:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = [selecionado.split(" - ")[0]]
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
+            t_sel = selecionado.split(" - ")
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
             if not dados_l.empty:
                 st.subheader(selecionado)
                 reg_audio = dados_l.iloc[0]['arquivo_audio']
@@ -468,6 +469,15 @@ if st.session_state.nivel_atual == "Pastor":
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
             st.metric("Total Saídas", f"R$ {sai:,.2f}")
             st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
+            
+        # MELHORIA: Gráfico de barras visual para consolidação de entradas vs saídas
+        st.markdown("---")
+        st.subheader("📊 Comparativo Consolidado de Caixa")
+        df_grafico = pd.DataFrame({
+            "Tipo": ["Total Entradas (R$)", "Total Saídas (R$)"],
+            "Valor": [ent, sai]
+        }).set_index("Tipo")
+        st.bar_chart(df_grafico)
 
     with aba_credenciais:
         st.header("🔐 Controle de Usuários")
