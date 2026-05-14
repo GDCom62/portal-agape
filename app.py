@@ -217,10 +217,10 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.iloc['senha']), campo_senha):
+                if not df_u.empty and check_password_hash(str(df_u.iloc[0]['senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.iloc['nivel']
+                    st.session_state.nivel_atual = df_u.iloc[0]['nivel']
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -425,27 +425,26 @@ with aba_pix:
 # ABAS GESTÃO EXCLUSIVA DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
     with aba_membros:
-        st.header("👥 Gestão e Filtro de Membros")
+        st.header("👥 Gestão de Membros")
         
-        # FEATURE B: Campo de busca por nome para filtrar membros cadastrados
-        busca_membro = st.text_input("🔍 Buscar membro pelo nome:")
+        # Filtro de Busca Avançada de Membros por Nome
+        busca_membro = st.text_input("🔍 Buscar membro por nome:")
         
         with st.form("form_membro", clear_on_submit=True):
-            st.subheader("➕ Adicionar Novo Membro")
             n_m = st.text_input("Nome")
             t_m = st.text_input("Telefone")
             c_m = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
             m_a = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
             if st.form_submit_button("Salvar Registro"):
                 if n_m:
-                    executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
+                    executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario) VALUES (:n, :t, :c, :d, :m)",
                                    {"n": n_m, "t": t_m, "c": c_m, "d": datetime.date.today().strftime('%d/%m/%Y'), "m": m_a})
                     st.rerun()
-        
+                    
         if busca_membro:
-            membros_df = consultar_db("SELECT nome AS Nome, telephone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros WHERE nome LIKE :b", {"b": f"%{busca_membro}%"})
+            membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros WHERE nome LIKE :n", {"n": f"%{busca_membro}%"})
         else:
-            membros_df = consultar_db("SELECT nome AS Nome, telephone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
+            membros_df = consultar_db("SELECT id, nome AS Nome, telefone AS Telefone, cargo AS Cargo, mes_aniversario AS Aniversário FROM membros")
             
         st.dataframe(membros_df, width="stretch", hide_index=True)
 
@@ -453,7 +452,6 @@ if st.session_state.nivel_atual == "Pastor":
         st.header("💰 Fluxo de Caixa Financeiro")
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("➕ Lançar Transação")
             tipo_f = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
             desc_f = st.text_input("Descrição")
             val_f = st.number_input("Valor", min_value=0.0, step=10.0)
@@ -461,6 +459,19 @@ if st.session_state.nivel_atual == "Pastor":
                 executar_query("INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano) VALUES (:t, :desc, :v, :data, :ma)",
                                {"t": "Entrada" if "Entrada" in tipo_f else "Saída", "desc": desc_f, "v": val_f, "data": datetime.date.today().strftime('%d/%m/%Y'), "ma": datetime.date.today().strftime('%m/%Y')})
                 st.rerun()
+                
+            # NOVO RECURSO: Painel Exclusivo do Pastor para Deletar Lançamentos com Erro
+            st.markdown("---")
+            st.subheader("❌ Remover Lançamento Incorreto")
+            id_para_deletar = st.number_input("Insira o ID do lançamento a ser removido:", min_value=1, step=1)
+            if st.button("Apagar Lançamento Selecionado", type="primary", width="stretch"):
+                check_financeiro = consultar_db("SELECT id FROM financeiro WHERE id = :id", {"id": id_para_deletar})
+                if not check_financeiro.empty:
+                    executar_query("DELETE FROM financeiro WHERE id = :id", {"id": id_para_deletar})
+                    st.success(f"Lançamento ID {id_para_deletar} removido com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("ID não localizado no histórico de caixa.")
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
@@ -468,26 +479,10 @@ if st.session_state.nivel_atual == "Pastor":
         sai = float(df_sai.iloc[0]['total']) if not df_sai.empty and df_sai.iloc[0]['total'] is not None else 0.0
         
         with c2:
-            st.subheader("📊 Resumo do Caixa")
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
             st.metric("Total Saídas", f"R$ {sai:,.2f}")
             st.metric("Saldo Líquido", f"R$ {(ent - sai):,.2f}")
             
-        st.markdown("---")
-        st.subheader("📊 Comparativo Consolidado de Caixa")
-        df_grafico = pd.DataFrame({
-            "Tipo": ["Total Entradas (R$)", "Total Saídas (R$)"],
-            "Valor": [ent, sai]
-        }).set_index("Tipo")
-        st.bar_chart(df_grafico)
-        
-        # FEATURE A: Histórico completo com opção para o Pastor deletar lançamentos com erro
-        st.markdown("---")
-        st.subheader("📋 Histórico e Exclusão de Lançamentos")
-        historico_df = consultar_db("SELECT id, tipo AS Tipo, descricao AS Descrição, valor AS Valor, data AS Data FROM financeiro ORDER BY id DESC")
-        
-        if not historico_df.empty:
-            st.dataframe(historico_df, width="stretch", hide_index=True)
-            # Dicionário corrigido com fechamento correto de parênteses e chaves
-            id_para_deletar = st.number_input("Digite o ID do lançamento que deseja apagar:", min_value=1, step=1)
-            if st.button("❌ Apagar Lançamento Selecionado", type
+            # Histórico detalhado contendo a coluna ID para orientação de remoção
+            st.markdown("**Histórico de Transações (Consulte o ID abaixo para remover):**")
+            historico_df = consultar_db("SELECT id AS 'ID', tipo AS 'Tipo', descricao AS 'Descrição', valor AS 'Valor (R$)', data AS 'Data'
