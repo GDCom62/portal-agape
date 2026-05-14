@@ -11,7 +11,7 @@ importar json
 st. set_page_config ( page_title= "Portal Ágape" , layout= "wide" , page_icon= "⛪" )
 
 # --- 2. CONFIGURAÇÕES DE AMBIENTE ---
-URL_CHAT_RAILWAY = "https://chat-agape-production.up.railway.app/" 
+URL_CHAT_RAILWAY = "https://railway.app" 
 REDIS_URL = "rediss://default:gQAAAAAAAcePAAIgcDFiYzVlZTAzZGZiNTg0OWFlYjUxZDdhY2E3Mzg0ODQ2Mg@calm-kangaroo-116623.upstash.io:6379"
 
 # --- 3. CONEXÕES COM BANCO DE DADOS PERSISTENTE ---
