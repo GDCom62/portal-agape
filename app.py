@@ -28,7 +28,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-# DECLARAÇÃO DAS FUNÇÕES (Obrigatório vir antes das chamadas de query)
+# Definição das funções de manipulação do banco
 def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
@@ -40,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# INICIALIZAÇÃO DE TABELAS (Agora chamadas de forma segura após as declarações)
+# Criação das tabelas relacionais do sistema
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +100,7 @@ try:
 except Exception:
     pass
 
-# FORÇA A ATUALIZAÇÃO SEGURA DO ADMINISTRADOR
+# Sincronização do Administrador Nativo
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -117,7 +117,7 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. ESTILIZAÇÃO CUSTOMIZADA (FUNDO AMARELO OURO) ---
+# --- 4. ESTILIZAÇÃO CUSTOMIZADA ---
 st.markdown("""
     <style>
     .stApp {
@@ -142,7 +142,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA ---
 def carregar_biblia_completa():
     try:
         url = "githubusercontent.com"
@@ -172,7 +172,7 @@ def carregar_biblia_completa():
         st.error(f"Erro técnico na carga da Bíblia: {e}")
         return False
 
-# --- 6. AUTENTICAÇÃO INTEGRADA ---
+# --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO) ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -204,7 +204,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. PAINEL PRINCIPAL DE CONTEÚDO ---
+# --- 7. MONTAGEM DO PAINEL DE CONTEÚDO ---
 st.title("⛪ Portal Administrativo Ágape")
 
 if st.session_state.nivel_atual == "Pastor":
@@ -212,8 +212,9 @@ if st.session_state.nivel_atual == "Pastor":
 else:
     abas = st.tabs(["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores"])
 
-# ABA 1: MURAL DE AVISOS, VÍDEO, PALAVRA DO DIA E ANIVERSARIANTES
+# ABA 1: CONTEÚDO INICIAL (MURAL, VIDEO, ANIVERSARIANTES E DESTAQUE)
 with abas[0]:
+    # Corrigido para st.columns(2)
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
         st.markdown("""
@@ -242,7 +243,9 @@ with abas[0]:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    col_aviso, col_video = st.columns()
+    
+    # CORREÇÃO DO ERRO: Especificando obrigatoriamente a quantia de colunas (2)
+    col_aviso, col_video = st.columns(2)
     
     with col_aviso:
         st.header("📋 Mural de Avisos")
@@ -326,7 +329,7 @@ with abas[idx_louvores]:
                     st.audio(bytes(registro_audio), format="audio/mp3")
                 st.text(dados_l.iloc[0]['letra'])
 
-# ABAS EXCLUSIVAS DO PASTOR
+# ABAS GESTÃO EXCLUSIVA DO PASTOR
 if st.session_state.nivel_atual == "Pastor":
     with abas[2]:
         st.header("👥 Cadastro de Membros")
