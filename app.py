@@ -160,25 +160,50 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL LOCAL (IMUNE A QUEDAS) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA COM TEXTOS VERDADEIROS (BLINDADA CONTRA LINKS) ---
 def carregar_biblia_completa():
     try:
-        livros_backup = ["Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute", "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias", "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cantares", "Isaías", "Jeremias", "Lamentações", "Ezequiel", "Daniel", "Oséias", "Joel", "Amós", "Obadias", "Jonas", "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias", "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios", "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses", "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro", "1 João", "2 João", "3 João", "Judas", "Apocalipse"]
-        linhas_db = []
-        for l in livros_backup:
-            for c in range(1, 3):
-                for v in range(1, 6):
-                    linhas_db.append({
-                        "livro": l, 
-                        "capitulo": c, 
-                        "versiculo": v, 
-                        "texto": f"Versículo {v} do Capítulo {c} de {l} ativado com sucesso! Lâmpada para os meus pés é a Tua Palavra."
-                    })
+        linhas_db = [
+            # Gênesis Capítulo 1
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 1, "texto": "No princípio, criou Deus os céus e a terra."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 2, "texto": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 3, "texto": "E disse Deus: Haja luz. E houve luz."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 4, "texto": "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 5, "texto": "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã: o dia primeiro."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 6, "texto": "E disse Deus: Haja uma expansão no meio das águas, e haja separação entre águas e águas."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 7, "texto": "E fez Deus a expansão e fez separação entre as águas que estavam debaixo da expansão e as águas que estavam sobre a expansão. E assim foi."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 8, "texto": "E chamou Deus à expansão Céus; e foi a tarde e a manhã: o dia segundo."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 9, "texto": "E disse Deus: Ajuntem-se as águas debaixo dos céus num lugar; e apareça a porção seca. E assim foi."},
+            {"livro": "Gênesis", "capitulo": 1, "versiculo": 10, "texto": "E chamou Deus à porção seca Terra; e ao ajuntamento das águas chamou Mares. E viu Deus que era bom."},
+            
+            # Gênesis Capítulo 2
+            {"livro": "Gênesis", "capitulo": 2, "versiculo": 1, "texto": "Assim os céus, e a terra, e todo o seu exército foram acabados."},
+            {"livro": "Gênesis", "capitulo": 2, "versiculo": 2, "texto": "E, havendo Deus acabado no dia sétimo a sua obra, que tinha feito, descansou no sétimo dia de toda a sua obra, que tinha feito."},
+            {"livro": "Gênesis", "capitulo": 2, "versiculo": 3, "texto": "E abençoou Deus o dia sétimo e o santificou; porque nele descansou de toda a sua obra, que Deus criara e fizera."},
+            {"livro": "Gênesis", "capitulo": 2, "versiculo": 4, "texto": "Estas são as origens dos céus e da terra, quando foram criados; no dia em que o Senhor Deus fez a terra e os céus."},
+            {"livro": "Gênesis", "capitulo": 2, "versiculo": 5, "texto": "E toda planta do campo antes que estivesse na terra, e toda erva do campo antes que brotasse; porque ainda o Senhor Deus não tinha feito chover sobre a terra, e não havia homem para lavrar a terra."},
+
+            # Salmos Capítulo 23
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 1, "texto": "O Senhor é o meu pastor; nada me faltará."},
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 2, "texto": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."},
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 3, "texto": "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."},
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 4, "texto": "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam."},
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 5, "texto": "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda."},
+            {"livro": "Salmos", "capitulo": 23, "versiculo": 6, "texto": "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na Casa do Senhor por longos dias."},
+
+            # Salmos Capítulo 91
+            {"livro": "Salmos", "capitulo": 91, "versiculo": 1, "texto": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."},
+            {"livro": "Salmos", "capitulo": 91, "versiculo": 2, "texto": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a sua fortaleza, e nele confiarei."},
+            {"livro": "Salmos", "capitulo": 91, "versiculo": 3, "texto": "Porque ele te livrará do laço do passarinheiro e da peste perniciosa."},
+            {"livro": "Salmos", "capitulo": 91, "versiculo": 4, "texto": "Ele te cobrirá com as suas penas, e debaixo das suas asas estarás seguro; a sua verdade será o teu escudo e broquel."},
+            {"livro": "Salmos", "capitulo": 91, "versiculo": 5, "texto": "Não temerás espanto noturno, nem seta que voe de dia."}
+        ]
+        
         df_biblia = pd.DataFrame(linhas_db)
         df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
         return True
     except Exception as e:
-        st.error(f"Erro local na carga da Bíblia: {e}")
+        st.error(f"Erro na gravação das escrituras: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -243,7 +268,7 @@ if not st.session_state.autenticado:
                         hash_recuperado = generate_password_hash(nova_senha_pura, method="scrypt")
                         executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", 
                                        {"s": hash_recuperado, "u": reset_user})
-                        st.success("Senha atualizada com sucesso!")
+                        st.success("Senha actualizada com sucesso!")
                     else:
                         st.error("E-mail não encontrado.")
     st.stop()
@@ -256,7 +281,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. MONTAGEM DO PAINEL PRINCIPAL COM DESEMPACOTAMENTO CORRETO ---
+# --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
 if st.session_state.nivel_atual == "Pastor":
     aba_mural, aba_biblia, aba_louvores, aba_pix, aba_membros, aba_financeiro, aba_credenciais = st.tabs(
         ["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos", "👥 Gestão de Membros", "💰 Financeiro", "🔐 Credenciais"]
@@ -314,16 +339,16 @@ with aba_mural:
         st.caption("Acesse a sala de conferência oficial da igreja em alta definição.")
         st.link_button("🚀 Entrar na Vídeo Chamada Ao Vivo", URL_CHAT_RAILWAY, width="stretch")
 
-# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM FONTES GRANDES)
+# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM TEXTO HISTÓRICO REAL)
 with aba_biblia:
     st.header("📖 Leitura e Pesquisa Bíblica")
     tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
     
     if tabela_existe.empty:
-        st.warning("A base de dados da Bíblia precisa ser inicializada.")
-        if st.button("🚀 Sincronizar Bíblia Sagrada Agora", width="stretch"):
+        st.warning("A base de dados da Bíblia precisa ser estruturada.")
+        if st.button("🚀 Estruturar Textos Bíblicos Agora", width="stretch"):
             if carregar_biblia_completa():
-                st.success("Bíblia sincronizada com sucesso!")
+                st.success("Escrituras ativadas e prontas localmente!")
                 st.rerun()
     else:
         sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
@@ -355,7 +380,7 @@ with aba_biblia:
                 st.info("Nenhum texto encontrado para esta seleção.")
                 
         with sub_aba_busca:
-            busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: Amor, Fé, Graça)")
+            busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: princípio, trevas, pastor)")
             if busca_termo:
                 res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
                 if not res_busca.empty:
@@ -385,8 +410,8 @@ with aba_louvores:
     if not lista_louvores.empty:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
-            t_sel = selecionado.split(" - ")
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
+            t_sel = [selecionado.split(" - ")[0]]
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
             if not dados_l.empty:
                 st.subheader(selecionado)
                 reg_audio = dados_l.iloc[0]['arquivo_audio']
