@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Força atualização segura do Administrador (Pastor) protegendo contra tabelas antigas
+# Força atualização segura do Administrador (Pastor)
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -151,10 +151,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA (LINK REAL HTTPS COMPLETO) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA INTEGRAÇÃO ACF.JSON (URL COMPLETA HTTPS) ---
 def carregar_biblia_completa():
     try:
-        # Injetada URL estável, pública e direta em formato raw JSON para a versão em português
+        # URL Pública, estável e em formato RAW direto para o acf.json da Bíblia Almeida Corrigida Fiel
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -164,6 +164,7 @@ def carregar_biblia_completa():
             
             for livro_dados in dados_totais:
                 nome_livro = livro_dados.get("name", "Desconhecido")
+                # Varre a árvore padrão do acf.json (Capítulos -> Versículos)
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -179,7 +180,7 @@ def carregar_biblia_completa():
                 return True
         return False
     except Exception as e:
-        st.error(f"Erro técnico na carga da Bíblia: {e}")
+        st.error(f"Erro técnico na carga do acf.json: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -334,12 +335,12 @@ with abas[1]:
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
         if st.button("🚀 Sincronizar Bíblia Sagrada Agora", width="stretch"):
-            with st.spinner("Conectando ao servidor e baixando os 66 Livros... Aguarde alguns segundos."):
+            with st.spinner("Conectando ao servidor e baixando a Bíblia ACF... Aguarde alguns segundos."):
                 if carregar_biblia_completa():
-                    st.success("Sincronização concluída com sucesso! Base populada.")
+                    st.success("Sincronização realizada com sucesso via acf.json!")
                     st.rerun()
                 else:
-                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
+                    st.error("Falha ao obter o arquivo acf.json. Verifique os logs.")
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
@@ -408,7 +409,7 @@ with abas[3]:
         st.info("Pastor: Substitua este bloco por st.image('qrcode.png') para fixar a imagem oficial.")
         st.markdown("<div style='background: #f8f9fa; border: 1px solid #ddd; height:200px; border-radius:15px; display:flex; align-items:center; justify-content:center; color:gray;'>[Área do QR Code Pix]</div>", unsafe_allow_html=True)
 
-# ABAS EXCLUSIVAS GESTÃO DO PASTOR
+# ABAS EXCLUSIVAS GESTÃO DO PASTOR (Indexadas de forma segura e estrita)
 if st.session_state.nivel_atual == "Pastor":
     with abas[4]:
         st.header("👥 Cadastro de Membros")
@@ -440,7 +441,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
             
             if st.button("Confirmar Lançamento", width="stretch"):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
