@@ -186,10 +186,11 @@ if not st.session_state.autenticado:
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.iloc['senha']), campo_senha):
+                # CORREÇÃO CRÍTICA: Uso de .loc[0, 'coluna'] em vez de .iloc para evitar erro do Pandas
+                if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.iloc['nivel']
+                    st.session_state.nivel_atual = df_u.loc[0, 'nivel']
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -232,6 +233,8 @@ if not st.session_state.autenticado:
                         st.success("Senha atualizada com sucesso!")
                     else:
                         st.error("E-mail não encontrado.")
+                else:
+                    st.warning("Preencha todos os campos.")
     st.stop()
 else:
     st.sidebar.write(f"Usuário: **{st.session_state.usuario_atual}**")
@@ -353,7 +356,6 @@ with aba_biblia:
         if st.button("📖 Abrir Capítulo em Modo Cinema", width="stretch"):
             with st.spinner("Buscando escrituras legítimas na nuvem..."):
                 try:
-                    # CORREÇÃO CRÍTICA: Adicionada a barra '/' após a URL e parâmetro '@almeida' para carregar em Português
                     link_api = f"https://bible-api.com{livro_sel}+{cap_sel}?translation=almeida"
                     resposta = requests.get(link_api, timeout=12)
                     
@@ -376,13 +378,16 @@ with aba_biblia:
     with sub_aba_busca:
         busca_termo = st.text_input("🔍 Buscar termo exato na API:")
         if busca_termo:
-            resposta_b = requests.get(f"https://bible-api.com{busca_termo}?translation=almeida", timeout=15)
-            if resposta_b.status_code == 200:
-                dados_busca = resposta_b.json()
-                st.info(f"Exibindo resultado correspondente para: '{busca_termo}'")
-                st.write(dados_busca.get("text", "Nenhum bloco retornado."))
-            else:
-                st.info("Termo não localizado.")
+            try:
+                resposta_b = requests.get(f"https://bible-api.com{busca_termo}?translation=almeida", timeout=15)
+                if resposta_b.status_code == 200:
+                    dados_busca = resposta_b.json()
+                    st.info(f"Exibindo resultado correspondente para: '{busca_termo}'")
+                    st.write(dados_busca.get("text", "Nenhum bloco retornado."))
+                else:
+                    st.info("Termo não localizado.")
+            except Exception as e:
+                st.error(f"Erro de conexão com o servidor de busca: {e}")
 
 # ABA 3: LOUVORES
 with aba_louvores:
@@ -406,13 +411,14 @@ with aba_louvores:
         selecionado = st.selectbox("Escolha um Louvor", lista_louvores['titulo'] + " - " + lista_louvores['artista'])
         if selecionado:
             t_sel = selecionado.split(" - ")
-            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel})
+            dados_l = consultar_db("SELECT letra, arquivo_audio FROM louvores WHERE titulo = :t LIMIT 1", {"t": t_sel[0]})
             if not dados_l.empty:
                 st.subheader(selecionado)
-                reg_audio = dados_l.iloc['arquivo_audio']
+                # CORREÇÃO: Leitura correta do BLOB via .loc
+                reg_audio = dados_l.loc[0, 'arquivo_audio']
                 if reg_audio is not None:
                     st.audio(bytes(reg_audio), format="audio/mp3")
-                st.text(dados_l.iloc['letra'])
+                st.text(dados_l.loc[0, 'letra'])
 
 # ABA 4: OFERTAS E DÍZIMOS VIA PIX
 with aba_pix:
@@ -464,8 +470,9 @@ if st.session_state.nivel_atual == "Pastor":
         
         df_ent = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Entrada'")
         df_sai = consultar_db("SELECT SUM(valor) as total FROM financeiro WHERE tipo = 'Saída'")
-        ent = float(df_ent.iloc['total']) if not df_ent.empty and df_ent.iloc['total'] is not None else 0.0
-        sai = float(df_sai.iloc['total']) if not df_sai.empty and df_sai.iloc['total'] is not None else 0.0
+        # CORREÇÃO: Uso seguro de .loc para evitar o erro do Pandas nas métricas do painel
+        ent = float(df_ent.loc[0, 'total']) if not df_ent.empty and df_ent.loc[0, 'total'] is not None else 0.0
+        sai = float(df_sai.loc[0, 'total']) if not df_sai.empty and df_sai.loc[0, 'total'] is not None else 0.0
         
         with c2:
             st.metric("Total Entradas", f"R$ {ent:,.2f}")
