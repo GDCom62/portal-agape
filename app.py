@@ -29,7 +29,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -40,7 +40,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização de tabelas nativas
+# Inicialização segura das tabelas nativas do sistema
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
+# Sincronização do Administrador Nativo
 def verificar_e_criar_admin():
     admin_usuario = "admin@agape.com"
     admin_senha_pura = "agape2026"
@@ -160,52 +161,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL COMPLETA VIA ENDPOINT SEGURO ---
-def carregar_biblia_completa():
-    try:
-        # URL com protocolo HTTPS completo apontando para o JSON real e descompactado da Bíblia ACF
-        url = "githubusercontent.com"
-        resposta = requests.get(url, timeout=30)
-        
-        if resposta.status_code == 200:
-            dados_totais = resposta.json()
-            linhas_db = []
-            
-            for livro_dados in dados_totais:
-                nome_livro = livro_dados.get("name", "Desconhecido")
-                for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
-                    for v_idx, versiculo in enumerate(capitulo, start=1):
-                        linhas_db.append({
-                            "livro": str(nome_livro),
-                            "capitulo": int(c_idx),
-                            "versiculo": int(v_idx),
-                            "texto": str(versiculo)
-                        })
-            
-            if linhas_db:
-                df_biblia = pd.DataFrame(linhas_db)
-                df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-                return True
-        return False
-    except Exception:
-        # Contingência offline com textos bíblicos reais históricos para Gênesis e Salmos
-        linhas_db = [
-            {"livro": "Gênesis", "capitulo": 1, "versiculo": 1, "texto": "No princípio, criou Deus os céus e a terra."},
-            {"livro": "Gênesis", "capitulo": 1, "versiculo": 2, "texto": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas."},
-            {"livro": "Gênesis", "capitulo": 1, "versiculo": 3, "texto": "E disse Deus: Haja luz. E houve luz."},
-            {"livro": "Gênesis", "capitulo": 1, "versiculo": 4, "texto": "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas."},
-            {"livro": "Gênesis", "capitulo": 1, "versiculo": 5, "texto": "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã: o dia primeiro."},
-            {"livro": "Salmos", "capitulo": 23, "versiculo": 1, "texto": "O Senhor é o meu pastor; nada me faltará."},
-            {"livro": "Salmos", "capitulo": 23, "versiculo": 2, "texto": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."},
-            {"livro": "Salmos", "capitulo": 23, "versiculo": 3, "texto": "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."},
-            {"livro": "Salmos", "capitulo": 91, "versiculo": 1, "texto": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."},
-            {"livro": "Salmos", "capitulo": 91, "versiculo": 2, "texto": "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a sua fortaleza, e nele confarei."}
-        ]
-        df_biblia = pd.DataFrame(linhas_db)
-        df_biblia.to_sql("biblia", engine, if_exists="replace", index=False)
-        return True
-
-# --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
+# --- 5. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -280,7 +236,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
+# --- 6. MONTAGEM DO PAINEL PRINCIPAL DE CONTEÚDO ---
 if st.session_state.nivel_atual == "Pastor":
     aba_mural, aba_biblia, aba_louvores, aba_pix, aba_membros, aba_financeiro, aba_credenciais = st.tabs(
         ["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos", "👥 Gestão de Membros", "💰 Financeiro", "🔐 Credenciais"]
@@ -290,7 +246,7 @@ else:
         ["📢 Mural & Vídeo", "📖 Bíblia Sagrada", "🎵 Louvores", "💝 Ofertas e Dízimos"]
     )
 
-# ABA 1: CONTEÚDO INICIAL (MURAL E CONEXÃO REDIS)
+# ABA 1: CONTEÚDO INICIAL (MURAL E INTEGRAÇÃO DE CHAT REDIS)
 with aba_mural:
     col_topo1, col_topo2 = st.columns(2)
     with col_topo1:
@@ -335,92 +291,85 @@ with aba_mural:
 
     with col_video:
         st.subheader("🎥 Sala de Transmissão & Mural Online")
-        st.caption("Acesse a sala de conferência oficial da igreja em alta definição.")
         st.link_button("🚀 Entrar na Vídeo Chamada Ao Vivo", URL_CHAT_RAILWAY, width="stretch")
-        
         st.markdown("---")
-        st.subheader("💬 Mural de Interações Online (Conexão Redis)")
+        st.subheader("💬 Mural de Interações Online (Redis)")
         
         if r_db:
             user_chat = st.session_state.usuario_atual if st.session_state.usuario_atual else "Irmão"
             r_db.set(f"online:{user_chat}", "online", ex=60)
-            
-            chaves_online = r_db.keys("online:*")
-            usuarios_ativos = [k.replace("online:", "") for k in chaves_online]
-            st.markdown(f"🟢 **Membros Ativos Agora:** {', '.join(usuarios_ativos)}")
+            usuarios_ativos = [k.replace("online:", "") for k in r_db.keys("online:*")]
+            st.markdown(f"🟢 **Membros Ativos:** {', '.join(usuarios_ativos)}")
             
             with st.form("chat_mural_local", clear_on_submit=True):
                 msg_texto = st.text_input("Envie uma palavra ou pedido de oração no mural:")
                 if st.form_submit_button("Enviar Mensagem"):
                     if msg_texto:
-                        payload_msg = {
-                            "user": user_chat,
-                            "text": msg_texto,
-                            "time": datetime.datetime.now().strftime("%H:%M")
-                        }
+                        payload_msg = {"user": user_chat, "text": msg_texto, "time": datetime.datetime.now().strftime("%H:%M")}
                         r_db.rpush("chat:agape_oficial", json.dumps(payload_msg))
                         r_db.ltrim("chat:agape_oficial", -50, -1)
                         st.rerun()
             
-            historico_chat = r_db.lrange("chat:agape_oficial", 0, -1)
-            for m in reversed(historico_chat):
+            for m in reversed(r_db.lrange("chat:agape_oficial", 0, -1)):
                 try:
                     m_data = json.loads(m)
                     st.markdown(f"**[{m_data['time']}] {m_data['user']}:** {m_data['text']}")
                 except Exception:
                     pass
         else:
-            st.info("Mural interativo offline no momento.")
+            st.info("Mural interativo offline.")
 
-# ABA 2: BÍBLIA SAGRADA (PAINEL SUSPENSO EM MODO CINEMA COM VERSÍCULOS REAIS COMPLETO)
+# ABA 2: BÍBLIA SAGRADA REAL ONLINE (CONSULTA DINÂMICA VIA API SEM REPETIÇÃO)
 with aba_biblia:
-    st.header("📖 Leitura e Pesquisa Bíblica")
-    tabela_existe = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name='biblia'")
+    st.header("📖 Leitura e Pesquisa Bíblica (Versão Almeida)")
     
-    if tabela_existe.empty:
-        st.warning("A base de dados da Bíblia precisa ser estruturada.")
-        if st.button("🚀 Sincronizar Bíblia Sagrada Completa Agora", width="stretch"):
-            if carregar_biblia_completa():
-                st.success("Bíblia Sagrada ACF carregada com sucesso!")
-                st.rerun()
-    else:
-        sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
-        
-        with sub_aba_leitura:
-            df_livros = consultar_db("SELECT DISTINCT livro FROM biblia")
-            lista_livros = df_livros['livro'].tolist() if not df_livros.empty else ["Gênesis"]
+    livros_canônicos = [
+        "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+        "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah",
+        "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah",
+        "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah",
+        "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+        "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
+        "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+        "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
+        "1 John", "2 John", "3 John", "Judas", "Revelation"
+    ]
+    
+    sub_aba_leitura, sub_aba_busca = st.tabs(["📖 Navegar por Capítulo", "🔍 Buscar por Palavra-Chave"])
+    
+    with sub_aba_leitura:
+        c_livro, c_cap = st.columns(2)
+        with c_livro:
+            livro_sel = st.selectbox("Escolha o Livro", livros_canônicos)
+        with c_cap:
+            cap_sel = st.number_input("Capítulo", min_value=1, max_value=150, value=1)
             
-            c_livro, c_cap = st.columns(2)
-            with c_livro:
-                livro_sel = st.selectbox("Escolha o Livro", lista_livros)
-            
-            df_caps = consultar_db("SELECT DISTINCT capitulo FROM biblia WHERE livro = :l ORDER BY capitulo ASC", {"l": livro_sel})
-            lista_caps = df_caps['capitulo'].tolist() if not df_caps.empty else [1]
-            with c_cap:
-                cap_sel = st.selectbox("Capítulo", lista_caps)
-                
-            df_versiculos = consultar_db("SELECT versiculo, texto FROM biblia WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": livro_sel, "c": cap_sel})
-            
-            st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
-            
-            if not df_versiculos.empty:
-                conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
-                for _, row in df_versiculos.iterrows():
-                    conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{row['versiculo']}.</span> {row['texto']}</p>"
-                conteudo_html += "</div>"
-                st.markdown(conteudo_html, unsafe_allow_html=True)
-            else:
-                st.info("Nenhum texto encontrado para esta seleção.")
-                
-        with sub_aba_busca:
-            busca_termo = st.text_input("🔍 O que você deseja buscar nas escrituras? (Ex: princípio, amor, fé, graça)")
-            if busca_termo:
-                res_busca = consultar_db("SELECT livro AS 'Livro', capitulo AS 'Capítulo', versiculo AS 'Versículo', texto AS 'Texto Completo do Versículo' FROM biblia WHERE texto LIKE :b LIMIT 50", {"b": f"%{busca_termo}%"})
-                if not res_busca.empty:
-                    st.subheader(f"Encontradas {len(res_busca)} ocorrências:")
-                    st.dataframe(res_busca, width="stretch", hide_index=True)
+        if st.button("📖 Ler Capítulo", width="stretch"):
+            with st.spinner("Buscando escrituras reais na base..."):
+                # Requisição segura em tempo real para obter os versículos verdadeiros do capítulo
+                resposta = requests.get(f"bible-api.com{livro_sel}+{cap_sel}?translation=almeida", timeout=15)
+                if resposta.status_code == 200:
+                    dados_bible = resposta.json()
+                    st.markdown(f"<div class='versiculo-box'><h2 style='color:#FFD700; margin:0;'>✨ {livro_sel} - Capítulo {cap_sel} ✨</h2></div>", unsafe_allow_html=True)
+                    
+                    conteudo_html = "<div class='versiculo-box' style='text-align: left !important;'>"
+                    for v in dados_bible.get("verses", []):
+                        conteudo_html += f"<p class='texto-sagrado-grande'><span class='numero-versiculo'>{v.get('verse')}.</span> {v.get('text')}</p>"
+                    conteudo_html += "</div>"
+                    st.markdown(conteudo_html, unsafe_allow_html=True)
                 else:
-                    st.info("Nenhum versículo contendo este termo foi localizado.")
+                    st.error("Capítulo indisponível ou livro não localizado nesta versão.")
+                    
+    with sub_aba_busca:
+        busca_termo = st.text_input("🔍 Buscar termo exato na API:")
+        if busca_termo:
+            resposta_b = requests.get(f"bible-api.com{busca_termo}?translation=almeida", timeout=15)
+            if resposta_b.status_code == 200:
+                dados_busca = resposta_b.json()
+                st.info(f"Exibindo resultado correspondente para: '{busca_termo}'")
+                st.write(dados_busca.get("text", "Nenhum bloco retornado."))
+            else:
+                st.info("Termo não localizado.")
 
 # ABA 3: LOUVORES
 with aba_louvores:
@@ -449,7 +398,7 @@ with aba_louvores:
                 st.subheader(selecionado)
                 reg_audio = dados_l.iloc[0]['arquivo_audio']
                 if reg_audio is not None:
-                    st.audio(bytes(reg_audio), format="audio/mp3")
+                    st.st.audio(bytes(reg_audio), format="audio/mp3")
                 st.text(dados_l.iloc[0]['letra'])
 
 # ABA 4: OFERTAS E DÍZIMOS VIA PIX
@@ -538,4 +487,5 @@ if st.session_state.nivel_atual == "Pastor":
                     check_e = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": u_nome})
                     if check_e.empty:
                         executar_query("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, :n)",
-                                       {"u": u_nome, "s": generate_password_hash(u_senha, method="sc
+                                       {"u": u_nome, "s": generate_password_hash(u_senha, method="scrypt"), "n": u_nivel})
+                        st.success("Conta criada com sucesso!")
