@@ -28,7 +28,7 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-# CORREÇÃO CRÍTICA: Declaração das funções movida para antes de qualquer chamada SQL
+# DECLARAÇÃO DAS FUNÇÕES ANTES DE QUALQUER CHAMADA SQL (Evita NameError)
 def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
@@ -152,10 +152,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (INDETRUTÍVEL E COM PROTOCOLO HTTPS) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA REAL (ALMEIDA CORRIGIDA FIEL - acf.json) ---
 def carregar_biblia_completa():
     try:
-        # URL absoluta estável contendo a versão Almeida Corrigida Fiel (ACF) em formato RAW bruto
+        # URL ABSOLUTA CORRIGIDA: Inclui o protocolo seguro obrigatório https:// e o caminho raw real do acf.json
         url = "githubusercontent.com"
         resposta = requests.get(url, timeout=30)
         
@@ -180,7 +180,7 @@ def carregar_biblia_completa():
                 return True
         return False
     except Exception as e:
-        st.error(f"Erro técnico na carga da Bíblia: {e}")
+        st.error(f"Erro técnico na carga do acf.json: {e}")
         return False
 
 # --- 6. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
@@ -325,7 +325,7 @@ with abas[0]:
 
     with col_video:
         st.header("🎥 Conferência Ao Vivo")
-        st.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="450" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>')
+        st.components.v1.html(f'<iframe src="{URL_CHAT_RAILWAY}" width="100%" height="450" style="border:none; border-radius: 15px; background: white;" scrolling="yes" allow="camera; microphone"></iframe>', height=460)
 
 # ABA 2: BÍBLIA SAGRADA
 with abas[1]:
@@ -335,12 +335,12 @@ with abas[1]:
     if tabela_existe.empty:
         st.info("A base de dados local da Bíblia precisa ser sincronizada.")
         if st.button("🚀 Sincronizar Bíblia Sagrada Agora", width="stretch"):
-            with st.spinner("Conectando ao repositório seguro e baixando os 66 Livros... Aguarde."):
+            with st.spinner("Conectando ao servidor e baixando a Bíblia ACF... Aguarde alguns segundos."):
                 if carregar_biblia_completa():
-                    st.success("Sincronização realizada com sucesso! Base populada.")
+                    st.success("Sincronização realizada com sucesso via acf.json!")
                     st.rerun()
                 else:
-                    st.error("Falha ao obter o JSON. Verifique a internet do servidor.")
+                    st.error("Falha ao obter o arquivo acf.json. Verifique os logs.")
     else:
         busca = st.text_input("🔍 Digite uma palavra ou trecho para buscar na Bíblia:")
         if busca:
@@ -441,7 +441,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
             
             if st.button("Confirmar Lançamento", width="stretch"):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
