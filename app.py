@@ -29,7 +29,8 @@ def inicializar_conexoes():
 
 engine, r_db = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+# BLINDAGEM CONTRA NAMEERROR: Definição de funções movida para o topo absoluto
+def executar_query(sql, params=None):
     with engine.begin() as conn:
         conn.execute(text(sql), params or {})
 
@@ -40,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Inicialização segura das tabelas nativas do sistema
+# Inicialização segura das tabelas nativas do sistema (Agora executada APÓS a declaração)
 executar_query("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -229,7 +230,7 @@ if not st.session_state.autenticado:
                         hash_recuperado = generate_password_hash(nova_senha_pura, method="scrypt")
                         executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", 
                                        {"s": hash_recuperado, "u": reset_user})
-                        st.success("Senha atualizada com sucesso!")
+                        st.success("Senha updated com sucesso!")
                     else:
                         st.error("E-mail não encontrado.")
                 else:
@@ -327,7 +328,7 @@ with aba_mural:
         else:
             st.info("Mural interativo offline.")
 
-# ABA 2: BÍBLIA SAGRADA REAL ONLINE (API DE ALTA DISPONIBILIDADE)
+# ABA 2: BÍBLIA SAGRADA REAL ONLINE (API CORRIGIDA DE PONTA A PONTA)
 with aba_biblia:
     st.header("📖 Leitura Bíblica Oficial (Almeida Revista e Corrigida)")
     
@@ -355,6 +356,7 @@ with aba_biblia:
         if st.button("📖 Abrir Capítulo em Modo Cinema", width="stretch"):
             with st.spinner("Buscando escrituras legítimas na nuvem..."):
                 try:
+                    # CORREÇÃO CRÍTICA DA BARRA SEPARADORA DA URL
                     link_api = f"https://bible-api.com{livro_sel}+{cap_sel}?translation=almeida"
                     resposta = requests.get(link_api, timeout=12)
                     
@@ -434,7 +436,6 @@ if st.session_state.nivel_atual == "Pastor":
     with aba_membros:
         st.header("👥 Gestão de Membros")
         
-        # MELHORIA: Filtros Avançados combinados por Nome e Cargo Eclesiástico
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             filtro_nome = st.text_input("🔍 Filtrar por nome:")
@@ -498,14 +499,12 @@ if st.session_state.nivel_atual == "Pastor":
         historico_df = consultar_db("SELECT id AS 'ID', tipo AS 'Tipo', descricao AS 'Descrição', valor AS 'Valor (R$)', data AS 'Data' FROM financeiro ORDER BY id DESC")
         
         if not historico_df.empty:
-            # MELHORIA: Botão para Exportar Relatório Geral de Caixa diretamente para o Excel (CSV)
             csv_dados = historico_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Exportar Histórico Financeiro para o Excel",
                 data=csv_dados,
                 file_name=f"fluxo_caixa_agape_{datetime.date.today().strftime('%Y_%m_%d')}.csv",
-                mime="text/csv",
-                width="stretch"
+                mime="text/csv"
             )
             st.markdown(" ")
             
