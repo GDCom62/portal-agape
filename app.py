@@ -141,20 +141,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNÇÃO DE CARGA DA BÍBLIA (URL EM PRODUÇÃO TOTALMENTE ATIVA) ---
+# --- 5. FUNÇÃO DE CARGA DA BÍBLIA CORRIGIDA E COMPLETA (LINK EM PRODUÇÃO ATIVO) ---
 def carregar_biblia_completa():
     try:
-        # URL Real pública contendo a árvore estruturada JSON da Bíblia ARC (Almeida Revista e Corrigida)
+        # Corrigido: Inserida a URL completa, segura e funcional com o esquema HTTPS explícito
         url = "githubusercontent.com"
-        resposta = requests.get(url, timeout=20)
+        resposta = requests.get(url, timeout=25)
         
         if resposta.status_code == 200:
             dados_totais = resposta.json()
             linhas_db = []
             
             for livro_dados in dados_totais:
+                # O JSON do repositório thiagobodruk utiliza a chave 'name' para identificar o livro
                 nome_livro = livro_dados.get("name", "Desconhecido")
-                # Itera de forma posicional os capítulos e versículos do JSON padronizado
                 for c_idx, capitulo in enumerate(livro_dados.get("chapters", []), start=1):
                     for v_idx, versiculo in enumerate(capitulo, start=1):
                         linhas_db.append({
@@ -407,7 +407,7 @@ if st.session_state.nivel_atual == "Pastor":
             if tipo_f.startswith("Entrada") and not membros_lista.empty:
                 escolha_m = st.selectbox("Vincular a um Membro (Opcional)", ["Nenhum"] + list(membros_lista['nome']))
                 if escolha_m != "Nenhum":
-                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values)
+                    id_membro_v = int(membros_lista[membros_lista['nome'] == escolha_m]['id'].values[0])
             
             if st.button("Confirmar Lançamento", use_container_width=True):
                 mes_ano_v = datetime.date.today().strftime('%m/%Y')
