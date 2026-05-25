@@ -257,4 +257,5 @@ st.markdown("""
 
 if not st.session_state.autenticado:
     st.info("👉 Por favor, utilize o formulário de acesso na barra lateral para desbloquear o painel administrativo.")
-else:
+
+if st.session_state.autenticado:
