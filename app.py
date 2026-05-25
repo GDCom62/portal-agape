@@ -239,7 +239,6 @@ if not st.session_state.autenticado:
 else:
     st.sidebar.markdown(f"👤 **Usuário:** `{st.session_state.usuario_atual}`")
     st.sidebar.markdown(f"🛡️ **Perfil:** `{st.session_state.nivel_atual}`")
-    
     if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
         st.session_state.autenticado = False
         st.session_state.usuario_atual = None
