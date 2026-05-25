@@ -6,6 +6,7 @@ import redis
 import json
 import requests
 import datetime
+import random
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -39,6 +40,26 @@ def consultar_db(sql, params=None):
             return pd.read_sql_query(text(sql), conn, params=params or {})
         except Exception:
             return pd.DataFrame()
+
+# Função para buscar Versículo Diário de uma API pública
+def buscar_versiculo_api():
+    try:
+        # Requisição para API gratuita de versículos em português
+        resposta = requests.get("https://bible-api.com", timeout=5)
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            texto = dados.get("text", "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito...").strip()
+            referencia = dados.get("reference", "João 3:16")
+            return texto, referencia
+    except Exception:
+        pass
+    # Versículos de backup caso a API fique offline
+    backups = [
+        ("O Senhor é o meu pastor, nada me faltará.", "Salmos 23:1"),
+        ("Tudo posso naquele que me fortalece.", "Filipenses 4:13"),
+        ("Asseguro-vos que estarei convosco todos os dias, até ao fim dos tempos.", "Mateus 28:20")
+    ]
+    return random.choice(backups)
 
 # Inicialização segura das tabelas nativas do sistema
 executar_query("""
@@ -144,17 +165,19 @@ st.markdown("""
         text-align: center !important;
     }
     .texto-sagrado-grande {
-        font-size: 24px !important;
+        font-size: 22px !important;
         font-family: 'Georgia', serif !important;
         line-height: 1.6 !important;
         margin-bottom: 15px !important;
         color: #FFD700 !important;
-        text-align: justify !important;
+        text-align: center !important;
     }
     .numero-versiculo {
         color: #ffffff !important;
         font-weight: bold !important;
-        margin-right: 8px !important;
+        display: block;
+        margin-top: 10px;
+        font-size: 16px;
     }
     .pix-card {
         background-color: #ffffff !important;
@@ -239,26 +262,3 @@ else:
     st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
     st.sidebar.info(f"Nível: {st.session_state.nivel_atual}")
     
-    if st.sidebar.button("⚙️ Logout / Sair", use_container_width=True):
-        st.session_state.autenticado = False
-        st.session_state.usuario_atual = None
-        st.session_state.nivel_atual = "Membro"
-        st.rerun()
-
-    menu = ["Início & Versículos", "Membros", "Financeiro", "Avisos", "Louvores"]
-    escolha = st.selectbox("Selecione a seção do Portal:", menu)
-
-    # --- ABA 1: HOME ---
-    if escolha == "Início & Versículos":
-        st.title("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown("""
-            <div class="versiculo-box">
-                <div class="texto-sagrado-grande">
-                    <span class="numero-versiculo">João 3:16</span> 
-                    "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        df_m_total = consultar_db("SELECT id FROM membros")
-        total_m = len(df_m_total)
