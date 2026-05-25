@@ -41,25 +41,39 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# Função para buscar Versículo Diário de uma API pública
+# --- FUNÇÃO ATUALIZADA: API A BÍBLIA DIGITAL ---
 def buscar_versiculo_api():
+    # Lista de sugestões de leitura (Livro, Capítulo, Nome Amigável) para sortear no painel
+    sugestoes = [
+        {"slug": "jo", "cap": 3, "nome": "João 3"},
+        {"slug": "sl", "cap": 23, "nome": "Salmos 23"},
+        {"slug": "fp", "cap": 4, "nome": "Filipenses 4"},
+        {"slug": "is", "cap": 41, "nome": "Isaías 41"},
+        {"slug": "rm", "cap": 8, "nome": "Romanos 8"},
+        {"slug": "mt", "cap": 6, "nome": "Mateus 6"}
+    ]
+    escolha = random.choice(sugestoes)
+    version = "nvi"  # Nova Versão Internacional (Português)
+    
     try:
-        # Requisição para API gratuita de versículos em português
-        resposta = requests.get("https://bible-api.com", timeout=5)
+        # URL oficial da API baseada no formato fornecido por você
+        url = f"https://abibliadigital.com.br{version}/{escolha['slug']}/{escolha['cap']}"
+        resposta = requests.get(url, timeout=5)
+        
         if resposta.status_code == 200:
             dados = resposta.json()
-            texto = dados.get("text", "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito...").strip()
-            referencia = dados.get("reference", "João 3:16")
-            return texto, referencia
+            # Sorteia um dos versículos retornados do capítulo completo
+            if "verses" in dados and len(dados["verses"]) > 0:
+                v_sorteado = random.choice(dados["verses"])
+                texto = v_sorteado.get("text", "")
+                numero = v_sorteado.get("number", 1)
+                referencia = f"{dados['book']['name']} {dados['chapter']}:{numero}"
+                return texto, referencia
     except Exception:
         pass
-    # Versículos de backup caso a API fique offline
-    backups = [
-        ("O Senhor é o meu pastor, nada me faltará.", "Salmos 23:1"),
-        ("Tudo posso naquele que me fortalece.", "Filipenses 4:13"),
-        ("Asseguro-vos que estarei convosco todos os dias, até ao fim dos tempos.", "Mateus 28:20")
-    ]
-    return random.choice(backups)
+        
+    # Sistema de segurança caso a API falhe ou fique offline
+    return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "João 3:16")
 
 # Inicialização segura das tabelas nativas do sistema
 executar_query("""
@@ -170,7 +184,7 @@ st.markdown("""
         line-height: 1.6 !important;
         margin-bottom: 15px !important;
         color: #FFD700 !important;
-        text-align: center !important;
+        text-align: center;
     }
     .numero-versiculo {
         color: #ffffff !important;
@@ -249,16 +263,3 @@ if not st.session_state.autenticado:
                         if len(nova_senha_pura) < 4:
                             st.error("A nova senha precisa ter no mínimo 4 caracteres.")
                         else:
-                            hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
-                            executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
-                            st.success("Senha atualizada! Vá para a aba 'Entrar'.")
-                    else:
-                        st.error("E-mail não encontrado.")
-                else:
-                    st.warning("Preencha todos os campos.")
-
-# --- 6. PAINEL PRINCIPAL (APÓS AUTENTICAÇÃO) ---
-else:
-    st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
-    st.sidebar.info(f"Nível: {st.session_state.nivel_atual}")
-    
