@@ -41,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# --- FUNÇÃO CORRIGIDA: API A BÍBLIA DIGITAL ---
+# --- FUNÇÃO ATUALIZADA: API A BÍBLIA DIGITAL ---
 def buscar_versiculo_api():
     sugestoes = [
         {"slug": "jo", "cap": 3},
@@ -55,7 +55,6 @@ def buscar_versiculo_api():
     version = "nvi"
     
     try:
-        # Rota corrigida adicionando o prefixo /api/ exigido pela plataforma
         url = f"https://abibliadigital.com.br{version}/{escolha['slug']}/{escolha['cap']}"
         resposta = requests.get(url, timeout=5)
         if resposta.status_code == 200:
@@ -206,6 +205,9 @@ if "autenticado" not in st.session_state:
     st.session_state.usuario_atual = None
     st.session_state.nivel_atual = "Membro"
 
+if "menu_selecionado" not in st.session_state:
+    st.session_state.menu_selecionado = "Início & Versículos"
+
 st.sidebar.title("🔐 Portal Ágape")
 
 if not st.session_state.autenticado:
@@ -222,6 +224,7 @@ if not st.session_state.autenticado:
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
                     st.session_state.nivel_atual = df_u.loc[0, 'nivel']
+                    st.session_state.menu_selecionado = "Início & Versículos"
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -261,6 +264,3 @@ if not st.session_state.autenticado:
                         else:
                             hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
-                            st.success("Senha atualizada! Faça login na aba 'Entrar'.")
-                    else:
-                        st.error("E-mail não encontrado.")
