@@ -248,6 +248,7 @@ else:
     menu = ["Início & Versículos", "Membros", "Financeiro", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu)
 
+    # --- ABA 1: HOME ---
     if escolha == "Início & Versículos":
         st.title("⛪ Bem-vindo ao Portal Ágape")
         st.markdown("""
@@ -259,5 +260,6 @@ else:
             </div>
         """, unsafe_allow_html=True)
         
-    elif escolha == "Membros":
-        st.title("👥 Gestão de Membros")
+        # Informativo rápido no início
+        col1, col2 = st.columns(2)
+        with col1:
