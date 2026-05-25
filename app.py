@@ -183,7 +183,6 @@ if not st.session_state.autenticado:
             campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com").strip()
             campo_senha = st.text_input("Senha", type="password", value="agape2026")
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
-            
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
                 if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
@@ -199,7 +198,6 @@ if not st.session_state.autenticado:
             reg_user = st.text_input("E-mail para Acesso").strip()
             reg_pass = st.text_input("Defina uma Senha", type="password")
             botao_registrar = st.form_submit_button("Solicitar Acesso", use_container_width=True)
-            
             if botao_registrar:
                 if reg_user and reg_pass:
                     if len(reg_pass) < 4:
@@ -221,7 +219,6 @@ if not st.session_state.autenticado:
             reset_user = st.text_input("E-mail Cadastrado").strip()
             nova_senha_pura = st.text_input("Nova Senha Desejada", type="password")
             botao_resetar = st.form_submit_button("Atualizar Senha", use_container_width=True)
-            
             if botao_resetar:
                 if reset_user and nova_senha_pura:
                     check_user = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reset_user})
@@ -231,7 +228,7 @@ if not st.session_state.autenticado:
                         else:
                             hash_nova = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_nova, "u": reset_user})
-                            st.success("Senha atualizada com sucesso! Faça login na aba 'Entrar'.")
+                            st.success("Senha atualizada! Faça login na aba 'Entrar'.")
                     else:
                         st.error("E-mail não encontrado no sistema.")
                 else:
@@ -248,7 +245,6 @@ else:
 # --- 6. CORPO PRINCIPAL DO PORTAL ---
 st.title("⛪ Portal Ágape — Gestão da Igreja")
 
-# Versículo Fixo do Topo Resguardado com Segurança
 st.markdown("""
     <div class="versiculo-box">
         <div class="texto-sagrado-grande">
@@ -259,3 +255,5 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if not st.session_state.autenticado:
+    st.info("👉 Por favor, utilize o formulário de acesso na barra lateral para desbloquear o painel administrativo.")
+else:
