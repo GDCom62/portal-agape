@@ -221,9 +221,7 @@ if not st.session_state.autenticado:
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
                     st.session_state.nivel_atual = df_u.loc[0, 'nivel']
-                    st.success("Login efetuado! Clique no botão abaixo para entrar.")
-                    if st.button("Abrir Portal ➡️", use_container_width=True):
-                        st.rerun()
+                    st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
@@ -263,3 +261,8 @@ if not st.session_state.autenticado:
                             hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
                             st.success("Senha atualizada! Faça login na aba 'Entrar'.")
+                    else:
+                        st.error("E-mail não encontrado.")
+                else:
+                    st.warning("Preencha todos os campos.")
+
