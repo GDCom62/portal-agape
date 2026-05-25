@@ -41,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# --- FUNÇÃO ATUALIZADA: API A BÍBLIA DIGITAL ---
+# --- FUNÇÃO CORRIGIDA: API A BÍBLIA DIGITAL ---
 def buscar_versiculo_api():
     sugestoes = [
         {"slug": "jo", "cap": 3},
@@ -58,7 +58,7 @@ def buscar_versiculo_api():
         url = f"https://abibliadigital.com.br{version}/{escolha['slug']}/{escolha['cap']}"
         resposta = requests.get(url, timeout=5)
         if resposta.status_code == 200:
-            dados = resposta.json()
+            dados = response_json = resposta.json()
             if "verses" in dados and len(dados["verses"]) > 0:
                 v_sorteado = random.choice(dados["verses"])
                 texto = v_sorteado.get("text", "")
@@ -199,7 +199,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. GESTÃO DE ACESSO ---
+# --- 5. GESTÃO DE ACESSO COM PERSISTÊNCIA DIRETA ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -207,62 +207,60 @@ if "autenticado" not in st.session_state:
 
 st.sidebar.title("🔐 Portal Ágape")
 
+# SE NÃO ESTIVER AUTENTICADO, EXIBE O LOGIN INDEPENDENTE
 if not st.session_state.autenticado:
     aba_side_login, aba_side_novo, aba_side_esqueci = st.sidebar.tabs(["Entrar", "Novo Acesso", "Esqueci a Senha"])
     
     with aba_side_login:
-        with st.form(key="form_login_novo"):
-            campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com").strip()
-            campo_senha = st.text_input("Senha", type="password", value="agape2026")
-            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
-            if botao_entrar:
-                df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-                if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
-                    st.session_state.autenticado = True
-                    st.session_state.usuario_atual = campo_usuario
-                    st.session_state.nivel_atual = df_u.loc[0, 'nivel']
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos.")
+        campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com", key="login_user_input").strip()
+        campo_senha = st.text_input("Senha", type="password", value="agape2026", key="login_pass_input")
+        
+        if st.button("Entrar no Sistema", use_container_width=True, key="btn_login_direct"):
+            df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
+            if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
+                st.session_state.autenticado = True
+                st.session_state.usuario_atual = campo_usuario
+                st.session_state.nivel_atual = df_u.loc[0, 'nivel']
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
                     
     with aba_side_novo:
-        with st.form(key="form_cadastro_autonomo"):
-            reg_user = st.text_input("E-mail para Acesso").strip()
-            reg_pass = st.text_input("Defina uma Senha", type="password")
-            botao_registrar = st.form_submit_button("Solicitar Acesso", use_container_width=True)
-            if botao_registrar:
-                if reg_user and reg_pass:
-                    if len(reg_pass) < 4:
-                        st.error("A senha precisa ter no mínimo 4 caracteres.")
-                    else:
-                        check_existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reg_user})
-                        if check_existe.empty:
-                            hash_nova_senha = generate_password_hash(reg_pass, method="scrypt")
-                            executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')",
-                                           {"u": reg_user, "s": hash_nova_senha})
-                            st.success("Acesso criado! Vá para a aba 'Entrar'.")
-                        else:
-                            st.error("Este e-mail já está cadastrado.")
+        reg_user = st.text_input("E-mail para Acesso", key="reg_user_input").strip()
+        reg_pass = st.text_input("Defina uma Senha", type="password", key="reg_pass_input")
+        if st.button("Solicitar Acesso", use_container_width=True, key="btn_reg_direct"):
+            if reg_user and reg_pass:
+                if len(reg_pass) < 4:
+                    st.error("A senha precisa ter no mínimo 4 caracteres.")
                 else:
-                    st.warning("Preencha todos os campos.")
+                    check_existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reg_user})
+                    if check_existe.empty:
+                        hash_nova_senha = generate_password_hash(reg_pass, method="scrypt")
+                        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')",
+                                       {"u": reg_user, "s": hash_nova_senha})
+                        st.success("Acesso criado! Vá para a aba 'Entrar'.")
+                    else:
+                        st.error("Este e-mail já está cadastrado.")
+            else:
+                st.warning("Preencha todos os campos.")
 
     with aba_side_esqueci:
-        with st.form(key="form_reset_senha"):
-            reset_user = st.text_input("E-mail Cadastrado").strip()
-            nova_senha_pura = st.text_input("Nova Senha Desejada", type="password")
-            botao_resetar = st.form_submit_button("Atualizar Senha", use_container_width=True)
-            if botao_resetar:
-                if reset_user and nova_senha_pura:
-                    check_user = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reset_user})
-                    if not check_user.empty:
-                        if len(nova_senha_pura) < 4:
-                            st.error("A nova senha precisa ter no mínimo 4 caracteres.")
-                        else:
-                            hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
-                            executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
-                            st.success("Senha atualizada! Faça login na aba 'Entrar'.")
+        reset_user = st.text_input("E-mail Cadastrado", key="reset_user_input").strip()
+        nova_senha_pura = st.text_input("Nova Senha Desejada", type="password", key="reset_pass_input")
+        if st.button("Atualizar Senha", use_container_width=True, key="btn_reset_direct"):
+            if reset_user and nova_senha_pura:
+                check_user = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reset_user})
+                if not check_user.empty:
+                    if len(nova_senha_pura) < 4:
+                        st.error("A nova senha precisa ter no mínimo 4 caracteres.")
                     else:
-                        st.error("E-mail não encontrado.")
+                        hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
+                        executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
+                        st.success("Senha atualizada! Faça login na aba 'Entrar'.")
                 else:
-                    st.warning("Preencha todos os campos.")
+                    st.error("E-mail não encontrado.")
+            else:
+                st.warning("Preencha todos os campos.")
 
+# --- 6. PAINEL PRINCIPAL (SÓ RENDERIZA APÓS CONFIRMAÇÃO DE LOGIN) ---
+if st.session_state.autenticado:
