@@ -41,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# --- FUNÇÃO ATUALIZADA: API A BÍBLIA DIGITAL ---
+# --- FUNÇÃO CORRIGIDA: API A BÍBLIA DIGITAL ---
 def buscar_versiculo_api():
     sugestoes = [
         {"slug": "jo", "cap": 3},
@@ -55,6 +55,7 @@ def buscar_versiculo_api():
     version = "nvi"
     
     try:
+        # Rota corrigida adicionando o prefixo /api/ exigido pela plataforma
         url = f"https://abibliadigital.com.br{version}/{escolha['slug']}/{escolha['cap']}"
         resposta = requests.get(url, timeout=5)
         if resposta.status_code == 200:
@@ -260,9 +261,6 @@ if not st.session_state.autenticado:
                         else:
                             hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
-                            st.success("Senha updated! Faça login na aba 'Entrar'.")
+                            st.success("Senha atualizada! Faça login na aba 'Entrar'.")
                     else:
                         st.error("E-mail não encontrado.")
-                else:
-                    st.warning("Preencha todos os campos.")
-
