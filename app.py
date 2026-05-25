@@ -228,7 +228,7 @@ if not st.session_state.autenticado:
                         else:
                             hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
-                            st.success("Senha atualizada! Vá para a aba 'Entrar'.")
+                            st.success("Senha updated! Vá para a aba 'Entrar'.")
                     else:
                         st.error("E-mail não encontrado.")
                 else:
@@ -260,6 +260,5 @@ else:
             </div>
         """, unsafe_allow_html=True)
         
-        # Informativo rápido no início
         col1, col2 = st.columns(2)
         with col1:
