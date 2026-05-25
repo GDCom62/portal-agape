@@ -236,8 +236,6 @@ if not st.session_state.autenticado:
                         st.error("E-mail não encontrado no sistema.")
                 else:
                     st.warning("Preencha todos os campos do formulário.")
-
-# --- 6. BARRA LATERAL PARA USUÁRIOS AUTENTICADOS ---
 else:
     st.sidebar.markdown(f"👤 **Usuário:** `{st.session_state.usuario_atual}`")
     st.sidebar.markdown(f"🛡️ **Perfil:** `{st.session_state.nivel_atual}`")
@@ -248,7 +246,7 @@ else:
         st.session_state.nivel_atual = "Membro"
         st.rerun()
 
-# --- 7. CORPO PRINCIPAL DO PORTAL ---
+# --- 6. CORPO PRINCIPAL DO PORTAL ---
 st.title("⛪ Portal Ágape — Gestão da Igreja")
 
 # Versículo Fixo do Topo Resguardado com Segurança
