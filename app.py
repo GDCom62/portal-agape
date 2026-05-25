@@ -231,7 +231,7 @@ if not st.session_state.autenticado:
                         else:
                             hash_nova = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_nova, "u": reset_user})
-                            st.success("Senha updated com sucesso! Faça login na aba 'Entrar'.")
+                            st.success("Senha atualizada com sucesso! Faça login na aba 'Entrar'.")
                     else:
                         st.error("E-mail não encontrado no sistema.")
                 else:
