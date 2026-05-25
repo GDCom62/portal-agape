@@ -205,9 +205,6 @@ if "autenticado" not in st.session_state:
     st.session_state.usuario_atual = None
     st.session_state.nivel_atual = "Membro"
 
-if "menu_selecionado" not in st.session_state:
-    st.session_state.menu_selecionado = "Início & Versículos"
-
 st.sidebar.title("🔐 Portal Ágape")
 
 if not st.session_state.autenticado:
@@ -224,8 +221,9 @@ if not st.session_state.autenticado:
                     st.session_state.autenticado = True
                     st.session_state.usuario_atual = campo_usuario
                     st.session_state.nivel_atual = df_u.loc[0, 'nivel']
-                    st.session_state.menu_selecionado = "Início & Versículos"
-                    st.rerun()
+                    st.success("Login efetuado! Clique no botão abaixo para entrar.")
+                    if st.button("Abrir Portal ➡️", use_container_width=True):
+                        st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
@@ -264,3 +262,4 @@ if not st.session_state.autenticado:
                         else:
                             hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
                             executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
+                            st.success("Senha atualizada! Faça login na aba 'Entrar'.")
