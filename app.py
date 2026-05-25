@@ -182,7 +182,7 @@ if not st.session_state.autenticado:
         with st.form(key="form_login_novo"):
             campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com").strip()
             campo_senha = st.text_input("Senha", type="password", value="agape2026")
-            botao_entrar = st.form_submit_button("Entrar no Sistema", width="stretch")
+            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
                 df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
@@ -198,7 +198,7 @@ if not st.session_state.autenticado:
         with st.form(key="form_cadastro_autonomo"):
             reg_user = st.text_input("E-mail para Acesso").strip()
             reg_pass = st.text_input("Defina uma Senha", type="password")
-            botao_registrar = st.form_submit_button("Solicitar Acesso", width="stretch")
+            botao_registrar = st.form_submit_button("Solicitar Acesso", use_container_width=True)
             
             if botao_registrar:
                 if reg_user and reg_pass:
@@ -220,7 +220,7 @@ if not st.session_state.autenticado:
         with st.form(key="form_reset_senha"):
             reset_user = st.text_input("E-mail Cadastrado").strip()
             nova_senha_pura = st.text_input("Nova Senha Desejada", type="password")
-            botao_resetar = st.form_submit_button("Atualizar Senha", width="stretch")
+            botao_resetar = st.form_submit_button("Atualizar Senha", use_container_width=True)
             
             if botao_resetar:
                 if reset_user and nova_senha_pura:
