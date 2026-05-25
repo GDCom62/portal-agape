@@ -167,7 +167,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. GESTÃO DE ACESSO (AUTENTICAÇÃO COMPLETA) ---
+# --- 5. GESTÃO DE ACESSO ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -233,7 +233,8 @@ if not st.session_state.autenticado:
                         st.error("E-mail não encontrado no sistema.")
                 else:
                     st.warning("Preencha todos os campos do formulário.")
-else:
+
+if st.session_state.autenticado:
     st.sidebar.markdown(f"👤 **Usuário:** `{st.session_state.usuario_atual}`")
     st.sidebar.markdown(f"🛡️ **Perfil:** `{st.session_state.nivel_atual}`")
     if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
