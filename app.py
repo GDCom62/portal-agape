@@ -102,14 +102,12 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Offline & Pesquisa")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
-        
         if modo == "Leitura por Capítulo":
             df_livros = consultar_db("SELECT DISTINCT livro FROM texto_biblico ORDER BY id ASC")
             lista_livros = df_livros["livro"].tolist() if not df_livros.empty else ["Gênesis", "Êxodo", "Salmos", "João", "Apocalipse"]
             c1, c2 = st.columns(2)
             l_nome = c1.selectbox("Selecione o Livro:", lista_livros)
             c_num = c2.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
-            
             if st.button("📖 Abrir Capítulo Completo", use_container_width=True):
                 df_local = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
                 if not df_local.empty:
@@ -117,8 +115,7 @@ if st.session_state.autenticado:
                     for i, r in df_local.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
                     html += "</div>"
                     st.markdown(html, unsafe_allow_html=True)
-                else: st.warning("Sincronizando banco de dados... Aguarde uns instantes e tente carregar novamente.")
-                    
+                else: st.warning("Sincronizando banco de dados... Aguarde uns instantes.")
         else:
             termo = st.text_input("Digite a palavra ou frase que deseja encontrar na Bíblia:").strip()
             if termo:
@@ -158,3 +155,4 @@ if st.session_state.autenticado:
             f1, f2 = st.tabs(["Lançar", "Livro Caixa"])
             with f1:
                 with st.form("f_fin", clear_on_submit=True):
+                    t_f = st.radio("Tipo", ["Entrada", "Saída"])
