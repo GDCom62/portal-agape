@@ -40,17 +40,15 @@ CREATE TABLE IF NOT EXISTS texto_biblico (
 );
 """)
 
-# Sincronização do Administrador e Carga Inicial de Contingência da Bíblia
 def carga_inicial_sistema():
     admin_user = "admin@agape.com"
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
     
-    # Se a tabela da bíblia local estiver vazia, injeta os capítulos principais para garantir o funcionamento
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
         base_inicial = [
-            ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
-            ("João", 3, 17, "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."),
+            ("João", 3, 16, "Porque Deus amou o world de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
+            ("João", 3, 17, "Porque Deus enviou o seu Filho ao world, não para condenar o world, mas para que o world fosse salvo por ele."),
             ("Salmos", 23, 1, "O Senhor é o meu pastor, nada me faltará."),
             ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."),
             ("Salmos", 23, 3, "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."),
@@ -58,7 +56,7 @@ def carga_inicial_sistema():
             ("Salmos", 23, 5, "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda."),
             ("Salmos", 23, 6, "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."),
             ("Salmos", 91, 1, "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."),
-            ("Salmos", 91, 2, "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei."),
+            ("Salmos", 91, 2, "Direi do Senhor: El é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei."),
             ("Filipenses", 4, 13, "Tudo posso naquele que me fortalece.")
         ]
         for livro, cap, ver, txt in base_inicial:
@@ -128,7 +126,6 @@ if st.session_state.autenticado:
         c_num = c2.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
         
         if st.button("📖 Carregar Capítulo Inteiro", use_container_width=True):
-            # 1. Verifica se já temos esse capítulo gravado localmente no SQLite
             df_local = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
             
             if not df_local.empty:
@@ -138,7 +135,6 @@ if st.session_state.autenticado:
                 html += "</div>"
                 st.markdown(html, unsafe_allow_html=True)
             else:
-                # 2. Se não estiver no banco local, faz a requisição na API e grava todos os versículos para sempre
                 try:
                     url_api = f"https://abibliadigital.com.br{LIVROS_BIBLIA[l_nome]}/{c_num}"
                     res = requests.get(url_api, timeout=5)
@@ -146,10 +142,21 @@ if st.session_state.autenticado:
                         dados = res.json()
                         html = "<div class='leitura-box'><h4>📥 Baixado e Sincronizado com Sucesso!</h4><br>"
                         for v in dados["verses"]:
-                            # Salva no banco local SQLite da aplicação para nunca mais depender da API neste capítulo
                             executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": l_nome, "c": c_num, "v": v["number"], "t": v["text"]})
                             html += f"<p><b style='color:#FFA500;'>{v['number']}.</b> {v['text']}</p>"
                         html += "</div>"
                         st.markdown(html, unsafe_allow_html=True)
                     else: st.warning("Capítulo não encontrado na base de dados.")
                 except:
+                    st.error("Servidor instável. Experimente ler João capítulo 3 ou Salmos capítulo 23 que já estão salvos localmente!")
+
+    elif escolha == "Membros":
+        st.subheader("👥 Gestão de Membros")
+        a1, a2 = st.tabs(["Ver", "Cadastrar"])
+        with a2:
+            with st.form("f_memb", clear_on_submit=True):
+                m_nome = st.text_input("Nome")
+                m_tel = st.text_input("Telefone")
+                m_cargo = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
+                if st.form_submit_button("Salvar"):
+                    if m_nome:
