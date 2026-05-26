@@ -133,8 +133,8 @@ if st.session_state.autenticado:
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
-        a1, a2 = st.tabs(["Ver", "Cadastrar"])
-        with a2:
+        aba_membro_opcao = st.radio("Selecione a ação:", ["Ver Membros", "Cadastrar Novo Membro"], horizontal=True)
+        if aba_membro_opcao == "Cadastrar Novo Membro":
             with st.form("f_memb", clear_on_submit=True):
                 m_nome = st.text_input("Nome")
                 m_tel = st.text_input("Telefone")
@@ -143,7 +143,7 @@ if st.session_state.autenticado:
                     if m_nome:
                         executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro) VALUES (:n, :t, :c, :d)", {"n": m_nome, "t": m_tel, "c": m_cargo, "d": datetime.date.today().strftime('%d/%m/%Y')})
                         st.success("Salvo!")
-        with a1:
+        else:
             df_m = consultar_db("SELECT * FROM membros")
             if not df_m.empty:
                 for i, r in df_m.iterrows():
@@ -156,6 +156,3 @@ if st.session_state.autenticado:
 
     elif escolha == "Financeiro":
         st.subheader("💰 Controle Financeiro")
-        if st.session_state.nivel_atual == "Pastor":
-            f1, f2 = st.tabs(["Lançar", "Livro Caixa"])
-            with f1:
