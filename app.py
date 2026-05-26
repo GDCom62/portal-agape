@@ -34,7 +34,6 @@ def carga_inicial_sistema():
     admin_user = "admin@agape.com"
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
-    
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
         base_tradicional = [
             ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
