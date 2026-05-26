@@ -21,12 +21,16 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
+# Criação e Atualização Automatizada de Tabelas
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
 executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
 executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
+
+# Novas tabelas para Escalas
+executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
 
 @st.cache_resource
 def baixar_e_instalar_biblia():
@@ -88,7 +92,7 @@ if st.session_state.autenticado:
         st.session_state.autenticado = False
         st.rerun()
 
-    menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Financeiro", "Avisos", "Louvores"]
+    menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Escala de Ministérios", "Financeiro & Dízimos", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
     st.divider()
 
@@ -142,17 +146,10 @@ if st.session_state.autenticado:
                 if st.form_submit_button("Salvar"):
                     if m_nome:
                         executar_query("INSERT INTO membros (nome, telephone, cargo, data_cadastro) VALUES (:n, :t, :c, :d)", {"n": m_nome, "t": m_tel, "c": m_cargo, "d": datetime.date.today().strftime('%d/%m/%Y')})
-                        st.success("Salvo!")
+                        st.success("Salvo com sucesso!")
         else:
             df_m = consultar_db("SELECT * FROM membros")
             if not df_m.empty:
                 for i, r in df_m.iterrows():
                     st.write(f"**👤 {r['nome']}** - {r['cargo']}")
                     if st.button("Excluir", key=f"del_m_{r['id']}"):
-                        executar_query("DELETE FROM membros WHERE id = :id", {"id": r['id']})
-                        st.rerun()
-                    st.divider()
-            else: st.info("Nenhum membro.")
-
-    elif escolha == "Financeiro":
-        st.subheader("💰 Controle Financeiro")
