@@ -41,7 +41,7 @@ def consultar_db(sql, params=None):
         except Exception:
             return pd.DataFrame()
 
-# --- FUNÇÃO CORRIGIDA: API A BÍBLIA DIGITAL ---
+# --- FUNÇÃO ATUALIZADA: API A BÍBLIA DIGITAL ---
 def buscar_versiculo_api():
     sugestoes = [
         {"slug": "jo", "cap": 3},
@@ -53,21 +53,16 @@ def buscar_versiculo_api():
     ]
     escolha = random.choice(sugestoes)
     version = "nvi"
-    
     try:
         url = f"https://abibliadigital.com.br{version}/{escolha['slug']}/{escolha['cap']}"
-        resposta = requests.get(url, timeout=5)
+        resposta = requests.get(url, timeout=4)
         if resposta.status_code == 200:
             dados = resposta.json()
             if "verses" in dados and len(dados["verses"]) > 0:
                 v_sorteado = random.choice(dados["verses"])
-                texto = v_sorteado.get("text", "")
-                numero = v_sorteado.get("number", 1)
-                referencia = f"{dados['book']['name']} {dados['chapter']}:{numero}"
-                return texto, referencia
+                return v_sorteado.get("text", ""), f"{dados['book']['name']} {dados['chapter']}:{v_sorteado.get('number', 1)}"
     except Exception:
         pass
-        
     return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "João 3:16")
 
 # Inicialização segura das tabelas nativas do sistema
@@ -80,11 +75,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 """)
 
-try:
-    executar_query("ALTER TABLE usuarios ADD COLUMN nivel TEXT DEFAULT 'Membro';")
-except Exception:
-    pass 
-
 executar_query("""
 CREATE TABLE IF NOT EXISTS membros (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,11 +86,6 @@ CREATE TABLE IF NOT EXISTS membros (
     observacoes TEXT
 );
 """)
-
-try:
-    executar_query("ALTER TABLE membros ADD COLUMN observacoes TEXT DEFAULT '';")
-except Exception:
-    pass
 
 executar_query("""
 CREATE TABLE IF NOT EXISTS financeiro (
@@ -133,133 +118,140 @@ CREATE TABLE IF NOT EXISTS louvores (
 );
 """)
 
-# Sincronização do Administrador Nativo
-def verificar_e_criar_admin():
-    admin_usuario = "admin@agape.com"
-    admin_senha_pura = "agape2026"
-    hash_admin = generate_password_hash(admin_senha_pura, method="scrypt")
+# --- 4. CONFIGURAÇÃO DE NAVEGAÇÃO LIVRE (DIRETO NO PORTAL) ---
+st.title("⛪ Portal Ágape")
+
+menu = ["Início & Versículos", "Membros", "Financeiro", "Avisos", "Louvores"]
+escolha = st.selectbox("Navegar para a seção do sistema:", menu, key="navigation_box_direct")
+
+st.divider()
+
+# --- ABA 1: HOME ---
+if escolha == "Início & Versículos":
+    st.header("Mural de Versículos")
+    texto_v, ref_v = buscar_versiculo_api()
+    st.info(f'"{texto_v}" — {ref_v}')
     
-    existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :user", {"user": admin_usuario})
-    if existe.empty:
-        executar_query("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:user, :senha, 'Pastor')", 
-                       {"user": admin_usuario, "senha": hash_admin})
-    else:
-        executar_query("UPDATE usuarios SET senha = :senha, nivel = 'Pastor' WHERE usuario = :user", 
-                       {"user": admin_usuario, "senha": hash_admin})
+    df_m_total = consultar_db("SELECT id FROM membros")
+    st.metric("Total de Membros Cadastrados", f"{len(df_m_total)} Irmãos")
 
-verificar_e_criar_admin()
-
-# --- 4. ESTILIZAÇÃO CUSTOMIZADA (AMARELO OURO) ---
-st.markdown("""
-    <style>
-    .stApp, div[data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-    }
-    .stMetric, div[data-testid="stMetricValue"], div[data-testid="metric-container"], .card-flutuante, .cartao-membro {
-        background-color: #ffffff !important;
-        padding: 20px;
-        border-radius: 16px !important;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.1) !important;
-        border: 1px solid #e0a800 !important;
-        color: #212529 !important;
-    }
-    .versiculo-box {
-        background: linear-gradient(135deg, #212529 0%, #0d0d0d 100%) !important;
-        color: #FFD700 !important;
-        padding: 30px !important;
-        border-radius: 20px !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
-        margin-bottom: 25px !important;
-        border: 2px solid #FFD700 !important;
-        text-align: center !important;
-    }
-    .texto-sagrado-grande {
-        font-size: 22px !important;
-        font-family: 'Georgia', serif !important;
-        line-height: 1.6 !important;
-        margin-bottom: 15px !important;
-        color: #FFD700 !important;
-        text-align: center;
-    }
-    .numero-versiculo {
-        color: #ffffff !important;
-        font-weight: bold !important;
-        display: block;
-        margin-top: 10px;
-        font-size: 16px;
-    }
-    .pix-card {
-        background-color: #ffffff !important;
-        padding: 30px;
-        border-radius: 20px;
-        border: 2px dashed #008080;
-        text-align: center;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 5. GESTÃO DE ACESSO ---
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
-    st.session_state.usuario_atual = None
-    st.session_state.nivel_atual = "Membro"
-
-st.sidebar.title("🔐 Portal Ágape")
-
-if not st.session_state.autenticado:
-    # BOTÃO DE SEGURANÇA NO CENTRO DA TELA CASO A SIDEBAR TRAVE
-    st.warning("⚠️ Se o login pela barra lateral não carregar automaticamente, clique no botão abaixo para forçar a entrada de Administrador:")
-    if st.button("🔓 Forçar Entrada como Pastor (Admin)", use_container_width=True, key="bypass_admin_button"):
-        st.session_state.autenticado = True
-        st.session_state.usuario_atual = "admin@agape.com"
-        st.session_state.nivel_atual = "Pastor"
-        st.rerun()
-
-    aba_side_login, aba_side_novo, aba_side_esqueci = st.sidebar.tabs(["Entrar", "Novo Acesso", "Esqueci a Senha"])
+# --- ABA 2: MEMBROS ---
+elif escolha == "Membros":
+    st.header("👥 Gestão de Membros")
+    aba_ver, aba_cadastrar = st.tabs(["Ver Membros", "Cadastrar Novo Membro"])
     
-    with aba_side_login:
-        campo_usuario = st.text_input("E-mail/Usuário", value="admin@agape.com", key="login_user_input").strip()
-        campo_senha = st.text_input("Senha", type="password", value="agape2026", key="login_pass_input")
-        
-        if st.button("Entrar no Sistema", use_container_width=True, key="btn_login_direct"):
-            df_u = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :user", {"user": campo_usuario})
-            if not df_u.empty and check_password_hash(str(df_u.loc[0, 'senha']), campo_senha):
-                st.session_state.autenticado = True
-                st.session_state.usuario_atual = campo_usuario
-                st.session_state.nivel_atual = df_u.loc[0, 'nivel']
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
-                    
-    with aba_side_novo:
-        reg_user = st.text_input("E-mail para Acesso", key="reg_user_input").strip()
-        reg_pass = st.text_input("Defina uma Senha", type="password", key="reg_pass_input")
-        if st.button("Solicitar Acesso", use_container_width=True, key="btn_reg_direct"):
-            if reg_user and reg_pass:
-                if len(reg_pass) < 4:
-                    st.error("A senha precisa ter no mínimo 4 caracteres.")
+    with aba_cadastrar:
+        with st.form("cad_membro_form", clear_on_submit=True):
+            nome = st.text_input("Nome do Membro")
+            telefone = st.text_input("Telefone / WhatsApp")
+            cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Missionária", "Líder de Louvor"])
+            mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+            obs = st.text_area("Observações")
+            
+            if st.form_submit_button("Salvar Membro"):
+                if nome:
+                    data_atual = datetime.date.today().strftime('%d/%m/%Y')
+                    executar_query("""
+                        INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario, observacoes)
+                        VALUES (:nome, :tel, :cargo, :dt, :mes, :obs)
+                    """, {"nome": nome, "tel": telefone, "cargo": cargo, "dt": data_atual, "mes": mes_aniv, "obs": obs})
+                    st.success(f"{nome} cadastrado com sucesso!")
                 else:
-                    check_existe = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reg_user})
-                    if check_existe.empty:
-                        hash_nova_senha = generate_password_hash(reg_pass, method="scrypt")
-                        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')",
-                                       {"u": reg_user, "s": hash_nova_senha})
-                        st.success("Acesso criado! Vá para a aba 'Entrar'.")
-                    else:
-                        st.error("Este e-mail já está cadastrado.")
-            else:
-                st.warning("Preencha todos os campos.")
+                    st.error("O campo 'Nome' é obrigatório.")
+                    
+    with aba_ver:
+        busca = st.text_input("Buscar membro por nome:", key="search_membro_input")
+        if busca:
+            df_membros = consultar_db("SELECT * FROM membros WHERE nome LIKE :b", {"b": f"%{busca}%"})
+        else:
+            df_membros = consultar_db("SELECT * FROM membros")
+            
+        if not df_membros.empty:
+            for idx, row in df_membros.iterrows():
+                st.write(f"**👤 {row['nome']}** - {row['cargo']} | Contato: {row['telefone']} | Aniversário: {row['mes_aniversario']}")
+                if st.button(f"Excluir {row['nome']}", key=f"del_m_{row['id']}"):
+                    executar_query("DELETE FROM membros WHERE id = :id", {"id": row['id']})
+                    st.rerun()
+                st.divider()
+        else:
+            st.info("Nenhum membro cadastrado ainda.")
 
-    with aba_side_esqueci:
-        reset_user = st.text_input("E-mail Cadastrado", key="reset_user_input").strip()
-        nova_senha_pura = st.text_input("Nova Senha Desejada", type="password", key="reset_pass_input")
-        if st.button("Atualizar Senha", use_container_width=True, key="btn_reset_direct"):
-            if reset_user and nova_senha_pura:
-                check_user = consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": reset_user})
-                if not check_user.empty:
-                    if len(nova_senha_pura) < 4:
-                        st.error("A nova senha precisa ter no mínimo 4 caracteres.")
-                    else:
-                        hash_reset = generate_password_hash(nova_senha_pura, method="scrypt")
-                        executar_query("UPDATE usuarios SET senha = :s WHERE usuario = :u", {"s": hash_reset, "u": reset_user})
+# --- ABA 3: FINANCEIRO ---
+elif escolha == "Financeiro":
+    st.header("💰 Controle Financeiro")
+    aba_lancar, aba_caixa = st.tabs(["Lançar Movimentação", "Livro Caixa"])
+    
+    with aba_lancar:
+        with st.form("cad_financeiro_form", clear_on_submit=True):
+            tipo = st.radio("Tipo de Entrada", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
+            desc = st.text_input("Descrição / Finalidade")
+            val = st.number_input("Valor (R\$)", min_value=0.0, step=10.0)
+            
+            if st.form_submit_button("Registrar Lançamento"):
+                if desc and val > 0:
+                    hj = datetime.date.today()
+                    dt_str = hj.strftime('%d/%m/%Y')
+                    mes_ano_str = hj.strftime('%m/%Y')
+                    
+                    executar_query("""
+                        INSERT INTO financeiro (tipo, descricao, valor, data, mes_ano, membro_id)
+                        VALUES (:tipo, :desc, :val, :dt, :ma, NULL)
+                    """, {"tipo": tipo, "desc": desc, "val": val, "dt": dt_str, "ma": mes_ano_str})
+                    st.success("Movimentação registrada!")
+                else:
+                    st.error("Preencha a descrição e defina um valor válido.")
+                    
+    with aba_caixa:
+        df_fin = consultar_db("SELECT * FROM financeiro ORDER BY id DESC")
+        if not df_fin.empty:
+            ent = df_fin[df_fin['tipo'].str.contains("Entrada")]['valor'].sum()
+            sai = df_fin[df_fin['tipo'].str.contains("Saída")]['valor'].sum()
+            saldo = ent - sai
+            
+            st.metric("Saldo Atual", f"R\$ {saldo:,.2f}")
+            st.dataframe(df_fin, use_container_width=True)
+        else:
+            st.info("Nenhum lançamento registrado.")
+
+# --- ABA 4: AVISOS ---
+elif escolha == "Avisos":
+    st.header("📢 Mural de Avisos")
+    with st.expander("➕ Publicar Novo Aviso"):
+        with st.form("cad_aviso_form", clear_on_submit=True):
+            t_aviso = st.text_input("Título do Aviso")
+            c_aviso = st.text_area("Conteúdo do Comunicado")
+            if st.form_submit_button("Postar no Mural"):
+                if t_aviso and c_aviso:
+                    dt_aviso = datetime.date.today().strftime('%d/%m/%Y')
+                    executar_query("INSERT INTO avisos (titulo, conteudo, data) VALUES (:t, :c, :d)",
+                                   {"t": t_aviso, "c": c_aviso, "d": dt_aviso})
+                    st.success("Aviso publicado!")
+                    st.rerun()
+                    
+    df_avisos = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
+    if not df_avisos.empty:
+        for idx, row in df_avisos.iterrows():
+            st.subheader(row['titulo'])
+            st.caption(f"📅 Postado em: {row['data']}")
+            st.write(row['conteudo'])
+            if st.button("Remover Aviso", key=f"del_av_{row['id']}"):
+                executar_query("DELETE FROM avisos WHERE id = :id", {"id": row['id']})
+                st.rerun()
+            st.divider()
+    else:
+        st.info("Mural de avisos vazio.")
+
+# --- ABA 5: LOUVORES ---
+elif escolha == "Louvores":
+    st.header("🎵 Repertório de Louvores")
+    aba_list_l, aba_cad_l = st.tabs(["Repertório", "Adicionar Louvor"])
+    
+    with aba_cad_l:
+        with st.form("form_louvor_block", clear_on_submit=True):
+            t_musica = st.text_input("Título da Canção")
+            a_musica = st.text_input("Ministério / Artista")
+            letra_m = st.text_area("Letra Completa", height=250)
+            
+            if st.form_submit_button("Adicionar ao Repertório"):
+                if t_musica and a_musica:
+                    executar_query("""
