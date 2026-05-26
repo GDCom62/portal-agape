@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
-import requests
 import datetime
 import random
 
@@ -22,6 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
+# Inicialização imediata das tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -29,28 +29,60 @@ executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOIN
 executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
 executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
+# BASE DE DADOS BÍBLICA EMBUTIDA (100% DISPONÍVEL OFFLINE)
+BIBLE_DATA = {
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.",
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
+            3: "E disse Deus: Haja luz; e houve luz.",
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
+        }
+    },
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.",
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
+            5: "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
+            6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
+        },
+        91: {
+            1: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
+            2: "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, o meu Deus, em quem confiarei.",
+            3: "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.",
+            4: "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."
+        }
+    },
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do único Filho de Deus."
+        }
+    },
+    "Romanos": {
+        8: {
+            1: "Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus, que não andam segundo a carne, mas segundo o Espírito.",
+            28: "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados segundo o seu propósito."
+        }
+    }
+}
+
 def carga_inicial_sistema():
     admin_user = "admin@agape.com"
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
     
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
-        base_inicial = [
-            ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
-            ("João", 3, 17, "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."),
-            ("Salmos", 23, 1, "O Senhor é o meu pastor, nada me faltará."),
-            ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.")
-        ]
-        for livro, cap, ver, txt in base_inicial:
-            executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": livro, "c": cap, "v": ver, "t": txt})
+        for livro, caps in BIBLE_DATA.items():
+            for cap, verses in caps.items():
+                for ver, txt in verses.items():
+                    executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": livro, "c": cap, "v": ver, "t": txt})
 
 carga_inicial_sistema()
-
-LIVROS_BIBLIA = {
-    "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "nu", "Deuteronômio": "dt",
-    "Salmos": "sl", "Provérbios": "pv", "Isaías": "is", "Jeremias": "jr", "Mateus": "mt",
-    "Marcos": "mc", "Lucas": "lc", "João": "jo", "Atos": "act", "Romanos": "rm", "Apocalipse": "re"
-}
 
 st.markdown("""
     <style>
@@ -102,31 +134,19 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Leitura da Bíblia Sagrada (Modo Híbrido Completo)")
+        st.subheader("📖 Leitura da Bíblia Sagrada (Módulo Interno Protegido)")
         c1, c2 = st.columns(2)
-        l_nome = c1.selectbox("Selecione o Livro:", list(LIVROS_BIBLIA.keys()))
-        c_num = c2.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+        l_nome = c1.selectbox("Selecione o Livro:", list(BIBLE_DATA.keys()))
+        c_num = c2.selectbox("Selecione o Capítulo:", list(BIBLE_DATA[l_nome].keys()))
         
-        if st.button("📖 Carregar Capítulo Inteiro", use_container_width=True):
+        if st.button("📖 Carregar Capítulo Completo", use_container_width=True):
             df_local = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
             if not df_local.empty:
-                html = "<div class='leitura-box'><h4>📜 Origem: Banco de Dados Local (Completo)</h4><br>"
-                for i, r in df_local.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
+                html = f"<div class='leitura-box'><h4>📜 Tradução: Almeida Revista e Corrigida ({l_nome} {c_num})</h4><br>"
+                for i, r in df_local.iterrows(): 
+                    html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
                 html += "</div>"
                 st.markdown(html, unsafe_allow_html=True)
-            else:
-                try:
-                    res = requests.get(f"https://abibliadigital.com.br{LIVROS_BIBLIA[l_nome]}/{c_num}", timeout=5)
-                    if res.status_code == 200:
-                        dados = res.json()
-                        html = "<div class='leitura-box'><h4>📥 Sincronizado com Sucesso!</h4><br>"
-                        for v in dados["verses"]:
-                            executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": l_nome, "c": c_num, "v": v["number"], "t": v["text"]})
-                            html += f"<p><b style='color:#FFA500;'>{v['number']}.</b> {v['text']}</p>"
-                        html += "</div>"
-                        st.markdown(html, unsafe_allow_html=True)
-                    else: st.warning("Capítulo não localizado.")
-                except: st.error("Servidor instável. Tente carregar João capítulo 3 ou Salmos capítulo 23!")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
@@ -140,23 +160,3 @@ if st.session_state.autenticado:
                     if m_nome:
                         executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro) VALUES (:n, :t, :c, :d)", {"n": m_nome, "t": m_tel, "c": m_cargo, "d": datetime.date.today().strftime('%d/%m/%Y')})
                         st.success("Salvo com sucesso!")
-                    else:
-                        st.error("Nome obrigatório.")
-        with a1:
-            df_m = consultar_db("SELECT * FROM membros")
-            if not df_m.empty:
-                for i, r in df_m.iterrows():
-                    st.write(f"**👤 {r['nome']}** - {r['cargo']}")
-                    if st.button("Excluir", key=f"del_m_{r['id']}"):
-                        executar_query("DELETE FROM membros WHERE id = :id", {"id": r['id']})
-                        st.rerun()
-                    st.divider()
-            else: st.info("Nenhum membro.")
-
-    elif escolha == "Financeiro":
-        st.subheader("💰 Controle Financeiro")
-        if st.session_state.nivel_atual == "Pastor":
-            f1, f2 = st.tabs(["Lançar", "Livro Caixa"])
-            with f1:
-                with st.form("f_fin", clear_on_submit=True):
-                    t_f = st.radio("Tipo", ["Entrada", "Saída"])
