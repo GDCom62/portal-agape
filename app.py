@@ -30,7 +30,6 @@ executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY
 executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
 
-# CARGA NATIVA IMEDIATA DE CONTINGÊNCIA (Mais de 100 versículos tradicionais salvos localmente)
 def carga_inicial_sistema():
     admin_user = "admin@agape.com"
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
@@ -40,26 +39,10 @@ def carga_inicial_sistema():
         base_tradicional = [
             ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
             ("João", 3, 17, "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."),
-            ("João", 3, 18, "Quem crê nele não é condizido à condenação; mas quem não crê já está condenado."),
             ("Salmos", 23, 1, "O Senhor é o meu pastor, nada me faltará."),
             ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."),
             ("Salmos", 23, 3, "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."),
-            ("Salmos", 23, 4, "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo."),
-            ("Salmos", 23, 5, "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo."),
-            ("Salmos", 23, 6, "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida."),
-            ("Salmos", 91, 1, "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."),
-            ("Salmos", 91, 2, "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, o meu Deus, em quem confiarei."),
-            ("Salmos", 91, 3, "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa."),
-            ("Salmos", 91, 4, "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo."),
-            ("Isaías", 41, 10, "Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus; eu te fortaleço."),
-            ("Romanos", 8, 1, "Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus."),
-            ("Romanos", 8, 28, "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus."),
-            ("Romanos", 8, 31, "Que diremos, pois, a estas coisas? Se Deus é por nós, quem será contra nós?"),
-            ("Mateus", 6, 9, "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;"),
-            ("Mateus", 6, 10, "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;"),
-            ("Mateus", 6, 11, "O pão nosso de cada dia nos dá hoje;"),
-            ("Mateus", 6, 12, "E perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores;"),
-            ("Mateus", 6, 13, "E não nos induzas à tentação; mas livra-nos do mal; porque teu é o reino, o poder e a glória. Amém.")
+            ("Salmos", 23, 4, "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo.")
         ]
         for livro, cap, ver, txt in base_tradicional:
             executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": livro, "c": cap, "v": ver, "t": txt})
@@ -121,7 +104,6 @@ if st.session_state.autenticado:
         st.subheader("📖 Bíblia Sagrada Offline & Pesquisa")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
-        # Botão para baixar toda a Bíblia caso queira liberar todos os 66 livros de uma vez só
         with st.expander("📥 Central de Sincronização Bíblica Completa"):
             if st.button("Sincronizar Todos os 66 Livros (Offline)", use_container_width=True):
                 try:
@@ -133,3 +115,31 @@ if st.session_state.autenticado:
                                 for v_idx, txt in enumerate(cap):
                                     lista_versiculos.append({"l": l["name"], "c": c_idx + 1, "v": v_idx + 1, "t": txt})
                         with engine.begin() as conn:
+                            conn.execute(text("INSERT OR IGNORE INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"), lista_versiculos)
+                        st.success("Sincronização concluída!")
+                        st.rerun()
+                except: st.error("Erro no download. Tente novamente.")
+
+        if modo == "Leitura por Capítulo":
+            df_livros = consultar_db("SELECT DISTINCT livro FROM texto_biblico ORDER BY id ASC")
+            lista_livros = df_livros["livro"].tolist() if not df_livros.empty else ["João", "Salmos"]
+            c1, c2 = st.columns(2)
+            l_nome = c1.selectbox("Selecione o Livro:", lista_livros)
+            c_num = c2.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+            
+            if st.button("📖 Abrir Capítulo Completo", use_container_width=True):
+                df_local = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
+                if not df_local.empty:
+                    html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num}</h4><br>"
+                    for i, r in df_local.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
+                    html += "</div>"
+                    st.markdown(html, unsafe_allow_html=True)
+                else: st.warning("Capítulo pendente. Use a sincronização acima para baixar este livro.")
+                    
+        else:
+            termo = st.text_input("Digite a palavra ou frase que deseja encontrar na Bíblia:").strip()
+            if termo:
+                df_busca = consultar_db("SELECT livro, capitulo, versiculo, texto FROM texto_biblico WHERE texto LIKE :t LIMIT 50", {"t": f"%{termo}%"})
+                if not df_busca.empty:
+                    st.success(f"Resultados encontrados para '{termo}':")
+                    for i, r in df_busca.iterrows():
