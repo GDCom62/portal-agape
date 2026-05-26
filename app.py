@@ -141,4 +141,4 @@ if st.session_state.autenticado:
                 df_busca = consultar_db("SELECT livro, capitulo, versiculo, texto FROM texto_biblico WHERE texto LIKE :t LIMIT 50", {"t": f"%{termo}%"})
                 if not df_busca.empty:
                     st.success(f"Resultados encontrados para '{termo}':")
-                    for i, r in df_busca.iterrows():
+                    for i, r in df_busca.iterrows(): st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {r['livro']} {r['capitulo']}:{r['versiculo']}</b><br><p style='margin-top:5px;'>\"{r['texto']}\"</p></div>", unsafe_allow_html=True)
