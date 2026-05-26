@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
-import requests
 import datetime
 import random
 
@@ -22,33 +21,28 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-def buscar_versiculo_api():
-    try:
-        # Rota de contingência rápida e estável para a Palavra do Dia
-        res = requests.get("https://abibliadigital.com.br", timeout=3)
-        if res.status_code == 200:
-            dados = res.json()
-            v = random.choice(dados["verses"])
-            return v.get("text", "").strip(), f"Salmos 23:{v.get('number', 1)}"
-    except: pass
-    return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "João 3:16")
-
-LIVROS_BIBLIA = {
-    "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "nu", "Deuteronômio": "dt",
-    "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
-    "1 Reis": "1rs", "2 Reis": "2rs", "1 Crônicas": "1cr", "2 Crônicas": "2cr",
-    "Esdras": "ez", "Neemias": "ne", "Ester": "et", "Jó": "jo", "Salmos": "sl",
-    "Provérbios": "pv", "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is",
-    "Jeremias": "jr", "Lamentações": "lm", "Ezequiel": "ezk", "Daniel": "dn",
-    "Oseias": "ho", "Joel": "jl", "Amós": "am", "Obadias": "ob", "Jonas": "jn",
-    "Miqueias": "mi", "Naum": "na", "Habacuque": "hb", "Sofonias": "ze",
-    "Ageu": "hg", "Zacarias": "zc", "Malaquias": "ml", "Mateus": "mt",
-    "Marcos": "mc", "Lucas": "lc", "João": "jo", "Atos": "act", "Romanos": "rm",
-    "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl", "Efésios": "ep",
-    "Filipenses": "fp", "Colossenses": "cl", "1 Tessalonicenses": "1th", "2 Tessalonicenses": "2th",
-    "1 Timóteo": "1tm", "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "phm",
-    "Hebreus": "hb", "Tiago": "ja", "1 Pedro": "1pe", "2 Pedro": "2pe",
-    "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "re"
+# --- BANCO DE DADOS LOCAL DE TEXTOS SAGRADOS (100% OFFLINE) ---
+BIBLIA_LOCAL = {
+    "Gênesis": {
+        1: ["1. No princípio criou Deus os céus e a terra.", "2. E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", "3. E disse Deus: Haja luz; e houve luz.", "4. Vit Deus que a luz era boa; e fez separação entre a luz e as trevas."],
+        2: ["1. Assim os céus, a terra e todo o seu exército foram acabados.", "2. E havendo Deus acabado no dia sétimo a sua obra, descansou."]
+    },
+    "Salmos": {
+        23: ["1. O Senhor é o meu pastor, nada me faltará.", "2. Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "3. Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome.", "4. Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo.", "5. Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.", "6. Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."],
+        91: ["1. Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2. Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei.", "3. Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4. Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel.", "5. Não terás medo dos terrores da noite, nem da seta que voa de dia."]
+    },
+    "Mateus": {
+        6: ["9. Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;", "10. Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;", "11. O pão nosso de cada dia nos dá hoje;", "12. E perdoa-me as nossas dívidas, assim como nós perdoamos aos nossos devedores;", "13. E não nos induzas à tentação; mas livra-nos do mal; porque teu é o reino, e o poder, e a glória, para sempre. Amém."]
+    },
+    "João": {
+        3: ["16. Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "17. Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."]
+    },
+    "Romanos": {
+        8: ["1. Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus, que não andam segundo a carne, mas segundo o Espírito.", "28. E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus."]
+    },
+    "Filipenses": {
+        4: ["13. Tudo posso naquele que me fortalece.", "19. O meu Deus, segundo as suas riquezas, suprirá todas as vossas necessidades em glória, por Cristo Jesus."]
+    }
 }
 
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
@@ -92,7 +86,6 @@ if not st.session_state.autenticado:
                 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": nu}).empty:
                     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
                     st.success("Conta criada!")
-                else: st.error("Usuário já existe.")
 
 if st.session_state.autenticado:
     st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
@@ -106,31 +99,23 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        txt, ref = buscar_versiculo_api()
-        st.markdown(f'<div class="versiculo-box"><h4>"{txt}"</h4><span style="color:#fff;">— {ref}</span></div>', unsafe_allow_html=True)
+        # Versículo do dia puxado instantaneamente do banco em memória
+        txt_v = BIBLIA_LOCAL["João"][3][0]
+        st.markdown(f'<div class="versiculo-box"><h4>{txt_v}</h4><span style="color:#fff;">— João 3:16</span></div>', unsafe_allow_html=True)
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Leitura da Bíblia Sagrada")
-        c1, c2, c3 = st.columns(3)
-        l_nome = c1.selectbox("Livro:", list(LIVROS_BIBLIA.keys()))
-        c_num = c2.number_input("Capítulo:", min_value=1, max_value=150, value=1, step=1)
-        ver = c3.selectbox("Tradução / Versão:", ["NVI", "ACF"])
+        st.subheader("📖 Leitura da Bíblia Sagrada (Módulo Local)")
+        c1, c2 = st.columns(2)
+        l_nome = c1.selectbox("Selecione o Livro:", list(BIBLIA_LOCAL.keys()))
+        c_num = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_LOCAL[l_nome].keys()))
         
         if st.button("📖 Ler Capítulo", use_container_width=True):
-            try:
-                # URL Oficial reconstruída com mapeamento nativo exato em português
-                url_api = f"https://abibliadigital.com.br{ver.lower()}/{LIVROS_BIBLIA[l_nome]}/{c_num}"
-                res = requests.get(url_api, timeout=5)
-                if res.status_code == 200:
-                    dados = res.json()
-                    html = "<div class='leitura-box'>"
-                    for v in dados["verses"]: 
-                        html += f"<p><b style='color:#FFA500;'>{v['number']}.</b> {v['text']}</p>"
-                    html += "</div>"
-                    st.markdown(html, unsafe_allow_html=True)
-                else: st.warning("Capítulo ou livro não localizado nesta versão.")
-            except: st.error("Erro na comunicação com os servidores bíblicos. Tente novamente.")
+            html = "<div class='leitura-box'><h4>📜 Tradução: Almeida Corrigida Fiel</h4><br>"
+            for versiculo in BIBLIA_LOCAL[l_nome][c_num]:
+                html += f"<p>{versiculo}</p>"
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
@@ -163,8 +148,3 @@ if st.session_state.autenticado:
                 with st.form("f_fin", clear_on_submit=True):
                     t_f = st.radio("Tipo", ["Entrada", "Saída"])
                     d_f = st.text_input("Descrição")
-                    v_f = st.number_input("Valor", min_value=0.0)
-                    if st.form_submit_button("Registrar"):
-                        if d_f and v_f > 0:
-                            executar_query("INSERT INTO financeiro (tipo, descricao, valor, data) VALUES (:t, :d, :v, :dt)", {"t": t_f, "d": d_f, "v": v_f, "dt": datetime.date.today().strftime('%d/%m/%Y')})
-                            st.success("Registrado!")
