@@ -33,7 +33,7 @@ def buscar_versiculo_api():
             v = random.choice(dados["verses"])
             return v.get("text", ""), f"{dados['book']['name']} {dados['chapter']}:{v.get('number', 1)}"
     except: pass
-    return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito...", "João 3:16")
+    return ("Porque Deus amou o world de tal maneira que deu o seu Filho unigênito...", "João 3:16")
 
 LIVROS_BIBLIA = {
     "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "nu", "Deuteronômio": "dt",
@@ -140,6 +140,7 @@ if st.session_state.autenticado:
                     if st.button("Excluir", key=f"del_m_{r['id']}"):
                         executar_query("DELETE FROM membros WHERE id = :id", {"id": r['id']})
                         st.rerun()
+                    st.divider()
             else: st.info("Nenhum membro.")
 
     elif escolha == "Financeiro":
@@ -173,4 +174,3 @@ if st.session_state.autenticado:
                         st.success("Postado!")
                         st.rerun()
         df_a = consultar_db("SELECT * FROM avisos ORDER BY id DESC")
-        if not df_a.empty:
