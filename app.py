@@ -22,23 +22,12 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação das tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
 executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
-
-# TABELA DA BÍBLIA COMPLETA EM MEMÓRIA PERSISTENTE
-executar_query("""
-CREATE TABLE IF NOT EXISTS texto_biblico (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    livro TEXT,
-    capitulo INTEGER,
-    versiculo INTEGER,
-    texto TEXT
-);
-""")
+executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
 def carga_inicial_sistema():
     admin_user = "admin@agape.com"
@@ -47,17 +36,10 @@ def carga_inicial_sistema():
     
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
         base_inicial = [
-            ("João", 3, 16, "Porque Deus amou o world de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
-            ("João", 3, 17, "Porque Deus enviou o seu Filho ao world, não para condenar o world, mas para que o world fosse salvo por ele."),
+            ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
+            ("João", 3, 17, "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."),
             ("Salmos", 23, 1, "O Senhor é o meu pastor, nada me faltará."),
-            ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."),
-            ("Salmos", 23, 3, "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."),
-            ("Salmos", 23, 4, "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo."),
-            ("Salmos", 23, 5, "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda."),
-            ("Salmos", 23, 6, "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."),
-            ("Salmos", 91, 1, "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."),
-            ("Salmos", 91, 2, "Direi do Senhor: El é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei."),
-            ("Filipenses", 4, 13, "Tudo posso naquele que me fortalece.")
+            ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.")
         ]
         for livro, cap, ver, txt in base_inicial:
             executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": livro, "c": cap, "v": ver, "t": txt})
@@ -127,28 +109,24 @@ if st.session_state.autenticado:
         
         if st.button("📖 Carregar Capítulo Inteiro", use_container_width=True):
             df_local = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
-            
             if not df_local.empty:
                 html = "<div class='leitura-box'><h4>📜 Origem: Banco de Dados Local (Completo)</h4><br>"
-                for i, r in df_local.iterrows():
-                    html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
+                for i, r in df_local.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
                 html += "</div>"
                 st.markdown(html, unsafe_allow_html=True)
             else:
                 try:
-                    url_api = f"https://abibliadigital.com.br{LIVROS_BIBLIA[l_nome]}/{c_num}"
-                    res = requests.get(url_api, timeout=5)
+                    res = requests.get(f"https://abibliadigital.com.br{LIVROS_BIBLIA[l_nome]}/{c_num}", timeout=5)
                     if res.status_code == 200:
                         dados = res.json()
-                        html = "<div class='leitura-box'><h4>📥 Baixado e Sincronizado com Sucesso!</h4><br>"
+                        html = "<div class='leitura-box'><h4>📥 Sincronizado com Sucesso!</h4><br>"
                         for v in dados["verses"]:
                             executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": l_nome, "c": c_num, "v": v["number"], "t": v["text"]})
                             html += f"<p><b style='color:#FFA500;'>{v['number']}.</b> {v['text']}</p>"
                         html += "</div>"
                         st.markdown(html, unsafe_allow_html=True)
-                    else: st.warning("Capítulo não encontrado na base de dados.")
-                except:
-                    st.error("Servidor instável. Experimente ler João capítulo 3 ou Salmos capítulo 23 que já estão salvos localmente!")
+                    else: st.warning("Capítulo não localizado.")
+                except: st.error("Servidor instável. Tente carregar João capítulo 3 ou Salmos capítulo 23!")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
@@ -160,3 +138,25 @@ if st.session_state.autenticado:
                 m_cargo = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
                 if st.form_submit_button("Salvar"):
                     if m_nome:
+                        executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro) VALUES (:n, :t, :c, :d)", {"n": m_nome, "t": m_tel, "c": m_cargo, "d": datetime.date.today().strftime('%d/%m/%Y')})
+                        st.success("Salvo com sucesso!")
+                    else:
+                        st.error("Nome obrigatório.")
+        with a1:
+            df_m = consultar_db("SELECT * FROM membros")
+            if not df_m.empty:
+                for i, r in df_m.iterrows():
+                    st.write(f"**👤 {r['nome']}** - {r['cargo']}")
+                    if st.button("Excluir", key=f"del_m_{r['id']}"):
+                        executar_query("DELETE FROM membros WHERE id = :id", {"id": r['id']})
+                        st.rerun()
+                    st.divider()
+            else: st.info("Nenhum membro.")
+
+    elif escolha == "Financeiro":
+        st.subheader("💰 Controle Financeiro")
+        if st.session_state.nivel_atual == "Pastor":
+            f1, f2 = st.tabs(["Lançar", "Livro Caixa"])
+            with f1:
+                with st.form("f_fin", clear_on_submit=True):
+                    t_f = st.radio("Tipo", ["Entrada", "Saída"])
