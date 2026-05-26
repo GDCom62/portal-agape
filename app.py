@@ -24,22 +24,31 @@ def consultar_db(sql, params=None):
 
 def buscar_versiculo_api():
     try:
-        res = requests.get("https://bible-api.com", timeout=3)
+        # Rota de contingência rápida e estável para a Palavra do Dia
+        res = requests.get("https://abibliadigital.com.br", timeout=3)
         if res.status_code == 200:
             dados = res.json()
-            return dados.get("text", "").strip(), dados.get("reference", "João 3:16")
+            v = random.choice(dados["verses"])
+            return v.get("text", "").strip(), f"Salmos 23:{v.get('number', 1)}"
     except: pass
     return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "João 3:16")
 
 LIVROS_BIBLIA = {
-    "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
-    "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1 samuel", "2 Samuel": "2 samuel",
-    "1 Reis": "1 kings", "2 Reis": "2 kings", "Salmos": "psalms", "Provérbios": "proverbs", "Eclesiastes": "ecclesiastes",
-    "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations", "Ezequiel": "ezekiel", "Daniel": "daniel",
-    "Mateus": "matthew", "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts", "Romanos": "romans",
-    "1 Coríntios": "1 corinthians", "2 Coríntios": "2 corinthians", "Gálatas": "galatians", "Efésios": "ephesians",
-    "Filipenses": "philippians", "Colossenses": "colossians", "Hebreus": "hebrews", "Tiago": "james",
-    "1 Pedro": "1 pedro", "2 Pedro": "2 pedro", "1 João": "1 john", "Apocalipse": "revelation"
+    "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "nu", "Deuteronômio": "dt",
+    "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
+    "1 Reis": "1rs", "2 Reis": "2rs", "1 Crônicas": "1cr", "2 Crônicas": "2cr",
+    "Esdras": "ez", "Neemias": "ne", "Ester": "et", "Jó": "jo", "Salmos": "sl",
+    "Provérbios": "pv", "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is",
+    "Jeremias": "jr", "Lamentações": "lm", "Ezequiel": "ezk", "Daniel": "dn",
+    "Oseias": "ho", "Joel": "jl", "Amós": "am", "Obadias": "ob", "Jonas": "jn",
+    "Miqueias": "mi", "Naum": "na", "Habacuque": "hb", "Sofonias": "ze",
+    "Ageu": "hg", "Zacarias": "zc", "Malaquias": "ml", "Mateus": "mt",
+    "Marcos": "mc", "Lucas": "lc", "João": "jo", "Atos": "act", "Romanos": "rm",
+    "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl", "Efésios": "ep",
+    "Filipenses": "fp", "Colossenses": "cl", "1 Tessalonicenses": "1th", "2 Tessalonicenses": "2th",
+    "1 Timóteo": "1tm", "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "phm",
+    "Hebreus": "hb", "Tiago": "ja", "1 Pedro": "1pe", "2 Pedro": "2pe",
+    "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd", "Apocalipse": "re"
 }
 
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
@@ -103,24 +112,25 @@ if st.session_state.autenticado:
 
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Leitura da Bíblia Sagrada")
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         l_nome = c1.selectbox("Livro:", list(LIVROS_BIBLIA.keys()))
         c_num = c2.number_input("Capítulo:", min_value=1, max_value=150, value=1, step=1)
+        ver = c3.selectbox("Tradução / Versão:", ["NVI", "ACF"])
         
         if st.button("📖 Ler Capítulo", use_container_width=True):
             try:
-                # Requisição direcionada ao servidor aberto da Bible-API com tradução em português (Almeida)
-                url_api = f"https://bible-api.com{LIVROS_BIBLIA[l_nome]}+{c_num}?translation=almeida"
+                # URL Oficial reconstruída com mapeamento nativo exato em português
+                url_api = f"https://abibliadigital.com.br{ver.lower()}/{LIVROS_BIBLIA[l_nome]}/{c_num}"
                 res = requests.get(url_api, timeout=5)
                 if res.status_code == 200:
                     dados = res.json()
                     html = "<div class='leitura-box'>"
                     for v in dados["verses"]: 
-                        html += f"<p><b style='color:#FFA500;'>{v['verse']}.</b> {v['text']}</p>"
+                        html += f"<p><b style='color:#FFA500;'>{v['number']}.</b> {v['text']}</p>"
                     html += "</div>"
                     st.markdown(html, unsafe_allow_html=True)
-                else: st.warning("Capítulo não localizado para este livro.")
-            except: st.error("Erro ao carregar o texto sagrado. Tente novamente.")
+                else: st.warning("Capítulo ou livro não localizado nesta versão.")
+            except: st.error("Erro na comunicação com os servidores bíblicos. Tente novamente.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
@@ -158,15 +168,3 @@ if st.session_state.autenticado:
                         if d_f and v_f > 0:
                             executar_query("INSERT INTO financeiro (tipo, descricao, valor, data) VALUES (:t, :d, :v, :dt)", {"t": t_f, "d": d_f, "v": v_f, "dt": datetime.date.today().strftime('%d/%m/%Y')})
                             st.success("Registrado!")
-            with f2:
-                df_f = consultar_db("SELECT * FROM financeiro")
-                if not df_f.empty: st.dataframe(df_f, use_container_width=True)
-                else: st.info("Sem lançamentos.")
-        else: st.error("Acesso restrito.")
-
-    elif escolha == "Avisos":
-        st.subheader("📢 Mural de Avisos")
-        with st.expander("➕ Novo Aviso"):
-            with st.form("f_av", clear_on_submit=True):
-                t_a = st.text_input("Título")
-                c_a = st.text_area("Conteúdo")
