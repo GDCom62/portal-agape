@@ -28,7 +28,6 @@ executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOIN
 executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
 executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
-# --- INSTALAÇÃO ULTRARRÁPIDA VIA BULK INSERT (ENTREGA EM LOTES) ---
 @st.cache_resource
 def baixar_e_instalar_biblia():
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
@@ -36,23 +35,12 @@ def baixar_e_instalar_biblia():
             res = requests.get("https://githubusercontent.com", timeout=10)
             if res.status_code == 200:
                 lista_versiculos = []
-                # Organiza toda a Bíblia em uma matriz na memória RAM primeiro
                 for l in res.json():
                     for c_idx, cap in enumerate(l["chapters"]):
                         for v_idx, txt in enumerate(cap):
-                            lista_versiculos.append({
-                                "l": l["name"], 
-                                "c": c_idx + 1, 
-                                "v": v_idx + 1, 
-                                "t": txt
-                            })
-                
-                # Descarrega o lote completo de 31 mil linhas em um único comando SQL
+                            lista_versiculos.append({"l": l["name"], "c": c_idx + 1, "v": v_idx + 1, "t": txt})
                 with engine.begin() as conn:
-                    conn.execute(
-                        text("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
-                        lista_versiculos
-                    )
+                    conn.execute(text("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"), lista_versiculos)
         except: pass
     return True
 
@@ -131,7 +119,7 @@ if st.session_state.autenticado:
                     for i, r in df_local.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
                     html += "</div>"
                     st.markdown(html, unsafe_allow_html=True)
-                else: st.warning("Aguarde a montagem do índice. Clique em 'Abrir Capítulo' novamente em 5 segundos.")
+                else: st.warning("Sincronizando banco de dados... Aguarde uns instantes.")
                     
         else:
             termo = st.text_input("Digite a palavra ou frase que deseja encontrar na Bíblia:").strip()
@@ -159,3 +147,15 @@ if st.session_state.autenticado:
             df_m = consultar_db("SELECT * FROM membros")
             if not df_m.empty:
                 for i, r in df_m.iterrows():
+                    st.write(f"**👤 {r['nome']}** - {r['cargo']}")
+                    if st.button("Excluir", key=f"del_m_{r['id']}"):
+                        executar_query("DELETE FROM membros WHERE id = :id", {"id": r['id']})
+                        st.rerun()
+                    st.divider()
+            else: st.info("Nenhum membro.")
+
+    elif escolha == "Financeiro":
+        st.subheader("💰 Controle Financeiro")
+        if st.session_state.nivel_atual == "Pastor":
+            f1, f2 = st.tabs(["Lançar", "Livro Caixa"])
+            with f1:
