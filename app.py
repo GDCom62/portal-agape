@@ -37,7 +37,6 @@ def buscar_versiculo_api():
     ]
     escolha = random.choice(sugestoes)
     try:
-        # URL da API Oficial pública com token demonstrativo estável
         url = f"https://abibliadigital.com.br{escolha['slug']}/{escolha['cap']}"
         resposta = requests.get(url, timeout=4)
         if resposta.status_code == 200:
@@ -49,10 +48,26 @@ def buscar_versiculo_api():
         pass
     return ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", "João 3:16")
 
+# Dicionário de mapeamento para busca de livros na API
+LIVROS_BIBLIA = {
+    "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "nu", "Deuteronômio": "dt", "Josué": "js",
+    "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm", "1 Reis": "1rs", "2 Reis": "2rs",
+    "1 Crônicas": "1cr", "2 Crônicas": "2cr", "Esdras": "ez", "Neemias": "ne", "Ester": "et", "Jó": "jo",
+    "Salmos": "sl", "Provérbios": "pv", "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is", "Jeremias": "jr",
+    "Lamentações": "lm", "Ezequiel": "ezk", "Daniel": "dn", "Oseias": "ho", "Joel": "jl", "Amós": "am",
+    "Obadias": "ob", "Jonas": "jn", "Miqueias": "mi", "Naum": "na", "Habacuque": "hb", "Sofonias": "ze",
+    "Ageu": "hg", "Zacarias": "zc", "Malaquias": "ml", "Mateus": "mt", "Marcos": "mc", "Lucas": "lc",
+    "João": "jo", "Atos": "act", "Romanos": "rm", "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl",
+    "Efésios": "ep", "Filipenses": "fp", "Colossenses": "cl", "1 Tessalonicenses": "1th", "2 Tessalonicenses": "2th",
+    "1 Timóteo": "1tm", "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "phm", "Hebreus": "hb", "Tiago": "ja",
+    "1 Pedro": "1pe", "2 Pedro": "2pe", "1 João": "1jo", "2 João": "2jo", "3 João": "3jo", "Judas": "jd",
+    "Apocalipse": "re"
+}
+
 # Criar tabelas necessárias de forma segura
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
+executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, miembro_id INTEGER);")
 executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, letra TEXT, arquivo_audio BLOB);")
 
@@ -66,7 +81,7 @@ def verificar_e_criar_admin():
 
 verificar_e_criar_admin()
 
-# --- 4. LAYOUT DESIGN CUSTOMIZADO (AMARELO OURO CORRIGIDO) ---
+# --- 4. LAYOUT DESIGN CUSTOMIZADO ---
 st.markdown("""
     <style>
     .stAppViewContainer {
@@ -93,10 +108,19 @@ st.markdown("""
         display: block;
         margin-top: 8px;
     }
+    .leitura-box {
+        background-color: #ffffff !important;
+        padding: 25px;
+        border-radius: 12px;
+        border: 1px solid #e0a800;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        color: #212529 !important;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. GESTÃO DE ACESSO (SESSÃO DE LOGIN REPARADA) ---
+# --- 5. GESTÃO DE ACESSO ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_atual = None
@@ -135,7 +159,7 @@ if not st.session_state.autenticado:
             else:
                 st.warning("Preencha os campos (mínimo 4 dígitos).")
 
-# --- 6. PAINEL DO PORTAL (SÓ ABRE COM LOGIN ATIVO) ---
+# --- 6. PAINEL DO PORTAL (LOGADO) ---
 if st.session_state.autenticado:
     st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
     if st.sidebar.button("🚪 Desconectar Sistema", use_container_width=True):
@@ -143,13 +167,13 @@ if st.session_state.autenticado:
         st.session_state.usuario_atual = None
         st.rerun()
 
-    menu = ["Início & Versículos", "Membros", "Financeiro", "Avisos", "Louvores"]
+    # MENU COM A NOVA ABA INCLUÍDA
+    menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Financeiro", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="navigation_box_main")
     st.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        
         texto_v, ref_v = buscar_versiculo_api()
         st.markdown(f"""
             <div class="versiculo-box">
@@ -159,44 +183,26 @@ if st.session_state.autenticado:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-        
         df_m_total = consultar_db("SELECT id FROM membros")
         st.metric("Total de Membros Cadastrados", f"{len(df_m_total)} Irmãos")
 
-    elif escolha == "Membros":
-        st.subheader("👥 Gestão de Membros")
-        aba_ver, aba_cadastrar = st.tabs(["Ver Membros", "Cadastrar Novo Membro"])
+    # --- NOVA SEÇÃO: BÍBLIA COMPLETA ---
+    elif escolha == "Bíblia Completa":
+        st.subheader("📖 Leitura da Bíblia Sagrada")
         
-        with aba_cadastrar:
-            with st.form("cad_membro_form", clear_on_submit=True):
-                nome = st.text_input("Nome do Membro")
-                telefone = st.text_input("Telefone / WhatsApp")
-                cargo = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Missionária"])
-                mes_aniv = st.selectbox("Mês Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                obs = st.text_area("Observações")
-                if st.form_submit_button("Salvar Membro"):
-                    if nome:
-                        dt = datetime.date.today().strftime('%d/%m/%Y')
-                        executar_query("INSERT INTO membros (nome, telefone, cargo, data_cadastro, mes_aniversario, observacoes) VALUES (:nome, :tel, :cargo, :dt, :mes, :obs)", {"nome": nome, "tel": telefone, "cargo": cargo, "dt": dt, "mes": mes_aniv, "obs": obs})
-                        st.success(f"{nome} cadastrado!")
-                    else:
-                        st.error("Nome obrigatório.")
-        with aba_ver:
-            busca = st.text_input("Buscar por nome:", key="search_membro_input")
-            df_membros = consultar_db("SELECT * FROM membros WHERE nome LIKE :b", {"b": f"%{busca}%"}) if busca else consultar_db("SELECT * FROM membros")
-            if not df_membros.empty:
-                for idx, row in df_membros.iterrows():
-                    st.write(f"**👤 {row['nome']}** - {row['cargo']} | Contato: {row['telefone']}")
-                    if st.button(f"Excluir {row['nome']}", key=f"del_m_{row['id']}"):
-                        executar_query("DELETE FROM membros WHERE id = :id", {"id": row['id']})
-                        st.rerun()
-                    st.divider()
-
-    elif escolha == "Financeiro":
-        st.subheader("💰 Controle Financeiro")
-        if st.session_state.nivel_atual == "Pastor":
-            aba_lancar, aba_caixa = st.tabs(["Lançar Movimentação", "Livro Caixa"])
-            with aba_lancar:
-                with st.form("cad_financeiro_form", clear_on_submit=True):
-                    tipo = st.radio("Tipo", ["Entrada (Dízimo/Oferta)", "Saída (Despesa)"])
-                    desc = st.text_input("Descrição / Finalidade")
+        c1, c2, c3 = st.columns([2, 1, 1])
+        livro_nome = c1.selectbox("Selecione o Livro:", list(LIVROS_BIBLIA.keys()))
+        capitulo_num = c2.number_input("Capítulo:", min_value=1, max_value=150, value=1, step=1)
+        versao = c3.selectbox("Versão:", ["NVI", "ACF"])
+        
+        if st.button("📖 Ler Capítulo", use_container_width=True):
+            slug = LIVROS_BIBLIA[livro_nome]
+            v_slug = versao.lower()
+            try:
+                url_cap = f"https://abibliadigital.com.br{v_slug}/{slug}/{capitulo_num}"
+                res = requests.get(url_cap, timeout=5)
+                if res.status_code == 200:
+                    dados_cap = res.json()
+                    st.success(f"Exibindo: {dados_cap['book']['name']} — Capítulo {dados_cap['chapter']}")
+                    
+                    # Concatena e renderiza todo o texto bíblico organizado
