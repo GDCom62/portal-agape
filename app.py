@@ -21,7 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação das tabelas estruturais locais
+# Estrutura local persistente das tabelas
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -34,12 +34,10 @@ executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
-# CARGA LOCAL E OFFLINE DA BÍBLIA INTEIRA VIA BULK INSERT
 @st.cache_resource
 def baixar_e_salvar_biblia_local():
     if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
         try:
-            # Baixa um acervo condensado e estável da tradução em português livre de bloqueios
             res = requests.get("https://githubusercontent.com", timeout=10)
             if res.status_code == 200:
                 lote = []
@@ -50,7 +48,6 @@ def baixar_e_salvar_biblia_local():
                 with engine.begin() as conn:
                     conn.execute(text("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"), lote)
         except:
-            # Fallback nativo imediato se até o GitHub falhar na hora do primeiro deploy
             executar_query("INSERT OR IGNORE INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('João', 3, 16, 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.');")
     return True
 
@@ -119,7 +116,6 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Processamento Local Offline)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
-        
         df_livros_db = consultar_db("SELECT DISTINCT livro FROM texto_biblico ORDER BY id ASC")
         lista_livros = df_livros_db["livro"].tolist() if not df_livros_db.empty else ["João"]
         
@@ -133,12 +129,15 @@ if st.session_state.autenticado:
                     html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num}</h4><br>"
                     for i, r in df_cap.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
                     st.markdown(html + "</div>", unsafe_allow_html=True)
-                else: st.warning("Capítulo não populado ou inexistente.")
+                else: st.warning("Capítulo não localizado.")
         else:
-            termo = st.text_input("Digite a palavra ou frase:").strip()
+            termo = st.text_input("Digite a palavra ou frase para pesquisar:").strip()
             if termo:
-                # Varre os 31 mil versículos armazenados localmente de forma instantânea
                 df_busca = consultar_db("SELECT livro, capitulo, versiculo, texto FROM texto_biblico WHERE texto LIKE :t LIMIT 40", {"t": f"%{termo}%"})
                 if not df_busca.empty:
                     st.success(f"Resultados encontrados para '{termo}':")
-                    for i, r in df_busca.iterrows():
+                    for i, r in df_busca.iterrows(): st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {r['livro']} {r['capitulo']}:{r['versiculo']}</b><br><p style='margin-top:5px;'>\"{r['texto']}\"</p></div>", unsafe_allow_html=True)
+                else: st.warning("Nenhum resultado localizado no acervo local.")
+
+    elif escolha == "Membros":
+        st.subheader("👥 Gestão de Membros")
