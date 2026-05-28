@@ -4,8 +4,10 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 
+# --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
+# --- 2. CONEXÃO BANCO DE DADOS LOCAL ---
 @st.cache_resource
 def inicializar_conexoes():
     return create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False, "timeout": 30})
@@ -20,7 +22,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Estrutura do Banco Local SQLite
+# Criação inicial de todas as tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -31,47 +33,47 @@ executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY K
 executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- ACERVO DE ALTA PERFORMANCE EMBUTIDO E GERADOR LOCAL ---
-LIVROS_BIBLE = [
-    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
-    "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos", "Isaías", "Jeremias",
-    "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas",
-    "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
-    "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
-    "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
-    "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
-    "1 João", "2 João", "3 João", "Judas", "Apocalipse"
-]
-
-BIBLIA_TEXTOS_FIXOS = {
-    "Gênesis": {1: {1: "No princípio criou Deus os céus e a terra.", 2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 3: "E disse Deus: Haja luz; e houve luz."}},
-    "Números": {4: {1: "E falou o Senhor a Moisés e a Arão, dizendo:", 2: "Toma o censo dos filhos de Coate, dentre os filhos de Levi, pelas suas famílias.", 3: "Da idade de trinta anos para cima até aos cinquenta anos, de todos os que entram no serviço para fazerem o trabalho na tenda da congregação.", 4: "Este será o serviço dos filhos de Coate na tenda da congregação, nas coisas santíssimas."}},
-    "Salmos": {23: {1: "O Senhor é o meu pastor, nada me faltará.", 2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 3: "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."}},
-    "João": {3: {16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 17: "Porque Deus enviou o seu Filho au mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."}},
-    "Apocalipse": {22: {20: "Aquele que dá testemunho destas coisas diz: Certamente cedo venho. Amém; vem, Senhor Jesus.", 21: "A graça de nosso Senhor Jesus Cristo seja com todos vós. Amém."}}
+# --- 3. ACERVO BÍBLICO ACF INTERNO (100% OFFLINE E IMEDIATO) ---
+BIBLIA_LOCAL_PROG = {
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.",
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
+            3: "E disse Deus: Haja luz; e houve luz.",
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
+        }
+    },
+    "Números": {
+        4: {
+            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:",
+            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi, pelas suas famílias, segundo a casa de seus pais;",
+            3: "Da idade de trinta anos para cima até aos cinquenta anos, de todos os que entram neste serviço, para fazerem o trabalho na tenda da congregação.",
+            4: "Este será o serviço os filhos de Coate na tenda da congregação, nas coisas santíssimas."
+        }
+    },
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.",
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam."
+        }
+    },
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+        }
+    }
 }
-
-def obter_texto_capitulo(livro, capitulo):
-    if livro in BIBLIA_TEXTOS_FIXOS and capitulo in BIBLIA_TEXTOS_FIXOS[livro]:
-        return BIBLIA_TEXTOS_FIXOS[livro][capitulo]
-    # Gerador de contingência para livros sem internet (Garante que exiba conteúdo sem quebrar)
-    resumo_contingencia = {
-        1: f"Este capítulo traz as instruções divinas e os relatos históricos do livro de {livro}.",
-        2: f"Continuação das crônicas, mandamentos e revelações de fé contidas em {livro}.",
-        3: f"Edificação, ensinamentos práticos e exortação espiritual para a igreja.",
-        4: f"Alinhamento ministerial, ordenanças e a soberania de Deus relatada em {livro} capítulo {capitulo}."
-    }
-    return {
-        1: resumo_contingencia.get(capitulo if capitulo <= 4 else 1, f"Leitura e meditação guiada no livro de {livro}, capítulo {capitulo}."),
-        2: "O conteúdo completo deste livro está preservado localmente para estudo da congregação Ágape.",
-        3: "Guarda a palavra no teu coração para não pecares contra o Senhor."
-    }
 
 st.markdown("""
     <style>
@@ -128,7 +130,23 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada ACF (Modo de Leitura Local Estável 100% Offline)")
+        st.subheader("📖 Bíblia Sagrada ACF (Modo de Leitura Local Estável)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
         if modo == "Leitura por Capítulo":
+            c1, c2 = st.columns(2)
+            livro_sel = c1.selectbox("Selecione o Livro:", list(BIBLIA_LOCAL_PROG.keys()))
+            cap_sel = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_LOCAL_PROG[livro_sel].keys()))
+            
+            html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
+            versiculos = BIBLIA_LOCAL_PROG[livro_sel][cap_sel]
+            for v_num, txt in versiculos.items():
+                html += f"<p><b style='color:#FFA500;'>{v_num}.</b> {txt}</p>"
+            st.markdown(html + "</div>", unsafe_allow_html=True)
+        else:
+            termo = st.text_input("Digite a palavra ou frase para buscar nos livros disponíveis:").strip().lower()
+            if termo:
+                st.success(f"Resultados encontrados para '{termo}':")
+                for livro, caps in BIBLIA_LOCAL_PROG.items():
+                    for cap, verses in caps.items():
+                        for v_num, txt in verses.items():
