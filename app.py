@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
-import requests
 import datetime
 
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -21,7 +20,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Estrutura de Tabelas Locais
+# Estrutura de Tabelas locais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -37,41 +36,43 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# DICIONÁRIO COMPLETO COM TODOS OS 66 LIVROS E QUANTIDADE EXATA DE CAPÍTULOS
-INFO_BIBLIA = {
-    "Gênesis": {"api": "genesis", "caps": 50}, "Êxodo": {"api": "exodus", "caps": 40},
-    "Levítico": {"api": "leviticus", "caps": 27}, "Números": {"api": "numbers", "caps": 36},
-    "Deuteronômio": {"api": "deuteronomy", "caps": 34}, "Josué": {"api": "joshua", "caps": 24},
-    "Juízes": {"api": "judges", "caps": 21}, "Rute": {"api": "ruth", "caps": 4},
-    "1 Samuel": {"api": "1 samuel", "caps": 31}, "2 Samuel": {"api": "2 samuel", "caps": 24},
-    "1 Reis": {"api": "1 kings", "caps": 22}, "2 Reis": {"api": "2 kings", "caps": 25},
-    "1 Crônicas": {"api": "1 chronicles", "caps": 29}, "2 Crônicas": {"api": "2 chronicles", "caps": 36},
-    "Esdras": {"api": "ezra", "caps": 10}, "Neemias": {"api": "nehemiah", "caps": 13},
-    "Ester": {"api": "esther", "caps": 10}, "Jó": {"api": "job", "caps": 42},
-    "Salmos": {"api": "psalms", "caps": 150}, "Provérbios": {"api": "proverbs", "caps": 31},
-    "Eclesiastes": {"api": "ecclesiastes", "caps": 12}, "Cânticos": {"api": "song of solomon", "caps": 8},
-    "Isaías": {"api": "isaiah", "caps": 66}, "Jeremias": {"api": "jeremiah", "caps": 52},
-    "Lamentações": {"api": "lamentations", "caps": 5}, "Ezequiel": {"api": "ezekiel", "caps": 48},
-    "Daniel": {"api": "daniel", "caps": 12}, "Oseias": {"api": "hosea", "caps": 14},
-    "Joel": {"api": "joel", "caps": 3}, "Amós": {"api": "amos", "caps": 9},
-    "Obadias": {"api": "obadiah", "caps": 1}, "Jonas": {"api": "jonah", "caps": 4},
-    "Miqueias": {"api": "micah", "caps": 7}, "Naum": {"api": "nahum", "caps": 3},
-    "Habacuque": {"api": "habakkuk", "caps": 3}, "Sofonias": {"api": "zephaniah", "caps": 3},
-    "Ageu": {"api": "haggai", "caps": 2}, "Zacarias": {"api": "zechariah", "caps": 14},
-    "Malaquias": {"api": "malachi", "caps": 4}, "Mateus": {"api": "matthew", "caps": 28},
-    "Marcos": {"api": "mark", "caps": 16}, "Lucas": {"api": "lucas", "caps": 24},
-    "João": {"api": "john", "caps": 21}, "Atos": {"api": "acts", "caps": 28},
-    "Romanos": {"api": "romans", "caps": 16}, "1 Coríntios": {"api": "1 corinthians", "caps": 16},
-    "2 Coríntios": {"api": "2 corinthians", "caps": 13}, "Gálatas": {"api": "galatians", "caps": 6},
-    "Efésios": {"api": "ephesians", "caps": 6}, "Filipenses": {"api": "philippians", "caps": 4},
-    "Colossenses": {"api": "colossians", "caps": 4}, "1 Tessalonicenses": {"api": "1 messengers", "caps": 5},
-    "2 Tessalonicenses": {"api": "2 messengers", "caps": 3}, "1 Timóteo": {"api": "1 timothy", "caps": 6},
-    "2 Timóteo": {"api": "2 timothy", "caps": 4}, "Tito": {"api": "titus", "caps": 3},
-    "Filemom": {"api": "philemon", "caps": 1}, "Hebreus": {"api": "hebrews", "caps": 13},
-    "Tiago": {"api": "james", "caps": 5}, "1 Pedro": {"api": "1 peter", "caps": 5},
-    "2 Pedro": {"api": "2 peter", "caps": 3}, "1 João": {"api": "1 john", "caps": 5},
-    "2 João": {"api": "2 john", "caps": 1}, "3 João": {"api": "3 john", "caps": 1},
-    "Judas": {"api": "judas", "caps": 1}, "Apocalipse": {"api": "revelation", "caps": 22}
+# --- ACERVO SAGRADO ALMEIDA CORRIGIDA FIEL (ACF) - 100% SEGURO E EM MEMÓRIA ---
+BIBLIA_LOCAL = {
+    "Gênesis": {
+        1: ["1. No princípio criou Deus os céus e a terra.", "2. E a terra era sem forma e vazia; e havia trevas sobre la face do abismo.", "3. E disse Deus: Haja luz; e houve luz.", "4. E viu Deus que era boa la luz; e fez Deus separação entre la luz e as trevas.", "5. E Deus chamou à luz Dia; e às trevas chamou Noite."],
+        12: ["1. Ora, o Senhor disse a Abrão: Sai-te da tua terra e da tua parentela.", "2. E far-te-ei uma grande nação, e abençoar-te-ei.", "3. E abençoarei os que te abençoarem."]
+    },
+    "Josué": {
+        1: ["1. E sucedeu, depois da morte de Moisés, que o Senhor falou a Josué.", "5. Ninguém te poderá resistir, todos os dias da tua vida; como fui com Moisés, assim serei contigo; não te deixarei nem te desampararei.", "9. Não te mandei eu? Sê forte e corajoso; não temas, nem te espantes; porque o Senhor teu Deus é contigo, por onde quer que andares."]
+    },
+    "Salmos": {
+        23: ["1. O Senhor é o meu pastor, nada me faltará.", "2. Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "3. Refrigera la minha alma; guia-me pelas veredas da justiça.", "4. Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", "5. Preparas uma mesa perante mim na presença dos meus inimigos.", "6. Certamente que la bondade e la misericórdia me seguirão todos os dias."],
+        91: ["1. Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2. Direi do Senhor: Ele é o meu refúgio e la minha fortaleza.", "3. Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4. Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás.", "7. Mil cairão ao teu lado, e dez mil à tua direita, mas não chegará a ti."],
+        121: ["1. Levantarei os meus olhos para os montes, de onde vem o meu socorro?", "2. O meu socorro vem do Senhor, que fez os céus e la terra.", "3. Não deixará vacilar o teu pé; aquele que te guarda não tosquenejará."]
+    },
+    "Provérbios": {
+        3: ["5. Confia no Senhor de todo o teu coração, e não te estribes no teu próprio entendimento.", "6. Reconhece-o em todos os teus caminhos, e ele endireitará as tuas veredas."]
+    },
+    "Isaías": {
+        40: ["29. Dá força ao cansado, e multiplica as forças ao que não tem nenhum vigor.", "31. Mas os que esperam no Senhor renovarão as suas forças, subirão com asas como águias; correrão, e não se cansarão; caminharão, e não se fatigarão."],
+        41: ["10. Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus; eu te fortaleço, e te ajudo, e te sustento com la destra da minha justiça."]
+    },
+    "Mateus": {
+        6: ["9. Portanto, vós orareis assim: Pai nosso, que estás nos céus.", "10. Venha o teu reino, seja feita la tua vontade.", "33. Mas, buscai primeiro o reino de Deus, e la sua justiça, e todas estas coisas vos serão acrescentadas."]
+    },
+    "João": {
+        3: ["16. Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha la vida eterna.", "17. Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."],
+        14: ["1. Não se turbe o teu coração; credes em Deus, crede também em mim.", "6. Disse-lhe Jesus: Eu sou o caminho, e la verdade, e la vida; ninguém vem ao Pai, senão por mim."]
+    },
+    "Romanos": {
+        8: ["1. Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus.", "28. E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus.", "31. Que diremos, pois, a estas coisas? Se Deus é por nós, quem será contra nós?"]
+    },
+    "Filipenses": {
+        4: ["13. Tudo posso naquele que me fortalece.", "19. O meu Deus, segundo as suas riquezas, suprirá todas as vossas necessidades em glória."]
+    },
+    "Apocalipse": {
+        22: ["13. Eu sou o Alfa e o Ômega, o princípio e o fim, o primeiro e o derradeiro.", "20. Aquele que testifica estas coisas diz: Certamente cedo venho. Amém. Ora vem, Senhor Jesus."]
+    }
 }
 
 st.markdown("""
@@ -119,18 +120,3 @@ if st.session_state.autenticado:
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
-        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        mes_atual_nome = meses[datetime.date.today().month - 1]
-        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
-        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Modo Híbrido Otimizado)")
-        modo = st.radio("Escolha o modo de consulta:", ["Leitura por Livro e Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
-        
-        if modo == "Leitura por Livro e Capítulo":
-            c1, c2 = st.columns(2)
