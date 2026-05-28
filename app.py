@@ -21,7 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Estrutura do Banco de Dados Local
+# Estrutura do banco de dados local
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -38,30 +38,45 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# Índice Completo de Todos os 66 Livros da Bíblia com a quantidade exata de capítulos
-INFO_LIVROS = {
-    "Gênesis": {"id": "gn", "caps": 50}, "Êxodo": {"id": "ex", "caps": 40}, "Levítico": {"id": "lv", "caps": 27},
-    "Números": {"id": "nu", "caps": 36}, "Deuteronômio": {"id": "dt", "caps": 34}, "Josué": {"id": "js", "caps": 24},
-    "Juízes": {"id": "jz", "caps": 21}, "Rute": {"id": "rt", "caps": 4}, "1 Samuel": {"id": "1sm", "caps": 31},
-    "2 Samuel": {"id": "2sm", "caps": 24}, "1 Reis": {"id": "1rs", "caps": 22}, "2 Reis": {"id": "2rs", "caps": 25},
-    "1 Crônicas": {"id": "1cr", "caps": 29}, "2 Crônicas": {"id": "2cr", "caps": 36}, "Esdras": {"id": "ez", "caps": 10},
-    "Neemias": {"id": "ne", "caps": 13}, "Ester": {"id": "et", "caps": 10}, "Jó": {"id": "job", "caps": 42},
-    "Salmos": {"id": "ps", "caps": 150}, "Provérbios": {"id": "pr", "caps": 31}, "Eclesiastes": {"id": "ec", "caps": 12},
-    "Cânticos": {"id": "sg", "caps": 8}, "Isaías": {"id": "is", "caps": 66}, "Jeremias": {"id": "jr", "caps": 52},
-    "Lamentações": {"id": "la", "caps": 5}, "Ezequiel": {"id": "ez", "caps": 48}, "Daniel": {"id": "dn", "caps": 12},
-    "Oseias": {"id": "ho", "caps": 14}, "Joel": {"id": "jl", "caps": 3}, "Amós": {"id": "am", "caps": 9},
-    "Obadias": {"id": "ob", "caps": 1}, "Jonas": {"id": "jon", "caps": 4}, "Miqueias": {"id": "mi", "caps": 7},
-    "Naum": {"id": "na", "caps": 3}, "Habacuque": {"id": "hb", "caps": 3}, "Sofonias": {"id": "ze", "caps": 3},
-    "Ageu": {"id": "hg", "caps": 2}, "Zacarias": {"id": "zc", "caps": 14}, "Malaquias": {"id": "ml", "caps": 4},
-    "Mateus": {"id": "mt", "caps": 28}, "Marcos": {"id": "mk", "caps": 16}, "Lucas": {"id": "lk", "caps": 24},
-    "João": {"id": "jn", "caps": 21}, "Atos": {"id": "ac", "caps": 28}, "Romanos": {"id": "rm", "caps": 16},
-    "1 Coríntios": {"id": "1co", "caps": 16}, "2 Coríntios": {"id": "2co", "caps": 13}, "Gálatas": {"id": "gl", "caps": 6},
-    "Efésios": {"id": "ep", "caps": 6}, "Filipenses": {"id": "ph", "caps": 4}, "Colossenses": {"id": "cl", "caps": 4},
-    "1 Tessalonicenses": {"id": "1th", "caps": 5}, "2 Tessalonicenses": {"id": "2th", "caps": 3}, "1 Timóteo": {"id": "1ti", "caps": 6},
-    "2 Timóteo": {"id": "2ti", "caps": 4}, "Tito": {"id": "ti", "caps": 3}, "Filemom": {"id": "phm", "caps": 1},
-    "Hebreus": {"id": "he", "caps": 13}, "Tiago": {"id": "ja", "caps": 5}, "1 Pedro": {"id": "1pe", "caps": 5},
-    "2 Pedro": {"id": "2pe", "caps": 3}, "1 João": {"id": "1jo", "caps": 5}, "2 João": {"id": "2jo", "caps": 1},
-    "3 João": {"id": "3jo", "caps": 1}, "Judas": {"id": "jd", "caps": 1}, "Apocalipse": {"id": "re", "caps": 22}
+if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
+    executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('João', 3, 16, 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.');")
+    executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('Salmos', 23, 1, 'O Senhor é o meu pastor, nada me faltará.');")
+
+# Dicionário oficial com limite exato de capítulos por livro
+LIVROS_BIBLE = {
+    "Gênesis": {"api": "genesis", "caps": 50}, "Êxodo": {"api": "exodus", "caps": 40}, 
+    "Levítico": {"api": "leviticus", "caps": 27}, "Números": {"api": "numbers", "caps": 36}, 
+    "Deuteronômio": {"api": "deuteronomy", "caps": 34}, "Josué": {"api": "joshua", "caps": 24}, 
+    "Juízes": {"api": "judges", "caps": 21}, "Rute": {"api": "ruth", "caps": 4},
+    "1 Samuel": {"api": "1 samuel", "caps": 31}, "2 Samuel": {"api": "2 samuel", "caps": 24}, 
+    "1 Reis": {"api": "1 kings", "caps": 22}, "2 Reis": {"api": "2 kings", "caps": 25}, 
+    "1 Crônicas": {"api": "1 chronicles", "caps": 29}, "2 Crônicas": {"api": "2 chronicles", "caps": 36}, 
+    "Esdras": {"api": "ezra", "caps": 10}, "Neemias": {"api": "nehemiah", "caps": 13}, 
+    "Ester": {"api": "esther", "caps": 10}, "Jó": {"api": "job", "caps": 42}, 
+    "Salmos": {"api": "psalms", "caps": 150}, "Provérbios": {"api": "proverbs", "caps": 31},
+    "Eclesiastes": {"api": "ecclesiastes", "caps": 12}, "Cânticos": {"api": "song of solomon", "caps": 8}, 
+    "Isaías": {"api": "isaiah", "caps": 66}, "Jeremias": {"api": "jeremiah", "caps": 52}, 
+    "Lamentações": {"api": "lamentations", "caps": 5}, "Ezequiel": {"api": "ezekiel", "caps": 48}, 
+    "Daniel": {"api": "daniel", "caps": 12}, "Oseias": {"api": "hosea", "caps": 14}, 
+    "Joel": {"api": "joel", "caps": 3}, "Amós": {"api": "amos", "caps": 9}, 
+    "Obadias": {"api": "obadiah", "caps": 1}, "Jonas": {"api": "jonah", "caps": 4}, 
+    "Miqueias": {"api": "micah", "caps": 7}, "Naum": {"api": "nahum", "caps": 3}, 
+    "Habacuque": {"api": "habakkuk", "caps": 3}, "Sofonias": {"api": "zephaniah", "caps": 3},
+    "Ageu": {"api": "haggai", "caps": 2}, "Zacarias": {"api": "zechariah", "caps": 14}, 
+    "Malaquias": {"api": "malachi", "caps": 4}, "Mateus": {"api": "matthew", "caps": 28}, 
+    "Marcos": {"api": "mark", "caps": 16}, "Lucas": {"api": "lucas", "caps": 24}, 
+    "João": {"api": "john", "caps": 21}, "Atos": {"api": "acts", "caps": 28}, 
+    "Romanos": {"api": "romans", "caps": 16}, "1 Coríntios": {"api": "1 corinthians", "caps": 16},
+    "2 Coríntios": {"api": "2 corinthians", "caps": 13}, "Gálatas": {"api": "galatians", "caps": 6}, 
+    "Efésios": {"api": "ephesians", "caps": 6}, "Filipenses": {"api": "philippians", "caps": 4}, 
+    "Colossenses": {"api": "colossians", "caps": 4}, "1 Tessalonicenses": {"api": "1 tessalonians", "caps": 5}, 
+    "2 Tessalonicenses": {"api": "2 tessalonians", "caps": 3}, "1 Timóteo": {"api": "1 timothy", "caps": 6}, 
+    "2 Timóteo": {"api": "2 timothy", "caps": 4}, "Tito": {"api": "titus", "caps": 3}, 
+    "Filemom": {"api": "philemon", "caps": 1}, "Hebreus": {"api": "hebrews", "caps": 13}, 
+    "Tiago": {"api": "james", "caps": 5}, "1 Pedro": {"api": "1 peter", "caps": 5}, 
+    "2 Pedro": {"api": "2 peter", "caps": 3}, "1 João": {"api": "1 john", "caps": 5}, 
+    "2 João": {"api": "2 john", "caps": 1}, "3 João": {"api": "3 john", "caps": 1}, 
+    "Judas": {"api": "judas", "caps": 1}, "Apocalipse": {"api": "revelation", "caps": 22}
 }
 
 st.markdown("""
@@ -108,24 +123,10 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        df_v_dia = consultar_db("SELECT texto FROM texto_biblico WHERE livro = 'João' AND capitulo = 3 AND versiculo = 16")
+        txt_box = df_v_dia.loc[0, "texto"] if not df_v_dia.empty else "Porque Deus amou o mundo de tal maneira..."
+        st.markdown(f'<div class="versiculo-box"><h4>"{txt_box}"</h4><span style="color:#fff;">— João 3:16</span></div>', unsafe_allow_html=True)
         meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
         mes_atual_nome = meses[datetime.date.today().month - 1]
         st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
         df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Por Demanda Dinâmica)")
-        modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
-        
-        if modo == "Leitura por Capítulo":
-            c1, c2 = st.columns(2)
-            l_nome = c1.selectbox("Selecione o Livro:", list(INFO_LIVROS.keys()))
-            # Calcula dinamicamente o máximo de capítulos do livro escolhido
-            max_caps = INFO_LIVROS[l_nome]["caps"]
-            c_num = c2.number_input(f"Selecione o Capítulo (1 até {max_caps}):", min_value=1, max_value=max_caps, value=1, step=1)
-            
