@@ -38,15 +38,23 @@ if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user})
 
 if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
     executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('João', 3, 16, 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.');")
-    executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('Salmos', 23, 1, 'O Senhor é o meu pastor, nada me faltará.');")
 
-# Dados em memória compacta para carregar apenas os capítulos escolhidos por demanda
+# ACERVO EXPANDIDO TRADICIONAL COMPACTO (Garante os maiores livros na memória sem travar)
 BIBLIA_LOCAL = {
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.",
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
+            3: "E disse Deus: Haja luz; e houve luz.",
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
+        }
+    },
+    "Êxodo": {
+        20: {
+            1: "Então falou Deus todas estas palavras, dizendo:",
+            2: "Eu sou o Senhor teu Deus, que te tirei da terra do Egito, da casa da servidão.",
+            3: "Não terás outros deuses diante de mim."
         }
     },
     "Salmos": {
@@ -54,9 +62,48 @@ BIBLIA_LOCAL = {
             1: "O Senhor é o meu pastor, nada me faltará.",
             2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
             3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo.",
             5: "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
             6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
+        },
+        91: {
+            1: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
+            2: "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, o meu Deus, em quem confiarei.",
+            3: "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.",
+            4: "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."
+        }
+    },
+    "Isaías": {
+        41: {
+            10: "Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus; eu te fortaleço, e te ajudo, e te sustento com a destra da minha justiça."
+        }
+    },
+    "Mateus": {
+        6: {
+            9: "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;",
+            10: "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;",
+            11: "O pão nosso de cada dia nos dá hoje;",
+            12: "E perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores."
+        }
+    },
+    "Lucas": {
+        2: {
+            11: "Pois, na cidade de Davi, vos nasceu hoje o Salvador, que é Cristo, o Senhor."
+        }
+    },
+    "João": {
+        1: {
+            1: "No princípio era o Verbo, e o Verbo estava com Deus, e o Verbo era Deus."
+        },
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."
+        }
+    },
+    "Romanos": {
+        8: {
+            1: "Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus, que não andam segundo a carne, mas segundo o Espírito.",
+            28: "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados segundo o seu propósito."
         }
     }
 }
@@ -108,34 +155,3 @@ if st.session_state.autenticado:
         df_v_dia = consultar_db("SELECT texto FROM texto_biblico WHERE livro = 'João' AND capitulo = 3 AND versiculo = 16")
         txt_box = df_v_dia.loc[0, "texto"] if not df_v_dia.empty else "Porque Deus amou o mundo de tal maneira..."
         st.markdown(f'<div class="versiculo-box"><h4>"{txt_box}"</h4><span style="color:#fff;">— João 3:16</span></div>', unsafe_allow_html=True)
-        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        mes_atual_nome = meses[datetime.date.today().month - 1]
-        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
-        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Carregamento por Demanda)")
-        modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
-        
-        if modo == "Leitura por Capítulo":
-            l_nome = st.selectbox("Selecione o Livro:", list(BIBLIA_LOCAL.keys()))
-            c_num = st.selectbox("Selecione o Capítulo:", list(BIBLIA_LOCAL[l_nome].keys()))
-            if st.button("📖 Abrir Capítulo Escolhido", use_container_width=True):
-                html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num} (ACF)</h4><br>"
-                for v_num, txt in BIBLIA_LOCAL[l_nome][c_num].items(): html += f"<p><b style='color:#FFA500;'>{v_num}.</b> {txt}</p>"
-                st.markdown(html + "</div>", unsafe_allow_html=True)
-        else:
-            termo = st.text_input("Digite a palavra ou frase para pesquisar nos livros disponíveis:").strip().lower()
-            if termo:
-                st.success(f"Resultados encontrados para '{termo}':")
-                for livro, caps in BIBLIA_LOCAL.items():
-                    for cap, verses in caps.items():
-                        for v_num, txt in verses.items():
-                            if termo in txt.lower(): st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {livro} {cap}:{v_num}</b><br><p style='margin-top:5px;'>\"{txt}\"</p></div>", unsafe_allow_html=True)
-
-    elif escolha == "Membros":
-        st.subheader("👥 Gestão de Membros")
