@@ -38,64 +38,50 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. ACERVO BÍBLICO INTERNO ALMEIDA CORRIGIDA FIEL (ACF) ---
-# Totalmente embutido para garantir funcionamento offline imediato sem internet
-BIBLE_DATA_LOCAL = [
-    {
-        "name": "Gênesis",
-        "chapters": [
-            [
-                "No princípio criou Deus os céus e a terra.",
-                "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
-                "E disse Deus: Haja luz; e houve luz.",
-                "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
-                "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
-            ]
-        ]
+# --- 3. ACERVO BÍBLICO ACF EMBUTIDO (100% OFFLINE E IMEDIATO) ---
+BIBLIA_ACF_LOCAL = {
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.",
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
+            3: "E disse Deus: Haja luz; e houve luz.",
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
+        }
     },
-    {
-        "name": "Salmos",
-        "chapters": [
-            # Capítulo 23 mapeado no índice 0
-            [
-                "O Senhor é o meu pastor, nada me faltará.",
-                "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
-                "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
-                "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
-                "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
-                "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
-            ],
-            # Capítulo 91 mapeado no índice 1
-            [
-                "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
-                "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, o meu Deus, em quem confiarei.",
-                "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.",
-                "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."
-            ]
-        ]
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.",
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
+            5: "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
+            6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
+        }
     },
-    {
-        "name": "João",
-        "chapters": [
-            [
-                "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-                "Porque Deus enviou o seu Filho au mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-                "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
-            ]
-        ]
+    "Mateus": {
+        6: {
+            9: "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;",
+            10: "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;",
+            11: "O pão nosso de cada dia nos dá hoje;",
+            12: "E perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores;",
+            13: "E não nos induzas à tentação; mas livra-nos do mal; porque teu é o reino, o poder e a glória. Amém."
+        }
     },
-    {
-        "name": "Romanos",
-        "chapters": [
-            [
-                "Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus, que não andam segundo a carne, mas segundo o Espírito.",
-                "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados segundo o seu propósito."
-            ]
-        ]
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+        }
+    },
+    "Romanos": {
+        8: {
+            1: "Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus, que não andam segundo a carne, mas segundo o Espírito.",
+            28: "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados segundo o seu propósito."
+        }
     }
-]
-
-lista_livros = [livro["name"] for livro in BIBLE_DATA_LOCAL]
+}
 
 st.markdown("""
     <style>
@@ -157,4 +143,9 @@ if st.session_state.autenticado:
         
         if modo == "Leitura por Capítulo":
             c1, c2 = st.columns(2)
-            livro_sel = c1.selectbox("Selecione o Livro:", lista_livros)
+            livro_sel = c1.selectbox("Selecione o Livro:", list(BIBLIA_ACF_LOCAL.keys()))
+            cap_sel = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_ACF_LOCAL[livro_sel].keys()))
+            
+            if st.button("📖 Abrir Capítulo Completo", use_container_width=True):
+                html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
+                versiculos = BIBLIA_ACF_LOCAL[livro_sel][cap_sel]
