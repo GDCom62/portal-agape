@@ -38,7 +38,7 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. ACERVO BÍBLICO ACF EMBUTIDO (100% OFFLINE E IMEDIATO) ---
+# --- 3. ACERVO BÍBLICO ACF EMBUTIDO FIXO ---
 BIBLIA_ACF_LOCAL = {
     "Gênesis": {
         1: {
@@ -146,6 +146,6 @@ if st.session_state.autenticado:
             livro_sel = c1.selectbox("Selecione o Livro:", list(BIBLIA_ACF_LOCAL.keys()))
             cap_sel = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_ACF_LOCAL[livro_sel].keys()))
             
-            if st.button("📖 Abrir Capítulo Completo", use_container_width=True):
-                html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
-                versiculos = BIBLIA_ACF_LOCAL[livro_sel][cap_sel]
+            # REMOVE O PROBLEMA: AGORA CARREGA AUTOMATICAMENTE NA TELA SEM PRECISAR DE OUTRO CLIQUE
+            html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
+            versiculos = BIBLIA_ACF_LOCAL[livro_sel][cap_sel]
