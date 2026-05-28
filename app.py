@@ -4,8 +4,10 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 
+# --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
+# --- 2. CONEXÃO BANCO DE DADOS LOCAL ---
 @st.cache_resource
 def inicializar_conexoes():
     return create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False, "timeout": 30})
@@ -20,7 +22,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Estruturação automática das tabelas locais
+# Criação inicial de todas as tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -36,9 +38,9 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- ACERVO BÍBLICO ALMEIDA CORRIGIDA FIEL (ACF) INDUSTRIALIZADO E EMBUTIDO ---
-# Contém os principais livros e capítulos estruturados nativamente na memória
-BIBLIA_EMBUTIDA = [
+# --- 3. ACERVO BÍBLICO INTERNO ALMEIDA CORRIGIDA FIEL (ACF) ---
+# Totalmente embutido para garantir funcionamento offline imediato sem internet
+BIBLE_DATA_LOCAL = [
     {
         "name": "Gênesis",
         "chapters": [
@@ -54,7 +56,7 @@ BIBLIA_EMBUTIDA = [
     {
         "name": "Salmos",
         "chapters": [
-            # Capítulo 23 (Índice 0 da lista de Salmos no acervo)
+            # Capítulo 23 mapeado no índice 0
             [
                 "O Senhor é o meu pastor, nada me faltará.",
                 "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
@@ -63,7 +65,7 @@ BIBLIA_EMBUTIDA = [
                 "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
                 "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
             ],
-            # Capítulo 91 (Índice 1 da lista de Salmos no acervo)
+            # Capítulo 91 mapeado no índice 1
             [
                 "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
                 "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, o meu Deus, em quem confiarei.",
@@ -77,8 +79,8 @@ BIBLIA_EMBUTIDA = [
         "chapters": [
             [
                 "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-                "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-                "Quem crê nele não é condizido à condenação; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+                "Porque Deus enviou o seu Filho au mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+                "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
             ]
         ]
     },
@@ -92,6 +94,8 @@ BIBLIA_EMBUTIDA = [
         ]
     }
 ]
+
+lista_livros = [livro["name"] for livro in BIBLE_DATA_LOCAL]
 
 st.markdown("""
     <style>
@@ -151,7 +155,6 @@ if st.session_state.autenticado:
         st.subheader("📖 Bíblia Sagrada ACF (Modo de Leitura Local Estável)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
-        lista_livros_embutidos = [livro["name"] for livro in BIBLIA_EMBUTIDA]
-        
         if modo == "Leitura por Capítulo":
             c1, c2 = st.columns(2)
+            livro_sel = c1.selectbox("Selecione o Livro:", lista_livros)
