@@ -21,7 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação cirúrgica de todas as tabelas estruturais
+# Estrutura de Tabelas Locais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -32,24 +32,47 @@ executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY K
 executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
-executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
-
-# LISTA COMPLETA OFICIAL DOS 66 LIVROS DA BÍBLIA COM O NÚMERO EXATO DE CAPÍTULOS DE CADA UM
-DICIONARIO_BÍBLICO = {
-    "Gênesis": 50, "Êxodo": 40, "Levítico": 27, "Números": 36, "Deuteronômio": 34, "Josué": 24, "Juízes": 21, "Rute": 4,
-    "1 Samuel": 31, "2 Samuel": 24, "1 Reis": 22, "2 Reis": 25, "1 Crônicas": 29, "2 Crônicas": 36, "Esdras": 10, "Neemias": 13,
-    "Ester": 10, "Jó": 42, "Salmos": 150, "Provérbios": 31, "Eclesiastes": 12, "Cânticos": 8, "Isaías": 66, "Jeremias": 52,
-    "Lamentações": 5, "Ezequiel": 48, "Daniel": 12, "Oseias": 14, "Joel": 3, "Amós": 9, "Obadias": 1, "Jonas": 4,
-    "Miqueias": 7, "Naum": 3, "Habacuque": 3, "Sofonias": 3, "Ageu": 2, "Zacarias": 14, "Malaquias": 4,
-    "Mateus": 28, "Marcos": 16, "Lucas": 24, "João": 21, "Atos": 28, "Romanos": 16, "1 Coríntios": 16, "2 Coríntios": 13,
-    "Gálatas": 6, "Efésios": 6, "Filipenses": 4, "Colossenses": 4, "1 Tessalonicenses": 5, "2 Tessalonicenses": 3,
-    "1 Timóteo": 6, "2 Timóteo": 4, "Tito": 3, "Filemom": 1, "Hebreus": 13, "Tiago": 5, "1 Pedro": 5, "2 Pedro": 3,
-    "1 João": 5, "2 João": 1, "3 João": 1, "Judas": 1, "Apocalipse": 22
-}
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+
+# DICIONÁRIO COMPLETO COM TODOS OS 66 LIVROS E QUANTIDADE EXATA DE CAPÍTULOS
+INFO_BIBLIA = {
+    "Gênesis": {"api": "genesis", "caps": 50}, "Êxodo": {"api": "exodus", "caps": 40},
+    "Levítico": {"api": "leviticus", "caps": 27}, "Números": {"api": "numbers", "caps": 36},
+    "Deuteronômio": {"api": "deuteronomy", "caps": 34}, "Josué": {"api": "joshua", "caps": 24},
+    "Juízes": {"api": "judges", "caps": 21}, "Rute": {"api": "ruth", "caps": 4},
+    "1 Samuel": {"api": "1 samuel", "caps": 31}, "2 Samuel": {"api": "2 samuel", "caps": 24},
+    "1 Reis": {"api": "1 kings", "caps": 22}, "2 Reis": {"api": "2 kings", "caps": 25},
+    "1 Crônicas": {"api": "1 chronicles", "caps": 29}, "2 Crônicas": {"api": "2 chronicles", "caps": 36},
+    "Esdras": {"api": "ezra", "caps": 10}, "Neemias": {"api": "nehemiah", "caps": 13},
+    "Ester": {"api": "esther", "caps": 10}, "Jó": {"api": "job", "caps": 42},
+    "Salmos": {"api": "psalms", "caps": 150}, "Provérbios": {"api": "proverbs", "caps": 31},
+    "Eclesiastes": {"api": "ecclesiastes", "caps": 12}, "Cânticos": {"api": "song of solomon", "caps": 8},
+    "Isaías": {"api": "isaiah", "caps": 66}, "Jeremias": {"api": "jeremiah", "caps": 52},
+    "Lamentações": {"api": "lamentations", "caps": 5}, "Ezequiel": {"api": "ezekiel", "caps": 48},
+    "Daniel": {"api": "daniel", "caps": 12}, "Oseias": {"api": "hosea", "caps": 14},
+    "Joel": {"api": "joel", "caps": 3}, "Amós": {"api": "amos", "caps": 9},
+    "Obadias": {"api": "obadiah", "caps": 1}, "Jonas": {"api": "jonah", "caps": 4},
+    "Miqueias": {"api": "micah", "caps": 7}, "Naum": {"api": "nahum", "caps": 3},
+    "Habacuque": {"api": "habakkuk", "caps": 3}, "Sofonias": {"api": "zephaniah", "caps": 3},
+    "Ageu": {"api": "haggai", "caps": 2}, "Zacarias": {"api": "zechariah", "caps": 14},
+    "Malaquias": {"api": "malachi", "caps": 4}, "Mateus": {"api": "matthew", "caps": 28},
+    "Marcos": {"api": "mark", "caps": 16}, "Lucas": {"api": "lucas", "caps": 24},
+    "João": {"api": "john", "caps": 21}, "Atos": {"api": "acts", "caps": 28},
+    "Romanos": {"api": "romans", "caps": 16}, "1 Coríntios": {"api": "1 corinthians", "caps": 16},
+    "2 Coríntios": {"api": "2 corinthians", "caps": 13}, "Gálatas": {"api": "galatians", "caps": 6},
+    "Efésios": {"api": "ephesians", "caps": 6}, "Filipenses": {"api": "philippians", "caps": 4},
+    "Colossenses": {"api": "colossians", "caps": 4}, "1 Tessalonicenses": {"api": "1 messengers", "caps": 5},
+    "2 Tessalonicenses": {"api": "2 messengers", "caps": 3}, "1 Timóteo": {"api": "1 timothy", "caps": 6},
+    "2 Timóteo": {"api": "2 timothy", "caps": 4}, "Tito": {"api": "titus", "caps": 3},
+    "Filemom": {"api": "philemon", "caps": 1}, "Hebreus": {"api": "hebrews", "caps": 13},
+    "Tiago": {"api": "james", "caps": 5}, "1 Pedro": {"api": "1 peter", "caps": 5},
+    "2 Pedro": {"api": "2 peter", "caps": 3}, "1 João": {"api": "1 john", "caps": 5},
+    "2 João": {"api": "2 john", "caps": 1}, "3 João": {"api": "3 john", "caps": 1},
+    "Judas": {"api": "judas", "caps": 1}, "Apocalipse": {"api": "revelation", "caps": 22}
+}
 
 st.markdown("""
     <style>
@@ -95,7 +118,7 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"O Senhor é o meu pastor, nada me faltará."</h4><span style="color:#fff;">— Salmos 23:1 (ACF)</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
         meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
         mes_atual_nome = meses[datetime.date.today().month - 1]
         st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
@@ -107,32 +130,7 @@ if st.session_state.autenticado:
 
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Modo Híbrido Otimizado)")
-        
-        # Central de Sincronização Sob Demanda para o Administrador alimentar a base local
-        with st.expander("📥 Central de Sincronização Bíblica Offline (Clique uma vez para baixar)"):
-            st.write("Clique no botão abaixo para baixar todas as 31.102 linhas da Bíblia de forma segura diretamente para o banco do seu servidor.")
-            if st.button("🔄 Sincronizar todos os 66 Livros e Capítulos na Base Local", use_container_width=True):
-                with st.spinner("Importando acervo sagrado completo... Aguarde alguns segundos."):
-                    try:
-                        res = requests.get("https://githubusercontent.com", timeout=20)
-                        if res.status_code == 200:
-                            lote = []
-                            for l in res.json():
-                                for c_idx, cap in enumerate(l["chapters"]):
-                                    for v_idx, txt in enumerate(cap):
-                                        lote.append({"l": l["name"], "c": c_idx + 1, "v": v_idx + 1, "t": str(txt).strip()})
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM texto_biblico;"))
-                                conn.execute(text("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"), lote)
-                            st.success("Toda a Bíblia ACF foi baixada e gravada de forma definitiva no banco do servidor!")
-                            st.rerun()
-                    except: st.error("O servidor de arquivos encontrava-se ocupado. Tente clicar no botão novamente.")
-
         modo = st.radio("Escolha o modo de consulta:", ["Leitura por Livro e Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
         if modo == "Leitura por Livro e Capítulo":
             c1, c2 = st.columns(2)
-            l_nome = c1.selectbox("Selecione o Livro desejado:", list(DICIONARIO_BÍBLICO.keys()))
-            
-            # Alimenta dinamicamente a quantidade exata de capítulos que o livro escolhido possui
-            total_caps_livro = DICIONARIO_BÍBLICO[l_nome]
