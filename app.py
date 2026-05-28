@@ -22,7 +22,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação inicial de todas as tabelas estruturais
+# Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -33,45 +33,24 @@ executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY K
 executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
-executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. ACERVO BÍBLICO ACF INTERNO (100% OFFLINE E IMEDIATO) ---
-BIBLIA_LOCAL_PROG = {
+# --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
+BIBLIA_ESTAVEL = {
     "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.",
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
-            3: "E disse Deus: Haja luz; e houve luz.",
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
-        }
+        1: {1: "No princípio criou Deus os céus e a terra.", 2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 3: "E disse Deus: Haja luz; e houve luz.", 4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 5: "E Deus chamou à luz Dia; e às trevas chamou Noite."}
     },
     "Números": {
-        4: {
-            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:",
-            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi, pelas suas famílias, segundo a casa de seus pais;",
-            3: "Da idade de trinta anos para cima até aos cinquenta anos, de todos os que entram neste serviço, para fazerem o trabalho na tenda da congregação.",
-            4: "Este será o serviço os filhos de Coate na tenda da congregação, nas coisas santíssimas."
-        }
+        4: {1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 3: "Da idade de trinta anos para cima até aos cinquenta anos...", 4: "Este será o serviço dos filhos de Coate na tenda da congregação."}
     },
     "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.",
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam."
-        }
+        23: {1: "O Senhor é o meu pastor, nada me faltará.", 2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 6: "Certamente que a bondade e a misericórdia me seguirão."}
     },
     "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
-        }
+        3: {16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 18: "Quem crê nele não é condizido à condenação."}
     }
 }
 
@@ -130,16 +109,16 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada ACF (Modo de Leitura Local Estável)")
+        st.subheader("📖 Bíblia Sagrada ACF (Modo Local Otimizado)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
         if modo == "Leitura por Capítulo":
             c1, c2 = st.columns(2)
-            livro_sel = c1.selectbox("Selecione o Livro:", list(BIBLIA_LOCAL_PROG.keys()))
-            cap_sel = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_LOCAL_PROG[livro_sel].keys()))
+            livro_sel = c1.selectbox("Selecione o Livro:", list(BIBLIA_ESTAVEL.keys()))
+            cap_sel = c2.selectbox("Selecione o Capítulo:", list(BIBLIA_ESTAVEL[livro_sel].keys()))
             
             html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
-            versiculos = BIBLIA_LOCAL_PROG[livro_sel][cap_sel]
+            versiculos = BIBLIA_ESTAVEL[livro_sel][cap_sel]
             for v_num, txt in versiculos.items():
                 html += f"<p><b style='color:#FFA500;'>{v_num}.</b> {txt}</p>"
             st.markdown(html + "</div>", unsafe_allow_html=True)
@@ -147,6 +126,16 @@ if st.session_state.autenticado:
             termo = st.text_input("Digite a palavra ou frase para buscar nos livros disponíveis:").strip().lower()
             if termo:
                 st.success(f"Resultados encontrados para '{termo}':")
-                for livro, caps in BIBLIA_LOCAL_PROG.items():
+                for livro, caps in BIBLIA_ESTAVEL.items():
                     for cap, verses in caps.items():
                         for v_num, txt in verses.items():
+                            if termo in str(txt).lower():
+                                st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {livro} {cap}:{v_num}</b><br><p style='margin-top:5px;'>\"{txt}\"</p></div>", unsafe_allow_html=True)
+
+    elif escolha == "Membros":
+        st.subheader("👥 Gestão de Membros")
+        aba_membro_opcao = st.radio("Selecione a ação:", ["Ver Membros", "Cadastrar Novo Membro"], horizontal=True)
+        if aba_membro_opcao == "Cadastrar Novo Membro":
+            with st.form("f_memb", clear_on_submit=True):
+                m_nome = st.text_input("Nome")
+                m_tel = st.text_input("Telefone")
