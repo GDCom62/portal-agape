@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
+import json
+import os
 import datetime
 
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -20,7 +22,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Estrutura de Tabelas locais
+# Criação inicial de todas as tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -36,44 +38,19 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- ACERVO SAGRADO ALMEIDA CORRIGIDA FIEL (ACF) - 100% SEGURO E EM MEMÓRIA ---
-BIBLIA_LOCAL = {
-    "Gênesis": {
-        1: ["1. No princípio criou Deus os céus e a terra.", "2. E a terra era sem forma e vazia; e havia trevas sobre la face do abismo.", "3. E disse Deus: Haja luz; e houve luz.", "4. E viu Deus que era boa la luz; e fez Deus separação entre la luz e as trevas.", "5. E Deus chamou à luz Dia; e às trevas chamou Noite."],
-        12: ["1. Ora, o Senhor disse a Abrão: Sai-te da tua terra e da tua parentela.", "2. E far-te-ei uma grande nação, e abençoar-te-ei.", "3. E abençoarei os que te abençoarem."]
-    },
-    "Josué": {
-        1: ["1. E sucedeu, depois da morte de Moisés, que o Senhor falou a Josué.", "5. Ninguém te poderá resistir, todos os dias da tua vida; como fui com Moisés, assim serei contigo; não te deixarei nem te desampararei.", "9. Não te mandei eu? Sê forte e corajoso; não temas, nem te espantes; porque o Senhor teu Deus é contigo, por onde quer que andares."]
-    },
-    "Salmos": {
-        23: ["1. O Senhor é o meu pastor, nada me faltará.", "2. Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", "3. Refrigera la minha alma; guia-me pelas veredas da justiça.", "4. Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", "5. Preparas uma mesa perante mim na presença dos meus inimigos.", "6. Certamente que la bondade e la misericórdia me seguirão todos os dias."],
-        91: ["1. Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", "2. Direi do Senhor: Ele é o meu refúgio e la minha fortaleza.", "3. Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.", "4. Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás.", "7. Mil cairão ao teu lado, e dez mil à tua direita, mas não chegará a ti."],
-        121: ["1. Levantarei os meus olhos para os montes, de onde vem o meu socorro?", "2. O meu socorro vem do Senhor, que fez os céus e la terra.", "3. Não deixará vacilar o teu pé; aquele que te guarda não tosquenejará."]
-    },
-    "Provérbios": {
-        3: ["5. Confia no Senhor de todo o teu coração, e não te estribes no teu próprio entendimento.", "6. Reconhece-o em todos os teus caminhos, e ele endireitará as tuas veredas."]
-    },
-    "Isaías": {
-        40: ["29. Dá força ao cansado, e multiplica as forças ao que não tem nenhum vigor.", "31. Mas os que esperam no Senhor renovarão as suas forças, subirão com asas como águias; correrão, e não se cansarão; caminharão, e não se fatigarão."],
-        41: ["10. Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus; eu te fortaleço, e te ajudo, e te sustento com la destra da minha justiça."]
-    },
-    "Mateus": {
-        6: ["9. Portanto, vós orareis assim: Pai nosso, que estás nos céus.", "10. Venha o teu reino, seja feita la tua vontade.", "33. Mas, buscai primeiro o reino de Deus, e la sua justiça, e todas estas coisas vos serão acrescentadas."]
-    },
-    "João": {
-        3: ["16. Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha la vida eterna.", "17. Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."],
-        14: ["1. Não se turbe o teu coração; credes em Deus, crede também em mim.", "6. Disse-lhe Jesus: Eu sou o caminho, e la verdade, e la vida; ninguém vem ao Pai, senão por mim."]
-    },
-    "Romanos": {
-        8: ["1. Portanto, agora nenhuma condenação há para os que estão em Cristo Jesus.", "28. E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus.", "31. Que diremos, pois, a estas coisas? Se Deus é por nós, quem será contra nós?"]
-    },
-    "Filipenses": {
-        4: ["13. Tudo posso naquele que me fortalece.", "19. O meu Deus, segundo as suas riquezas, suprirá todas as vossas necessidades em glória."]
-    },
-    "Apocalipse": {
-        22: ["13. Eu sou o Alfa e o Ômega, o princípio e o fim, o primeiro e o derradeiro.", "20. Aquele que testifica estas coisas diz: Certamente cedo venho. Amém. Ora vem, Senhor Jesus."]
-    }
-}
+# --- FUNÇÃO DE LEITURA LOCAL ULTRA-RÁPIDA (CONTINGÊNCIA CASO O JSON NÃO SEJA CRIADO) ---
+@st.cache_data
+def carregar_biblia_disco():
+    if os.path.exists("acf.json"):
+        try:
+            with open("acf.json", "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: pass
+    # Backup nativo caso o Passo 1 ainda não tenha sido feito
+    return [{"name": "João", "chapters": [["Carregando sistema..."], ["Carregando..."], ["Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."]]}]
+
+dados_biblia = carregar_biblia_disco()
+lista_livros = [livro["name"] for livro in dados_biblia]
 
 st.markdown("""
     <style>
@@ -120,3 +97,54 @@ if st.session_state.autenticado:
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual_nome = meses[datetime.date.today().month - 1]
+        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
+        if not df_aniv.empty:
+            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
+        else: st.caption("Nenhum aniversário registrado para este mês.")
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
+    elif escolha == "Bíblia Completa":
+        st.subheader("📖 Bíblia Sagrada ACF (Carregamento em Tempo Real via Disco)")
+        if not os.path.exists("acf.json"):
+            st.warning("⚠️ Nota: O arquivo 'acf.json' não foi detectado no repositório. Por enquanto, o sistema está operando em modo de demonstração. Conclua o Passo 1 para liberar todos os 66 livros.")
+        
+        modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
+        
+        if modo == "Leitura por Capítulo":
+            c1, c2 = st.columns(2)
+            livro_sel = c1.selectbox("Selecione o Livro:", lista_livros)
+            
+            # Localiza o objeto do livro selecionado para ler a quantidade exata de capítulos real
+            idx_livro = lista_livros.index(livro_sel)
+            caps_disponiveis = list(range(1, len(dados_biblia[idx_livro]["chapters"]) + 1))
+            cap_sel = c2.selectbox("Selecione o Capítulo:", caps_disponiveis)
+            
+            if st.button("📖 Abrir Capítulo Completo", use_container_width=True):
+                html = f"<div class='leitura-box'><h4>📜 {livro_sel} — Capítulo {cap_sel}</h4><br>"
+                versiculos = dados_biblia[idx_livro]["chapters"][cap_sel - 1]
+                for v_idx, txt in enumerate(versiculos):
+                    html += f"<p><b style='color:#FFA500;'>{v_idx + 1}.</b> {txt}</p>"
+                st.markdown(html + "</div>", unsafe_allow_html=True)
+        else:
+            termo = st.text_input("Digite a palavra ou frase para buscar:").strip().lower()
+            if termo:
+                st.success(f"Resultados encontrados para '{termo}':")
+                contador = 0
+                for livro in dados_biblia:
+                    for c_idx, capitulo in enumerate(livro["chapters"]):
+                        for v_idx, txt in enumerate(capitulo):
+                            if termo in str(txt).lower() and contador < 40:
+                                st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {livro['name']} {c_idx + 1}:{v_idx + 1}</b><br><p style='margin-top:5px;'>\"{txt}\"</p></div>", unsafe_allow_html=True)
+                                contador += 1
+
+    elif escolha == "Membros":
+        st.subheader("👥 Gestão de Membros")
+        aba_membro_opcao = st.radio("Selecione a ação:", ["Ver Membros", "Cadastrar Novo Membro"], horizontal=True)
+        if aba_membro_opcao == "Cadastrar Novo Membro":
+            with st.form("f_memb", clear_on_submit=True):
+                m_nome = st.text_input("Nome")
+                m_tel = st.text_input("Telefone")
+                m_cargo = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
