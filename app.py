@@ -21,7 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação inicial de todas as tabelas estruturais
+# Criação das Tabelas estruturais locais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -37,16 +37,6 @@ executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
-
-# Configuração estável dos 6 Lotes para carregar os 66 Livros de forma segura e fracionada
-LOTES_BIBLIA = {
-    "Lote 1: Pentateuco (Gênesis a Deuteronômio)": "https://githubusercontent.com",
-    "Lote 2: Livros Históricos (Josué a Ester)": "https://githubusercontent.com",
-    "Lote 3: Livros Poéticos (Jó a Cantares)": "https://githubusercontent.com",
-    "Lote 4: Profetas Maiores e Menores (Isaías a Malaquias)": "https://githubusercontent.com",
-    "Lote 5: Evangelhos e Atos (Mateus a Atos)": "https://githubusercontent.com",
-    "Lote 6: Epístolas e Apocalipse (Romanos a Apocalipse)": "https://githubusercontent.com"
-}
 
 st.markdown("""
     <style>
@@ -103,23 +93,48 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Central de Distribuição Fracionada da Bíblia Sagrada")
+        st.subheader("📖 Bíblia Sagrada Completa (Gerenciador por Lote Inteligente)")
         
-        # SISTEMA OPERACIONAL QUE EVITA TRAVAMENTOS DE REDE CARREGANDO POR LOTES
-        with st.expander("📥 Baixar e Instalar Lotes de Livros (Execute uma vez para cada lote)"):
-            lote_selecionado = st.selectbox("Selecione qual parte da Bíblia deseja carregar:", list(LOTES_BIBLIA.keys()))
-            if st.button("Sincronizar Lote Selecionado", use_container_width=True):
-                try:
-                    res = requests.get(LOTES_BIBLIA[lote_selecionado], timeout=15)
-                    if res.status_code == 200:
-                        lote_dados = []
-                        # Filtro inteligente de indexação fracionada para carregar partes específicas sem travar a RAM
-                        for livro in res.json():
-                            nome_l = livro["name"]
-                            # Filtros operacionais para dividir os 66 livros nos lotes corretos
-                            lote_valido = False
-                            if "Pentateuco" in lote_selecionado and nome_l in ["Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio"]: lote_valido = True
-                            elif "Históricos" in lote_selecionado and nome_l in ["Josué", "Juízes", "Rute", "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias", "Ester"]: lote_valido = True
-                            elif "Poéticos" in lote_selecionado and nome_l in ["Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos"]: lote_valido = True
-                            elif "Profetas" in lote_selecionado and nome_l in ["Isaías", "Jeremias", "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas", "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias"]: lote_valido = True
-                            elif "Evangelhos" in lote_selecionado and nome_l in ["Mateus", "Marcos", "Lucas", "João", "Atos"]: lote_valido = True
+        # Central Unificada de Instalação Rápida por Grupos de Livros
+        with st.expander("📥 Central de Sincronização Bíblica Offline"):
+            st.write("Escolha o lote desejado para baixar e clique em 'Instalar' (Recomendado baixar um por vez para evitar erros):")
+            op_lote = st.selectbox("Selecione os livros para instalar:", ["1. Pentateuco (Gênesis a Deuteronômio)", "2. Livros Históricos (Josué a Ester)", "3. Poéticos e Profetas (Jó a Malaquias)", "4. Novo Testamento Completo (Mateus a Apocalipse)"])
+            
+            if st.button("📥 Sincronizar Lote Selecionado", use_container_width=True):
+                with st.spinner("Conectando ao servidor e extraindo livros..."):
+                    try:
+                        res = requests.get("https://githubusercontent.com", timeout=12)
+                        if res.status_code == 200:
+                            dados_brutos = res.json()
+                            lote_filtrado = []
+                            for idx, l in enumerate(dados_brutos):
+                                nome_l = l["name"]
+                                valido = False
+                                if "Pentateuco" in op_lote and idx < 5: valido = True
+                                elif "Históricos" in op_lote and (4 < idx < 17): valido = True
+                                elif "Poéticos" in op_lote and (16 < idx < 39): valido = True
+                                elif "Novo Testamento" in op_lote and idx >= 39: valido = True
+                                
+                                if valido:
+                                    for c_idx, cap in enumerate(l["chapters"]):
+                                        for v_idx, txt in enumerate(cap):
+                                            lote_filtrado.append({"l": nome_l, "c": c_idx + 1, "v": v_idx + 1, "t": txt})
+                            
+                            if lote_filtrado:
+                                with engine.begin() as conn:
+                                    conn.execute(text("INSERT OR IGNORE INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"), lote_filtrado)
+                                st.success(f"Lote gravado com sucesso! Livros adicionados à sua base offline.")
+                                st.rerun()
+                        else: st.error("O servidor de arquivos não respondeu corretamente.")
+                    except Exception as err:
+                        st.error(f"Não foi possível concluir o download deste lote. Detalhe: {str(err)}")
+
+        modo = st.radio("Escolha o modo de uso:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
+        df_livros_db = consultar_db("SELECT DISTINCT livro FROM texto_biblico ORDER BY id ASC")
+        
+        if modo == "Leitura por Capítulo":
+            if not df_livros_db.empty:
+                lista_livros = df_livros_db["livro"].tolist()
+                c1, c2 = st.columns(2)
+                livro_sel = c1.selectbox("Selecione o Livro:", lista_livros)
+                
