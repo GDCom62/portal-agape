@@ -4,10 +4,8 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 
-# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# 2. CONEXÃO BANCO DE DADOS LOCAL
 @st.cache_resource
 def inicializar_conexoes():
     return create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False, "timeout": 30})
@@ -22,7 +20,6 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Criação das tabelas estruturais
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -35,7 +32,6 @@ executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
-# Carga inicial do Administrador e contingência da Bíblia
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
@@ -44,7 +40,27 @@ if consultar_db("SELECT id FROM texto_biblico LIMIT 1").empty:
     executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('João', 3, 16, 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.');")
     executar_query("INSERT INTO texto_biblico (livro, capitulo, versiculo, texto) VALUES ('Salmos', 23, 1, 'O Senhor é o meu pastor, nada me faltará.');")
 
-# Estilos CSS
+# Dados em memória compacta para carregar apenas os capítulos escolhidos por demanda
+BIBLIA_LOCAL = {
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+        }
+    },
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.",
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
+            5: "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
+            6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
+        }
+    }
+}
+
 st.markdown("""
     <style>
     .stAppViewContainer { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; }
@@ -102,36 +118,24 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Sob Demanda)")
+        st.subheader("📖 Bíblia Sagrada Completa (Carregamento por Demanda)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
         if modo == "Leitura por Capítulo":
-            l_nome = st.selectbox("Selecione o Livro:", ["João", "Salmos"])
-            c_num = st.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=3, step=1)
+            l_nome = st.selectbox("Selecione o Livro:", list(BIBLIA_LOCAL.keys()))
+            c_num = st.selectbox("Selecione o Capítulo:", list(BIBLIA_LOCAL[l_nome].keys()))
             if st.button("📖 Abrir Capítulo Escolhido", use_container_width=True):
-                df_cap = consultar_db("SELECT versiculo, texto FROM texto_biblico WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": l_nome, "c": c_num})
-                if not df_cap.empty:
-                    html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num}</h4><br>"
-                    for i, r in df_cap.iterrows(): html += f"<p><b style='color:#FFA500;'>{r['versiculo']}.</b> {r['texto']}</p>"
-                    st.markdown(html + "</div>", unsafe_allow_html=True)
-                else: st.warning("Capítulo não localizado na base local.")
+                html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num} (ACF)</h4><br>"
+                for v_num, txt in BIBLIA_LOCAL[l_nome][c_num].items(): html += f"<p><b style='color:#FFA500;'>{v_num}.</b> {txt}</p>"
+                st.markdown(html + "</div>", unsafe_allow_html=True)
         else:
-            termo = st.text_input("Digite a palavra ou frase para pesquisar:").strip()
+            termo = st.text_input("Digite a palavra ou frase para pesquisar nos livros disponíveis:").strip().lower()
             if termo:
-                df_busca = consultar_db("SELECT livro, capitulo, versiculo, texto FROM texto_biblico WHERE texto LIKE :t LIMIT 40", {"t": f"%{termo}%"})
-                if not df_busca.empty:
-                    st.success(f"Resultados encontrados para '{termo}':")
-                    for i, r in df_busca.iterrows(): st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {r['livro']} {r['capitulo']}:{r['versiculo']}</b><br><p style='margin-top:5px;'>\"{r['texto']}\"</p></div>", unsafe_allow_html=True)
-                else: st.warning("Nenhum resultado localizado no acervo local.")
+                st.success(f"Resultados encontrados para '{termo}':")
+                for livro, caps in BIBLIA_LOCAL.items():
+                    for cap, verses in caps.items():
+                        for v_num, txt in verses.items():
+                            if termo in txt.lower(): st.markdown(f"<div class='leitura-box'><b style='color:#FFA500;'>📖 {livro} {cap}:{v_num}</b><br><p style='margin-top:5px;'>\"{txt}\"</p></div>", unsafe_allow_html=True)
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
-        aba_membro_opcao = st.radio("Selecione a ação:", ["Ver Membros", "Cadastrar Novo Membro"], horizontal=True)
-        if aba_membro_opcao == "Cadastrar Novo Membro":
-            with st.form("f_memb", clear_on_submit=True):
-                m_nome = st.text_input("Nome")
-                m_tel = st.text_input("Telefone")
-                m_cargo = st.selectbox("Cargo", ["Membro", "Diácono", "Presbítero", "Pastor"])
-                m_mes = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                if st.form_submit_button("Salvar"):
-                    if m_nome:
