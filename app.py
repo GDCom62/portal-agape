@@ -21,7 +21,7 @@ def consultar_db(sql, params=None):
         try: return pd.read_sql_query(text(sql), conn, params=params or {})
         except: return pd.DataFrame()
 
-# Inicialização das tabelas estruturais
+# Estrutura do Banco de Dados Local
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -32,29 +32,36 @@ executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY K
 executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+executar_query("CREATE TABLE IF NOT EXISTS texto_biblico (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# MAPEAMENTO DE LIVROS DA BÍBLIA (Garante que a lista NUNCA fique vazia)
-LIVROS_DISPONIVEIS = [
-    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "Salmos", "Provérbios", "Eclesiastes",
-    "Isaías", "Jeremias", "Daniel", "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos",
-    "1 Coríntios", "2 Coríntios", "Gálatas", "Efésios", "Filipenses", "Colossenses", 
-    "Hebreus", "Tiago", "1 Pedro", "2 Pedro", "1 João", "Apocalipse"
-]
-
-# Acervo Backup Offline de Segurança (Entra em ação instantaneamente se a rede falhar)
-BIBLE_BACKUP = {
-    "Gênesis": {1: {1: "No princípio criou Deus os céus e a terra.", 2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo."}},
-    "Salmos": {
-        23: {1: "O Senhor é o meu pastor, nada me faltará.", 2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 6: "Certamente que a bondade e a misericórdia me seguirão todos os dias."},
-        91: {1: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.", 2: "Direi do Senhor: Ele é o meu refúgio e a minha fortaleza."}
-    },
-    "João": {3: {16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."}},
-    "Romanos": {8: {28: "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus."}}
+# Índice Completo de Todos os 66 Livros da Bíblia com a quantidade exata de capítulos
+INFO_LIVROS = {
+    "Gênesis": {"id": "gn", "caps": 50}, "Êxodo": {"id": "ex", "caps": 40}, "Levítico": {"id": "lv", "caps": 27},
+    "Números": {"id": "nu", "caps": 36}, "Deuteronômio": {"id": "dt", "caps": 34}, "Josué": {"id": "js", "caps": 24},
+    "Juízes": {"id": "jz", "caps": 21}, "Rute": {"id": "rt", "caps": 4}, "1 Samuel": {"id": "1sm", "caps": 31},
+    "2 Samuel": {"id": "2sm", "caps": 24}, "1 Reis": {"id": "1rs", "caps": 22}, "2 Reis": {"id": "2rs", "caps": 25},
+    "1 Crônicas": {"id": "1cr", "caps": 29}, "2 Crônicas": {"id": "2cr", "caps": 36}, "Esdras": {"id": "ez", "caps": 10},
+    "Neemias": {"id": "ne", "caps": 13}, "Ester": {"id": "et", "caps": 10}, "Jó": {"id": "job", "caps": 42},
+    "Salmos": {"id": "ps", "caps": 150}, "Provérbios": {"id": "pr", "caps": 31}, "Eclesiastes": {"id": "ec", "caps": 12},
+    "Cânticos": {"id": "sg", "caps": 8}, "Isaías": {"id": "is", "caps": 66}, "Jeremias": {"id": "jr", "caps": 52},
+    "Lamentações": {"id": "la", "caps": 5}, "Ezequiel": {"id": "ez", "caps": 48}, "Daniel": {"id": "dn", "caps": 12},
+    "Oseias": {"id": "ho", "caps": 14}, "Joel": {"id": "jl", "caps": 3}, "Amós": {"id": "am", "caps": 9},
+    "Obadias": {"id": "ob", "caps": 1}, "Jonas": {"id": "jon", "caps": 4}, "Miqueias": {"id": "mi", "caps": 7},
+    "Naum": {"id": "na", "caps": 3}, "Habacuque": {"id": "hb", "caps": 3}, "Sofonias": {"id": "ze", "caps": 3},
+    "Ageu": {"id": "hg", "caps": 2}, "Zacarias": {"id": "zc", "caps": 14}, "Malaquias": {"id": "ml", "caps": 4},
+    "Mateus": {"id": "mt", "caps": 28}, "Marcos": {"id": "mk", "caps": 16}, "Lucas": {"id": "lk", "caps": 24},
+    "João": {"id": "jn", "caps": 21}, "Atos": {"id": "ac", "caps": 28}, "Romanos": {"id": "rm", "caps": 16},
+    "1 Coríntios": {"id": "1co", "caps": 16}, "2 Coríntios": {"id": "2co", "caps": 13}, "Gálatas": {"id": "gl", "caps": 6},
+    "Efésios": {"id": "ep", "caps": 6}, "Filipenses": {"id": "ph", "caps": 4}, "Colossenses": {"id": "cl", "caps": 4},
+    "1 Tessalonicenses": {"id": "1th", "caps": 5}, "2 Tessalonicenses": {"id": "2th", "caps": 3}, "1 Timóteo": {"id": "1ti", "caps": 6},
+    "2 Timóteo": {"id": "2ti", "caps": 4}, "Tito": {"id": "ti", "caps": 3}, "Filemom": {"id": "phm", "caps": 1},
+    "Hebreus": {"id": "he", "caps": 13}, "Tiago": {"id": "ja", "caps": 5}, "1 Pedro": {"id": "1pe", "caps": 5},
+    "2 Pedro": {"id": "2pe", "caps": 3}, "1 João": {"id": "1jo", "caps": 5}, "2 João": {"id": "2jo", "caps": 1},
+    "3 João": {"id": "3jo", "caps": 1}, "Judas": {"id": "jd", "caps": 1}, "Apocalipse": {"id": "re", "caps": 22}
 }
 
 st.markdown("""
@@ -112,27 +119,13 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Carregamento Inteligente Sob Demanda)")
+        st.subheader("📖 Bíblia Sagrada Completa (Por Demanda Dinâmica)")
         modo = st.radio("Escolha o modo:", ["Leitura por Capítulo", "Pesquisar por Palavra-Chave"], horizontal=True)
         
         if modo == "Leitura por Capítulo":
             c1, c2 = st.columns(2)
-            l_nome = c1.selectbox("Selecione o Livro:", LIVROS_DISPONIVEIS)
-            c_num = c2.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+            l_nome = c1.selectbox("Selecione o Livro:", list(INFO_LIVROS.keys()))
+            # Calcula dinamicamente o máximo de capítulos do livro escolhido
+            max_caps = INFO_LIVROS[l_nome]["caps"]
+            c_num = c2.number_input(f"Selecione o Capítulo (1 até {max_caps}):", min_value=1, max_value=max_caps, value=1, step=1)
             
-            if st.button("📖 Carregar Capítulo Escolhido", use_container_width=True):
-                with st.spinner("Buscando texto sagrado..."):
-                    try:
-                        # Requisição leve em tempo real apenas para o capítulo selecionado
-                        res = requests.get(f"https://bible-api.com{l_nome}+{c_num}", timeout=6)
-                        if res.status_code == 200:
-                            html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num}</h4><br>"
-                            for v in res.json()["verses"]: html += f"<p><b style='color:#FFA500;'>{v['verse']}.</b> {v['text']}</p>"
-                            st.markdown(html + "</div>", unsafe_allow_html=True)
-                        else: raise Exception()
-                    except:
-                        # Fallback offline se a API demorar a responder
-                        if l_nome in BIBLE_BACKUP and c_num in BIBLE_BACKUP[l_nome]:
-                            html = f"<div class='leitura-box'><h4>📜 {l_nome} — Capítulo {c_num} (Modo Offline)</h4><br>"
-                            for v_num, txt in BIBLE_BACKUP[l_nome][c_num].items(): html += f"<p><b style='color:#FFA500;'>{v_num}.</b> {txt}</p>"
-                            st.markdown(html + "</div>", unsafe_allow_html=True)
