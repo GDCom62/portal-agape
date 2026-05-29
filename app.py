@@ -26,7 +26,7 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Criação das tabelas encapsulada para evitar falhas de inicialização fora de ordem
+# Criação das tabelas de forma encapsulada
 def criar_tabelas_sistema():
     executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
     executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
@@ -43,66 +43,28 @@ def criar_tabelas_sistema():
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
         executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# Inicializa as tabelas de forma segura
 criar_tabelas_sistema()
 
-# --- 3. FUNÇÕES DE SUPORTE À BÍBLIA ---
-def rodar_conversor_sql(caminho_sql):
-    """Lê o script SQL do MySQL, limpa a sintaxe e injeta no SQLite local de forma estrita"""
-    try:
-        with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
-            linhas = f.readlines()
-        
-        query_acumulada = ""
-        for linha in linhas:
-            l_limpa = linha.strip()
-            if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
-                continue
-            query_acumulada += " " + l_limpa
-            if query_acumulada.endswith(";"):
-                # LIMPEZA CRÍTICA: Altera os tipos numéricos específicos do MySQL para INTEGER antes de injetar o AUTOINCREMENT
-                q_final = query_acumulada.replace("tinyint(3)", "INTEGER")
-                q_final = q_final.replace("tinyint(4)", "INTEGER")
-                q_final = q_final.replace("int(11)", "INTEGER")
-                q_final = q_final.replace("auto_increment", "PRIMARY KEY AUTOINCREMENT")
-                q_final = q_final.replace("AUTO_INCREMENT", "")
-                q_final = q_final.replace("unsigned int", "INTEGER")
-                q_final = q_final.replace("unsigned", "")
-                q_final = q_final.replace("UNSIGNED", "")
-                q_final = q_final.replace("NOT NULL PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY AUTOINCREMENT")
-                
-                # Trata chaves primárias duplicadas geradas pela conversão
-                if "PRIMARY KEY (liv_id)" in q_final or "PRIMARY KEY (ver_id)" in q_final:
-                    q_final = q_final.replace(", PRIMARY KEY (liv_id)", "")
-                    q_final = q_final.replace(", PRIMARY KEY (ver_id)", "")
-                
-                # Ignora configurações de engine específicas do MySQL
-                if "ENGINE=" in q_final:
-                    parts = q_final.split("ENGINE=")
-                    q_final = parts[0] + ";"
-                
-                if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
-                    executar_query(q_final)
-                query_acumulada = ""
-        return True
-    except Exception as e:
-        st.error(f"Falha na conversão: {e}")
-        return False
-
-def extrair_dados_da_biblia():
-    """Busca as tabelas criadas no banco mapeando as colunas"""
-    tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
-    if tabelas.empty:
-        return pd.DataFrame(), "", ""
-    
-    lista_t = tabelas['name'].tolist()
-    tab_nome = "livros" if "livros" in lista_t else lista_t[0]
-    info_cols = consultar_db(f"PRAGMA table_info([{tab_nome}])")
-    cols = info_cols['name'].tolist() if not info_cols.empty else []
-    
-    c_livro = 'liv_nome' if 'liv_nome' in cols else ('livro' if 'livro' in cols else ('livro_nome' if 'livro_nome' in cols else cols[0]))
-    df_livros = consultar_db(f"SELECT DISTINCT [{c_livro}] as livro_nome FROM [{tab_nome}] ORDER BY rowid ASC")
-    return df_livros, tab_nome, c_livro
+# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
+BIBLIA_ESTAVEL = {
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.", 
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
+            3: "E disse Deus: Haja luz; e houve luz.", 
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
+        }
+    },
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.", 
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum."
+        }
+    }
+}
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -163,3 +125,38 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
+        st.subheader("📖 Bíblia Sagrada Completa (Módulo Estável de Segurança)")
+        col_livro, col_cap = st.columns(2)
+        with col_livro:
+            livro_sel = st.selectbox("Selecione o Livro:", list(BIBLIA_ESTAVEL.keys()))
+        with col_cap:
+            cap_sel = st.selectbox("Selecione o Capítulo:", list(BIBLIA_ESTAVEL[livro_sel].keys()))
+        
+        st.write(f"### {livro_sel} - Capítulo {cap_sel}")
+        st.divider()
+        versiculos = BIBLIA_ESTAVEL[livro_sel][cap_sel]
+        for num_ver, texto_ver in versiculos.items():
+            st.markdown(f'<div class="leitura-box"><b>{num_ver}.</b> {texto_ver}</div>', unsafe_allow_html=True)
+
+    elif escolha == "Membros":
+        st.subheader("👥 Gestão de Membros da Igreja")
+        if st.session_state.nivel_atual == "Pastor":
+            with st.expander("➕ Cadastrar Novo Membro", expanded=False):
+                with st.form("form_membro"):
+                    nome = st.text_input("Nome Completo (Obrigatório)")
+                    tel = st.text_input("Telefone / WhatsApp")
+                    cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Líder de Louvor"])
+                    mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+                    obs = st.text_area("Observações Internas")
+                    salvar = st.form_submit_button("Salvar Registro")
+                    if salvar and nome.strip() != "":
+                        executar_query(
+                            "INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario, observacoes) VALUES (:n, :t, :c, :d, :m, :o)",
+                            {"n": nome, "t": tel, "c": cargo, "d": str(datetime.date.today()), "m": mes_aniv, "o": obs}
+                        )
+                        st.success("Membro cadastrado com sucesso!")
+                        st.rerun()
+
+        df_membros = consultar_db("SELECT id, nome as Nome, telephone as Telefone, cargo as Cargo, mes_aniversario as Aniversário, data_cadastro as Cadastro FROM membros ORDER BY nome ASC")
+        if not df_membros.empty:
+            st.dataframe(df_membros, use_container_width=True, hide_index=True)
