@@ -143,25 +143,24 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_v2.db"
         
+        # Interface de controle para importação manual e segura do administrador
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando arquivo SQL da Bíblia pela primeira vez... Aguarde."):
-                try:
-                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
-                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        linhas_sql = f.readlines()
-                    
-                    cmd_acumulado = ""
-                    with engine_b.begin() as conn_b:
-                        for linha in linhas_sql:
-                            linha_limpa = linha.strip()
-                            if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
-                                continue
-                            cmd_acumulado += " " + linha_limpa
-                            if cmd_acumulado.endswith(";"):
-                                cmd_final = cmd_acumulado.strip()
-                                cmd_final = cmd_final.replace("unsigned int", "INTEGER")
-                                cmd_final = cmd_final.replace("unsigned", "")
-                                cmd_final = cmd_final.replace("UNSIGNED", "")
-                                conn_b.execute(text(cmd_final))
-                                cmd_acumulado = ""
-                    st.success("🎉 Base de dados da Bíblia gerada com sucesso!")
+            st.info("📦 O arquivo `biblia.sql` foi detectado na raiz. Clique abaixo para estruturar a base.")
+            if st.button("🚀 Processar e Sincronizar Bíblia"):
+                engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                    conteudo = f.read()
+                conteudo = conteudo.replace("unsigned int", "INTEGER").replace("unsigned", "").replace("UNSIGNED", "")
+                with engine_b.begin() as conn_b:
+                    for cmd in conteudo.split(";"):
+                        cmd_l = cmd.strip()
+                        if cmd_l and not cmd_l.startswith("--") and not cmd_l.startswith("/*"):
+                            conn_b.execute(text(cmd_l))
+                st.success("🎉 Base de dados sincronizada! Atualizando página...")
+                st.rerun()
+        
+        if os.path.exists(nome_db_biblia):
+            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
+            with engine_biblia.connect() as conn:
+                tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), conn)
+                if not tabelas.empty:
