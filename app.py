@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
+import re
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -15,7 +16,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
@@ -45,37 +46,52 @@ if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user})
 
 # --- 3. FUNÇÕES ISOLADAS DE SUPORTE À BÍBLIA ---
 def rodar_conversor_sql(caminho_sql):
-    """Lê o script SQL do MySQL, limpa a sintaxe e injeta no SQLite local"""
+    """Filtra e limpa profundamente o dialeto do MySQL para adequá-lo ao motor do SQLite"""
     try:
         with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
-            linhas = f.readlines()
+            conteudo_completo = f.read()
         
-        query_acumulada = ""
-        for linha in linhas:
-            l_limpa = linha.strip()
-            if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
+        # Divide as instruções por ponto e vírgula
+        comandos = conteudo_completo.split(";")
+        
+        for cmd in comandos:
+            q_final = cmd.strip()
+            if not q_final or q_final.startswith("--") or q_final.startswith("/*"):
                 continue
-            query_acumulada += " " + l_limpa
-            if query_acumulada.endswith(";"):
-                q_final = query_acumulada.replace("auto_increment", "PRIMARY KEY AUTOINCREMENT")
-                q_final = q_final.replace("AUTO_INCREMENT", "")
-                q_final = q_final.replace("unsigned int", "INTEGER")
-                q_final = q_final.replace("unsigned", "")
-                q_final = q_final.replace("UNSIGNED", "")
-                q_final = q_final.replace("NOT NULL PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY AUTOINCREMENT")
+            
+            # Limpeza estrutural de tabelas e tipos numéricos
+            if q_final.upper().startswith("CREATE TABLE"):
+                # Converte os tipos inteiros auto_increment para a chave primária exigida pelo SQLite
+                q_final = re.sub(r'liv_id\s+[a-zA-Z0-9\(\)]+\s+NOT\s+NULL\s+auto_increment', 'liv_id INTEGER PRIMARY KEY AUTOINCREMENT', q_final, flags=re.IGNORECASE)
+                q_final = re.sub(r'v_id\s+[a-zA-Z0-9\(\)]+\s+NOT\s+NULL\s+auto_increment', 'v_id INTEGER PRIMARY KEY AUTOINCREMENT', q_final, flags=re.IGNORECASE)
+                
+                # Remove declarações redundantes de chaves primárias no rodapé
+                q_final = re.sub(r'PRIMARY\s+KEY\s+\([a-zA-Z0-9_]+\),?', '', q_final, flags=re.IGNORECASE)
+                
+                # Limpa modificadores específicos de motores MySQL
                 if "ENGINE=" in q_final:
-                    parts = q_final.split("ENGINE=")
-                    q_final = parts[0] + ";"
-                if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
-                    executar_query(q_final)
-                query_acumulada = ""
+                    q_final = q_final.split("ENGINE=")[0].strip()
+                if "DEFAULT CHARSET" in q_final:
+                    q_final = q_final.split("DEFAULT CHARSET")[0].strip()
+                
+                # Ajusta vírgulas remanescentes no fechamento dos parênteses
+                q_final = re.sub(r',\s*\)', ')', q_final)
+            
+            # Remove tipos não suportados em comandos genéricos
+            q_final = q_final.replace("unsigned int", "INTEGER")
+            q_final = q_final.replace("unsigned", "")
+            q_final = q_final.replace("UNSIGNED", "")
+            
+            # Ignora comandos de travamento e chaves estrangeiras complexas do MySQL
+            if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK") and "FOREIGN KEY" not in q_final.upper():
+                executar_query(q_final + ";")
         return True
     except Exception as e:
-        st.error(f"Falha na conversão: {e}")
+        st.error(f"Falha na conversão estrutural do arquivo SQL: {e}")
         return False
 
 def extrair_dados_da_biblia():
-    """Busca as tabelas criadas no banco mapeando as colunas"""
+    """Busca as tabelas criadas no banco local mapeando as colunas"""
     tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
     if tabelas.empty:
         return pd.DataFrame(), "", ""
@@ -145,19 +161,3 @@ if st.session_state.autenticado:
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
             st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Módulo Offline de Alta Performance)")
-        nome_src_sql = "biblia.sql"
-        tabelas_existentes = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
-        
-        if tabelas_existentes.empty and os.path.exists(nome_src_sql):
-            st.warning("📦 O arquivo `biblia.sql` foi localizado! Clique abaixo para carregar todos os livros permanentemente offline.")
-            if st.button("⚡ Sincronizar e Indexar Bíblia Completa"):
-                with st.spinner("Tratando incompatibilidades estruturais e populando tabelas... Aguarde."):
-                    if rodar_conversor_sql(nome_src_sql):
-                        st.success("🎉 Todos os livros foram carregados com sucesso!")
-                        st.rerun()
-        
-        df_livros, n_tab, c_liv = extrair_dados_da_biblia()
