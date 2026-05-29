@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-import re
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -16,7 +15,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+def executar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
@@ -27,71 +26,71 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Criação inicial das tabelas do sistema
-executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
-executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
-executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
-executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
-executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+# Criação das tabelas encapsulada para evitar falhas de inicialização fora de ordem
+def criar_tabelas_sistema():
+    executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
+    executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
+    executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
+    executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
+    executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
+    executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
+    executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
+    executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
+    executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
+    executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
-# Garante o usuário Administrador padrão
-admin_user = "admin@agape.com"
-if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
-    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+    admin_user = "admin@agape.com"
+    if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
+        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. FUNÇÕES ISOLADAS DE SUPORTE À BÍBLIA ---
+# Inicializa as tabelas de forma segura
+criar_tabelas_sistema()
+
+# --- 3. FUNÇÕES DE SUPORTE À BÍBLIA ---
 def rodar_conversor_sql(caminho_sql):
-    """Filtra e limpa profundamente o dialeto do MySQL para adequá-lo ao motor do SQLite"""
+    """Lê o script SQL do MySQL, limpa a sintaxe e injeta no SQLite local de forma estrita"""
     try:
         with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
-            conteudo_completo = f.read()
+            linhas = f.readlines()
         
-        # Divide as instruções por ponto e vírgula
-        comandos = conteudo_completo.split(";")
-        
-        for cmd in comandos:
-            q_final = cmd.strip()
-            if not q_final or q_final.startswith("--") or q_final.startswith("/*"):
+        query_acumulada = ""
+        for linha in linhas:
+            l_limpa = linha.strip()
+            if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
                 continue
-            
-            # Limpeza estrutural de tabelas e tipos numéricos
-            if q_final.upper().startswith("CREATE TABLE"):
-                # Converte os tipos inteiros auto_increment para a chave primária exigida pelo SQLite
-                q_final = re.sub(r'liv_id\s+[a-zA-Z0-9\(\)]+\s+NOT\s+NULL\s+auto_increment', 'liv_id INTEGER PRIMARY KEY AUTOINCREMENT', q_final, flags=re.IGNORECASE)
-                q_final = re.sub(r'v_id\s+[a-zA-Z0-9\(\)]+\s+NOT\s+NULL\s+auto_increment', 'v_id INTEGER PRIMARY KEY AUTOINCREMENT', q_final, flags=re.IGNORECASE)
+            query_acumulada += " " + l_limpa
+            if query_acumulada.endswith(";"):
+                # LIMPEZA CRÍTICA: Altera os tipos numéricos específicos do MySQL para INTEGER antes de injetar o AUTOINCREMENT
+                q_final = query_acumulada.replace("tinyint(3)", "INTEGER")
+                q_final = q_final.replace("tinyint(4)", "INTEGER")
+                q_final = q_final.replace("int(11)", "INTEGER")
+                q_final = q_final.replace("auto_increment", "PRIMARY KEY AUTOINCREMENT")
+                q_final = q_final.replace("AUTO_INCREMENT", "")
+                q_final = q_final.replace("unsigned int", "INTEGER")
+                q_final = q_final.replace("unsigned", "")
+                q_final = q_final.replace("UNSIGNED", "")
+                q_final = q_final.replace("NOT NULL PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY AUTOINCREMENT")
                 
-                # Remove declarações redundantes de chaves primárias no rodapé
-                q_final = re.sub(r'PRIMARY\s+KEY\s+\([a-zA-Z0-9_]+\),?', '', q_final, flags=re.IGNORECASE)
+                # Trata chaves primárias duplicadas geradas pela conversão
+                if "PRIMARY KEY (liv_id)" in q_final or "PRIMARY KEY (ver_id)" in q_final:
+                    q_final = q_final.replace(", PRIMARY KEY (liv_id)", "")
+                    q_final = q_final.replace(", PRIMARY KEY (ver_id)", "")
                 
-                # Limpa modificadores específicos de motores MySQL
+                # Ignora configurações de engine específicas do MySQL
                 if "ENGINE=" in q_final:
-                    q_final = q_final.split("ENGINE=")[0].strip()
-                if "DEFAULT CHARSET" in q_final:
-                    q_final = q_final.split("DEFAULT CHARSET")[0].strip()
+                    parts = q_final.split("ENGINE=")
+                    q_final = parts[0] + ";"
                 
-                # Ajusta vírgulas remanescentes no fechamento dos parênteses
-                q_final = re.sub(r',\s*\)', ')', q_final)
-            
-            # Remove tipos não suportados em comandos genéricos
-            q_final = q_final.replace("unsigned int", "INTEGER")
-            q_final = q_final.replace("unsigned", "")
-            q_final = q_final.replace("UNSIGNED", "")
-            
-            # Ignora comandos de travamento e chaves estrangeiras complexas do MySQL
-            if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK") and "FOREIGN KEY" not in q_final.upper():
-                executar_query(q_final + ";")
+                if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
+                    executar_query(q_final)
+                query_acumulada = ""
         return True
     except Exception as e:
-        st.error(f"Falha na conversão estrutural do arquivo SQL: {e}")
+        st.error(f"Falha na conversão: {e}")
         return False
 
 def extrair_dados_da_biblia():
-    """Busca as tabelas criadas no banco local mapeando as colunas"""
+    """Busca as tabelas criadas no banco mapeando as colunas"""
     tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
     if tabelas.empty:
         return pd.DataFrame(), "", ""
@@ -161,3 +160,6 @@ if st.session_state.autenticado:
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
             st.caption("Nenhum aniversário registrado para este mês.")
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
+    elif escolha == "Bíblia Completa":
