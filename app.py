@@ -57,7 +57,7 @@ LIVROS_BIBLE = {
     "Ezequiel": "ezekiel", "Daniel": "daniel", "Oséias": "hosea", "Joel": "joel", "Amós": "amos",
     "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque": "habakkuk",
     "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi", "Mateus": "matthew",
-    "Marcos": "mark", "Lucas": "lucas", "Lucas ": "lucas", "João": "john", "Atos": "acts", "Romanos": "romans",
+    "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts", "Romanos": "romans",
     "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians", "Filipenses": "philippians",
     "Colossenses": "colossians", "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians", "1 Timóteo": "1timothy", "2 Timóteo": "2timothy",
     "Tito": "titus", "Filemom": "philemon", "Hebreus": "hebrews", "Tiago": "james", "1 Pedro": "1peter",
@@ -67,7 +67,6 @@ LIVROS_BIBLE = {
 
 @st.cache_data(ttl=3600)
 def buscar_capitulo_online(livro_en, capitulo):
-    """Busca estritamente APENAS o capítulo selecionado via API estável em tempo de execução"""
     url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -77,7 +76,6 @@ def buscar_capitulo_online(livro_en, capitulo):
         return None
 
 def abrir_aba_biblia():
-    """Função isolada para evitar conflitos de indentação com outras abas"""
     col_l, col_c = st.columns(2)
     with col_l:
         livro_nome = st.selectbox("Selecione o Livro:", list(LIVROS_BIBLE.keys()))
@@ -160,3 +158,6 @@ if st.session_state.autenticado:
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros da Igreja")
         if st.session_state.nivel_atual == "Pastor":
+            with st.expander("➕ Cadastrar Novo Membro", expanded=False):
+                with st.form("form_membro"):
+                    nome_m = st.text_input("Nome Completo (Obrigatório)")
