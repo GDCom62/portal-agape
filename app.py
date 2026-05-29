@@ -155,11 +155,10 @@ if st.session_state.autenticado:
         if st.session_state.nivel_atual == "Pastor":
             with st.expander("➕ Cadastrar Novo Membro", expanded=False):
                 with st.form("form_membro"):
-                    nome = st.text_input("Nome Completo")
+                    nome = st.text_input("Nome Completo (Obrigatório)")
                     tel = st.text_input("Telefone / WhatsApp")
                     cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Líder de Louvor"])
                     mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
                     obs = st.text_area("Observações Internas")
+                    salvar = st.form_submit_button("Salvar Registro")
                     
-                    if st.form_submit_button("Salvar Registro"):
-                        if nome:
