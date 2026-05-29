@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
 import json
+import urllib.request
 
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -37,9 +38,33 @@ if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user})
     senha_hash = generate_password_hash("agape2026", method="pbkdf2:sha256")
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": senha_hash})
 
-# --- CARREGADOR DA BÍBLIA JSON OFFLINE ---
-def carregar_biblia_local():
+# --- CARREGADOR E BAIXADOR AUTOMÁTICO DA BÍBLIA ACF COMPLETA ---
+@st.cache_data(show_spinner=False)
+def carregar_biblia_automatica():
     nome_arquivo = "biblia.json"
+    url_fonte = "https://githubusercontent.com"
+    
+    # Se o arquivo não existir no servidor, ele faz o download e estrutura automaticamente
+    if not os.path.exists(nome_arquivo):
+        try:
+            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                dados_originais = json.loads(response.read().decode('utf-8'))
+            
+            biblia_estruturada = {}
+            for livro in dados_originais:
+                nome_livro = livro["name"]
+                biblia_estruturada[nome_livro] = {}
+                for idx_cap, capitulo in enumerate(livro["chapters"], start=1):
+                    biblia_estruturada[nome_livro][str(idx_cap)] = {}
+                    for idx_ver, texto_verso in enumerate(capitulo, start=1):
+                        biblia_estruturada[nome_livro][str(idx_cap)][str(idx_ver)] = texto_verso
+            
+            with open(nome_arquivo, "w", encoding="utf-8") as f:
+                json.dump(biblia_estruturada, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            return {"Erro": {"1": {"1": f"Falha ao baixar os livros automaticamente: {e}"}}}
+            
     if os.path.exists(nome_arquivo):
         try:
             with open(nome_arquivo, "r", encoding="utf-8") as f:
@@ -88,10 +113,14 @@ if st.session_state.autenticado:
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span>— João 3:16</span></div>', unsafe_allow_html=True)
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Módulo Offline)")
-        biblia_dados = carregar_biblia_local()
+        st.subheader("📖 Bíblia Sagrada Completa (Indexador Automático)")
         
-        if biblia_dados:
+        with st.spinner("Carregando os 66 livros da Bíblia... Aguarde."):
+            biblia_dados = carregar_biblia_local = carregar_biblia_automatica()
+        
+        if "Erro" in biblia_dados:
+            st.error(biblia_dados["Erro"]["1"]["1"])
+        elif biblia_dados:
             col_l, col_c = st.columns(2)
             with col_l:
                 livro_sel = st.selectbox("Selecione o Livro:", list(biblia_dados.keys()))
@@ -106,7 +135,7 @@ if st.session_state.autenticado:
             for num_v, texto_v in versiculos.items():
                 st.markdown(f'<div class="leitura-box"><b>{num_v}.</b> {texto_v}</div>', unsafe_allow_html=True)
         else:
-            st.error("Arquivo 'biblia.json' não foi encontrado ou está configurado incorretamente.")
+            st.error("Erro desconhecido ao montar a estrutura da Bíblia.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
