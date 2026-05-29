@@ -43,20 +43,19 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. PROVEDOR INTERNE DA BÍBLIA (BANCO SQL LOCAL) ---
+# --- 3. PROVEDOR INTERNO DA BÍBLIA (BANCO SQL LOCAL) ---
 def extrair_dados_da_biblia():
     """Busca os dados do banco local mapeando colunas dinamicamente"""
     tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
     if tabelas.empty:
-        return pd.DataFrame(), "", "", "", ""
+        return pd.DataFrame(), "", ""
     
-    # Seleciona a tabela principal que contém os livros
-    tab_nome = "livros" if "livros" in tabelas['name'].tolist() else tabelas.iloc[0, 0]
+    lista_tabelas = tabelas['name'].tolist()
+    tab_nome = "livros" if "livros" in lista_tabelas else lista_tabelas[0]
     info_cols = consultar_db(f"PRAGMA table_info([{tab_nome}])")
     cols = info_cols['name'].tolist() if not info_cols.empty else []
     
     c_livro = 'liv_nome' if 'liv_nome' in cols else ('livro' if 'livro' in cols else ('livro_nome' if 'livro_nome' in cols else cols[0]))
-    
     df_livros = consultar_db(f"SELECT DISTINCT [{c_livro}] as livro_nome FROM [{tab_nome}] ORDER BY rowid ASC")
     return df_livros, tab_nome, c_livro
 
@@ -85,6 +84,7 @@ if not st.session_state.autenticado:
                 st.rerun()
             else: 
                 st.error("Dados incorretos.")
+if not st.session_state.autenticado:
     with tab_new:
         nu = st.text_input("E-mail corporativo", key="u_reg").strip()
         np = st.text_input("Senha de acesso", type="password", key="p_reg")
@@ -102,7 +102,7 @@ if st.session_state.autenticado:
 
     menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Cadastro de Visitantes", "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos", "Patrimônio da Igreja", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.sidebar.divider()
+    st.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -129,25 +129,26 @@ if st.session_state.autenticado:
             if st.button("⚡ Sincronizar e Indexar Bíblia Completa"):
                 with st.spinner("Limpando incompatibilidades do MySQL e estruturando banco SQLite local... Isso levará alguns segundos."):
                     try:
-                        with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                        with open(nome_src_sql, "r", encoding="utf-8", errors="ignore") as f:
                             linhas = f.readlines()
                         
                         query_acumulada = ""
-                        for linha in lines:
+                        for linha in linhas:
                             l_limpa = linha.strip()
                             if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
                                 continue
                             query_acumulada += " " + l_limpa
                             if query_acumulada.endswith(";"):
-                                # LIMPEZA ABSOLUTA DE SINTAXE DO MYSQL PARA SQLITE
                                 q_final = query_acumulada.replace("auto_increment", "PRIMARY KEY AUTOINCREMENT")
                                 q_final = q_final.replace("AUTO_INCREMENT", "")
                                 q_final = q_final.replace("unsigned int", "INTEGER")
                                 q_final = q_final.replace("unsigned", "")
                                 q_final = q_final.replace("UNSIGNED", "")
                                 q_final = q_final.replace("NOT NULL PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY AUTOINCREMENT")
-                                if "ENGINE=" in q_final:
-                                    q_final = q_final.split("ENGINE=")[0] + ";"
                                 
-                                # Ignora travas de tabelas do MySQL
+                                if "ENGINE=" in q_final:
+                                    q_final = q_final.split("ENGINE=")[0].strip() + ";"
+                                
                                 if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
+                                    executar_query(q_final)
+                                query_acumulada = ""
