@@ -143,19 +143,21 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
+        # --- CONVERSOR ATUALIZADO VIA EXECUTESCRIPT ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Configurando a Bíblia pela primeira vez... Aguarde."):
+            with st.spinner("⚙️ Processando script estrutural da Bíblia pela primeira vez... Aguarde alguns instantes."):
                 try:
-                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                    import sqlite3
+                    conn_raw = sqlite3.connect(nome_db_biblia)
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                         instrucoes_sql = f.read()
-                    with engine_b.begin() as conn:
-                        for comando in instrucoes_sql.split(";"):
-                            comando_limpo = comando.strip()
-                            if comando_limpo and not comando_limpo.startswith("--"):
-                                conn.execute(text(comando_limpo))
-                    st.success("🎉 Bíblia configurada!")
+                    conn_raw.executescript(instrucoes_sql)
+                    conn_raw.commit()
+                    conn_raw.close()
+                    st.success("🎉 Arquivo de dados indexado com sucesso!")
                 except Exception as e:
+                    if os.path.exists(nome_db_biblia):
+                        os.remove(nome_db_biblia)
                     st.error(f"Erro ao processar SQL: {e}")
         
         if os.path.exists(nome_db_biblia):
@@ -166,4 +168,3 @@ if st.session_state.autenticado:
                 
                 if not tabelas.empty:
                     nome_tabela = str(tabelas.iloc[0, 0])
-                    info_colunas = pd.read_sql_query(text(f"PRAGMA table_info([{nome_tabela}])"), conn)
