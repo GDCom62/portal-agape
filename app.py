@@ -139,7 +139,7 @@ if st.session_state.autenticado:
 
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
-        nome_sql = "biblia_13V.sql"
+        nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
