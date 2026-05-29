@@ -143,7 +143,6 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_v2.db"
         
-        # Interface de controle para importação manual e segura do administrador
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
             st.info("📦 O arquivo `biblia.sql` foi detectado na raiz. Clique abaixo para estruturar a base.")
             if st.button("🚀 Processar e Sincronizar Bíblia"):
@@ -156,7 +155,7 @@ if st.session_state.autenticado:
                         cmd_l = cmd.strip()
                         if cmd_l and not cmd_l.startswith("--") and not cmd_l.startswith("/*"):
                             conn_b.execute(text(cmd_l))
-                st.success("🎉 Base de dados sincronizada! Atualizando página...")
+                st.success("🎉 Base de dados sincronizada!")
                 st.rerun()
         
         if os.path.exists(nome_db_biblia):
@@ -164,3 +163,4 @@ if st.session_state.autenticado:
             with engine_biblia.connect() as conn:
                 tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), conn)
                 if not tabelas.empty:
+                    nome_tabela = str(tabelas.iloc[0, 0])
