@@ -101,28 +101,13 @@ LIVROS_API = {
 
 @st.cache_data(ttl=3600)
 def buscar_capitulo_api(livro_abrev, capitulo):
-    url = f"https://bible-api.com{livro_abrev}+{capitulo}?translation=almeida"
+    url = f"https://bible-api.com{livro_abrev}+{capitulo}?translation=almeida-recebida"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=3) as response:
             return json.loads(response.read().decode('utf-8'))
     except:
         return None
-
-def renderizar_modulo_biblia(livro, cap):
-    abrev = LIVROS_API[livro]
-    dados_cap = buscar_capitulo_api(abrev, cap)
-    if dados_cap and "verses" in dados_cap:
-        for verso in dados_cap["verses"]:
-            st.markdown(f'<div class="leitura-box"><b>{verso["verse"]}.</b> {verso["text"]}</div>', unsafe_allow_html=True)
-    else:
-        st.warning("⚠️ Modo Offline Ativado: Exibindo textos locais estáveis.")
-        if livro in BIBLIA_ESTAVEL and cap in BIBLIA_ESTAVEL[livro]:
-            versiculos = BIBLIA_ESTAVEL[livro][cap]
-            for num_ver, texto_ver in versiculos.items():
-                st.markdown(f'<div class="leitura-box"><b>{num_ver}.</b> {texto_ver}</div>', unsafe_allow_html=True)
-        else:
-            st.info("Texto indisponível offline para este capítulo. Verifique sua conexão.")
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -149,7 +134,6 @@ if not st.session_state.autenticado:
                 st.rerun()
             else: 
                 st.error("Dados incorretos.")
-if not st.session_state.autenticado:
     with tab_new:
         nu = st.text_input("E-mail corporativo", key="u_reg").strip()
         np = st.text_input("Senha de acesso", type="password", key="p_reg")
@@ -171,3 +155,13 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual_nome = meses[datetime.date.today().month - 1]
+        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
+        if not df_aniv.empty:
+            for idx, row in df_aniv.iterrows(): 
+                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
+        else: 
+            st.caption("Nenhum aniversário registrado para este mês.")
