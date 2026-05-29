@@ -4,8 +4,8 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-import json
 import urllib.request
+import json
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -44,28 +44,73 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. GERENCIADOR INTEGRADO DA BÍBLIA COMPLETA (JSON LOCAL) ---
-@st.cache_data(ttl=86400)
-def carregar_biblia_completa():
-    caminho_local = "biblia_acf_completa.json"
-    url_fonte = "https://githubusercontent.com"
-    
-    # Se o arquivo não existir localmente, baixa de forma ultrarrápida em background
-    if not os.path.exists(caminho_local):
-        try:
-            urllib.request.urlretrieve(url_fonte, caminho_local)
-        except:
-            return None
-            
-    if os.path.exists(caminho_local):
-        try:
-            with open(caminho_local, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return None
-    return None
+# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
+BIBLIA_ESTAVEL = {
+    "Gênesis": {
+        1: {
+            1: "No princípio criou Deus os céus e a terra.", 
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
+            3: "E disse Deus: Haja luz; e houve luz.", 
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
+        }
+    },
+    "Números": {
+        4: {
+            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 
+            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 
+            3: "Da idade de trinta anos para cima até aos cinquenta anos...", 
+            4: "Este será o serviço dos filhos de Coate na tenda da congregação."
+        }
+    },
+    "Salmos": {
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.", 
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
+            5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
+            6: "Certamente que a bondade e a misericórdia me seguirão."
+        }
+    },
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 
+            18: "Quem crê nele não é condizido à condenação."
+        }
+    }
+}
 
-# --- 4. ESTILIZAÇÃO VISUAL ---
+# --- 4. MAPEAMENTO DE LIVROS DA API BÍBLIA ---
+LIVROS_API = {
+    "Gênesis": "GN", "Êxodo": "EX", "Levítico": "LV", "Números": "NU", "Deuteronômio": "DE",
+    "Josué": "JS", "Juízes": "JZ", "Rute": "RT", "1 Samuel": "1S", "2 Samuel": "2S",
+    "1 Reis": "1R", "2 Reis": "2R", "1 Crônicas": "1C", "2 Crônicas": "2C", "Esdras": "ED",
+    "Neemias": "NE", "Ester": "ET", "Jó": "JO", "Salmos": "SL", "Provérbios": "PV",
+    "Eclesiastes": "EC", "Cantares": "CT", "Isaías": "IS", "Jeremias": "JR", "Lamentações": "LM",
+    "Ezequiel": "EZ", "Daniel": "DN", "Oséias": "OS", "Joel": "JL", "Amós": "AM",
+    "Obadias": "OB", "Jonas": "JN", "Miqueias": "MQ", "Naum": "NA", "Habacuque": "HC",
+    "Sofonias": "SF", "Ageu": "AG", "Zacarias": "ZC", "Malaquias": "ML", "Mateus": "MT",
+    "Marcos": "MC", "Lucas": "LC", "João": "JO", "Atos": "AT", "Romanos": "RM",
+    "1 Coríntios": "1C", "2 Coríntios": "2C", "Gálatas": "GL", "Efésios": "EF", "Filipenses": "FL",
+    "Colossenses": "CL", "1 Tessalonicenses": "1T", "2 Tessalonicenses": "2T", "1 Timóteo": "1T", "2 Timóteo": "2T",
+    "Tito": "TT", "Filemom": "FL", "Hebreus": "HB", "Tiago": "TG", "1 Pedro": "1P",
+    "2 Pedro": "2P", "1 João": "1J", "2 João": "2J", "3 João": "3J", "Judas": "JD",
+    "Apocalipse": "AP"
+}
+
+@st.cache_data(ttl=3600)
+def buscar_capitulo_api(livro_abrev, capitulo):
+    url = f"https://bible-api.com{livro_abrev}+{capitulo}?translation=almeida"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except:
+        return None
+
+# --- 5. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
     <style>
     .stAppViewContainer { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; }
@@ -121,49 +166,3 @@ if st.session_state.autenticado:
             for idx, row in df_aniv.iterrows(): 
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
-            st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Almeida Corrigida Fiel)")
-        
-        dados_biblia = carregar_biblia_completa()
-        
-        if dados_biblia is not None:
-            # Filtro Dinâmico de Livros (Mapeia a estrutura [{ "abbrev": "gn", "chapters": [[...]], "name": "Gênesis" }])
-            lista_livros_nomes = [livro["name"] for livro in dados_biblia]
-            
-            col_livro, col_cap = st.columns(2)
-            with col_livro:
-                livro_sel_nome = st.selectbox("Selecione o Livro:", lista_livros_nomes)
-            
-            # Encontra o índice correspondente ao livro selecionado
-            idx_livro = lista_livros_nomes.index(livro_sel_nome)
-            total_capitulos = len(dados_biblia[idx_livro]["chapters"])
-            
-            with col_cap:
-                cap_sel = st.selectbox("Selecione o Capítulo:", list(range(1, total_capitulos + 1)))
-            
-            st.write(f"### {livro_sel_nome} - Capítulo {cap_sel}")
-            st.divider()
-            
-            # Renderiza os versículos (Índice do capítulo é cap_sel - 1)
-            lista_versiculos = dados_biblia[idx_livro]["chapters"][cap_sel - 1]
-            for num_v, texto_v in enumerate(lista_versiculos, start=1):
-                st.markdown(f'<div class="leitura-box"><b>{num_v}.</b> {texto_v}</div>', unsafe_allow_html=True)
-        else:
-            st.error("⚠️ Não foi possível carregar a Bíblia completa automaticamente. Verifique a conexão do servidor com a internet.")
-
-    else:
-        selection = escolha
-        if selection == "Membros":
-            st.subheader("👥 Gestão de Membros da Igreja")
-            if st.session_state.nivel_atual == "Pastor":
-                with st.expander("➕ Cadastrar Novo Membro", expanded=False):
-                    with st.form("form_membro"):
-                        nome = st.text_input("Nome Completo (Obrigatório)")
-                        tel = st.text_input("Telefone / WhatsApp")
-                        cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Líder de Louvor"])
-                        mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                        obs = st.text_area("Observações Internas")
-                        salvar = st.form_submit_button("Salvar Registro")
