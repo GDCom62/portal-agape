@@ -3,6 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
+import os
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -41,7 +42,7 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
+# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
 BIBLIA_ESTAVEL = {
     "Gênesis": {
         1: {
@@ -137,28 +138,32 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada ACF (Módulo Nativo)")
-        col_livro, col_cap = st.columns(2)
-        with col_livro:
-            livro_sel = st.selectbox("Selecione o Livro:", list(BIBLIA_ESTAVEL.keys()))
-        with col_cap:
-            capitulos_disponiveis = list(BIBLIA_ESTAVEL[livro_sel].keys())
-            cap_sel = st.selectbox("Selecione o Capítulo:", capitulos_disponiveis)
+        st.subheader("📖 Bíblia Sagrada Completa (Conversor e Módulo Local)")
         
-        st.write(f"### {livro_sel} - Capítulo {cap_sel}")
-        versiculos = BIBLIA_ESTAVEL[livro_sel][cap_sel]
-        for num_ver, texto_ver in versiculos.items():
-            st.markdown(f'<div class="leitura-box"><b>{num_ver}.</b> {texto_ver}</div>', unsafe_allow_html=True)
-
-    elif escolha == "Membros":
-        st.subheader("👥 Gestão de Membros da Igreja")
-        if st.session_state.nivel_atual == "Pastor":
-            with st.expander("➕ Cadastrar Novo Membro", expanded=False):
-                with st.form("form_membro"):
-                    nome = st.text_input("Nome Completo (Obrigatório)")
-                    tel = st.text_input("Telefone / WhatsApp")
-                    cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Líder de Louvor"])
-                    mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                    obs = st.text_area("Observações Internas")
-                    salvar = st.form_submit_button("Salvar Registro")
+        nome_sql = "biblia.sql"
+        nome_db_biblia = "biblia_acf.db"
+        
+        # --- CONVERSOR AUTOMÁTICO DE .SQL PARA .DB ---
+        if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
+            with st.spinner("⚙️ Configurando a Bíblia completa no sistema pela primeira vez... Aguarde alguns segundos."):
+                try:
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                        instrucoes_sql = f.read()
                     
+                    with engine_b.begin() as conn:
+                        for comando in instrucoes_sql.split(";"):
+                            comando_limpo = comando.strip()
+                            if comando_limpo and not comando_limpo.startswith("--"):
+                                conn.execute(text(comando_limpo))
+                    st.success("🎉 Bíblia completa configurada e indexada com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao processar o arquivo SQL: {e}")
+        
+        # --- INTERFACE DE LEITURA ---
+        if os.path.exists(nome_db_biblia):
+            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
+            
+            def consultar_biblia(sql, params=None):
+                with engine_biblia.connect() as conn:
+                    try: return pd.read_sql_query(text(sql), conn, params=params or {})
