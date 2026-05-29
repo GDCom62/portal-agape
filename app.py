@@ -26,6 +26,36 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
+# Função isolada para converter o arquivo SQL da Bíblia corrigindo incompatibilidades
+def processar_conversao_biblia(caminho_sql, caminho_db):
+    try:
+        engine_b = create_engine(f"sqlite:///{caminho_db}")
+        with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
+            linhas = f.readlines()
+        
+        buffer_comando = []
+        with engine_b.begin() as conn_b:
+            for linha in linhas:
+                linha_limpa = linha.strip()
+                if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
+                    continue
+                
+                # Remove modificadores específicos do MySQL que travam o SQLite
+                linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
+                linha_limpa = linha_limpa.replace("unsigned", "")
+                linha_limpa = linha_limpa.replace("UNSIGNED", "")
+                
+                buffer_comando.append(linha_limpa)
+                
+                if linha_limpa.endswith(";"):
+                    comando_completo = " ".join(buffer_comando)
+                    conn_b.execute(text(comando_completo))
+                    buffer_comando = []
+        return True
+    except Exception as e:
+        st.error(f"Erro interno de conversão: {e}")
+        return False
+
 # Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
@@ -143,26 +173,4 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
-        # --- CONVERSOR LINHA POR LINHA ULTRASSEGURO ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Importando e otimizando a base de dados da Bíblia... Aguarde."):
-                try:
-                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
-                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        linhas = f.readlines()
-                    
-                    comando_acumulado = []
-                    with engine_b.begin() as conn_b:
-                        for linha in linhas:
-                            linha_limpa = linha.strip()
-                            if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
-                                continue
-                            
-                            # Remove incompatibilidades conhecidas
-                            linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
-                            linha_limpa = linha_limpa.replace("unsigned", "")
-                            linha_limpa = linha_limpa.replace("UNSIGNED", "")
-                            
-                            comando_acumulado.append(linha_limpa)
-                            
-                            # Executa apenas ao encontrar o fim real da instrução SQL
