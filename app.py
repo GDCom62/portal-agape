@@ -140,29 +140,27 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
         nome_sql = "biblia.sql"
-        nome_db_biblia = "biblia_acf.db"
+        nome_db_biblia = "biblia_v2.db"
         
-        # --- PARSER LINEAR SEGURO CONTRA ERROS DE SINTAXE E INDENTAÇÃO ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando e estruturando o banco de dados da Bíblia... Aguarde."):
+            with st.spinner("⚙️ Processando arquivo SQL da Bíblia pela primeira vez... Aguarde."):
                 try:
                     engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        linhas = f.readlines()
+                        linhas_sql = f.readlines()
                     
-                    # Concatena preservando espaços sem quebrar os comandos longos do SQL
-                    script_tratado = ""
-                    for linha in linhas:
-                        l_limpa = linha.strip()
-                        if l_limpa and not l_limpa.startswith("--") and not l_limpa.startswith("/*"):
-                            script_tratado += " " + l_limpa
-                    
-                    # Padroniza tipos incompatíveis
-                    script_tratado = script_tratado.replace("unsigned int", "INTEGER")
-                    script_tratado = script_tratado.replace("unsigned", "")
-                    script_tratado = script_tratado.replace("UNSIGNED", "")
-                    
+                    cmd_acumulado = ""
                     with engine_b.begin() as conn_b:
-                        for comando in script_tratado.split(";"):
-                            cmd_final = comando.strip()
-                            if cmd_final:
+                        for linha in linhas_sql:
+                            linha_limpa = linha.strip()
+                            if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
+                                continue
+                            cmd_acumulado += " " + linha_limpa
+                            if cmd_acumulado.endswith(";"):
+                                cmd_final = cmd_acumulado.strip()
+                                cmd_final = cmd_final.replace("unsigned int", "INTEGER")
+                                cmd_final = cmd_final.replace("unsigned", "")
+                                cmd_final = cmd_final.replace("UNSIGNED", "")
+                                conn_b.execute(text(cmd_final))
+                                cmd_acumulado = ""
+                    st.success("🎉 Base de dados da Bíblia gerada com sucesso!")
