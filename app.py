@@ -47,30 +47,54 @@ def criar_tabelas_sistema():
 
 criar_tabelas_sistema()
 
-# --- 3. PROVEDOR DA BÍBLIA COMPLETA EM PORTUGUÊS (BAIXADO AUTOMATICAMENTE) ---
-@st.cache_data(ttl=86400)
-def carregar_biblia_completa_json():
-    """Baixa e armazena localmente a Bíblia completa em formato JSON de alta performance"""
-    caminho_local = "biblia_completa_acf.json"
-    url_fonte = "https://githubusercontent.com"
+# --- 3. LISTA DOS 66 LIVROS E ABREVIAÇÕES INTERNACIONAIS ---
+LIVROS_BIBLE = {
+    "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
+    "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
+    "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles", "Esdras": "ezra",
+    "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms", "Provérbios": "proverbs",
+    "Eclesiastes": "ecclesiastes", "Cantares": "songofsolomon", "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations",
+    "Ezequiel": "ezekiel", "Daniel": "daniel", "Oséias": "hosea", "Joel": "joel", "Amós": "amos",
+    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque": "habakkuk",
+    "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi", "Mateus": "matthew",
+    "Marcos": "mark", "Lucas": "lucas", "Lucas ": "lucas", "João": "john", "Atos": "acts", "Romanos": "romans",
+    "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians", "Filipenses": "philippians",
+    "Colossenses": "colossians", "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians", "1 Timóteo": "1timothy", "2 Timóteo": "2timothy",
+    "Tito": "titus", "Filemom": "philemon", "Hebreus": "hebrews", "Tiago": "james", "1 Pedro": "1peter",
+    "2 Pedro": "2peter", "1 João": "1john", "2 João": "2john", "3 João": "3john", "Judas": "jude",
+    "Apocalipse": "revelation"
+}
+
+@st.cache_data(ttl=3600)
+def buscar_capitulo_online(livro_en, capitulo):
+    """Busca estritamente APENAS o capítulo selecionado via API estável em tempo de execução"""
+    url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=4) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except:
+        return None
+
+def abrir_aba_biblia():
+    """Função isolada para evitar conflitos de indentação com outras abas"""
+    col_l, col_c = st.columns(2)
+    with col_l:
+        livro_nome = st.selectbox("Selecione o Livro:", list(LIVROS_BIBLE.keys()))
+    with col_c:
+        cap_sel = st.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
     
-    if not os.path.exists(caminho_local):
-        try:
-            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                dados = json.loads(response.read().decode('utf-8'))
-                with open(caminho_local, "w", encoding="utf-8") as f:
-                    json.dump(dados, f, ensure_ascii=False, indent=4)
-        except:
-            return None
-            
-    if os.path.exists(caminho_local):
-        try:
-            with open(caminho_local, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return None
-    return None
+    st.write(f"### {livro_nome} - Capítulo {cap_sel}")
+    st.divider()
+    
+    livro_en = LIVROS_BIBLE[livro_nome]
+    dados = buscar_capitulo_online(livro_en, cap_sel)
+    
+    if dados and "verses" in dados:
+        for verso in dados["verses"]:
+            st.markdown(f'<div class="leitura-box"><b>{verso["verse"]}.</b> {verso["text"]}</div>', unsafe_allow_html=True)
+    else:
+        st.error("Não foi possível carregar este capítulo. Verifique sua conexão com a internet.")
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -131,40 +155,8 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Almeida Corrigida Fiel)")
-        
-        dados_biblia = carregar_biblia_completa_json()
-        
-        if dados_biblia is not None:
-            lista_livros = [livro["name"] for livro in dados_biblia]
-            col_l, col_c = st.columns(2)
-            with col_l:
-                livro_sel = st.selectbox("Selecione o Livro:", lista_livros)
-            
-            idx_livro = lista_livros.index(livro_sel)
-            total_capitulos = len(dados_biblia[idx_livro]["chapters"])
-            
-            with col_c:
-                cap_sel = st.selectbox("Selecione o Capítulo:", list(range(1, total_capitulos + 1)))
-            
-            st.write(f"### {livro_sel} - Capítulo {cap_sel}")
-            st.divider()
-            
-            versiculos = dados_biblia[idx_livro]["chapters"][cap_sel - 1]
-            for num_v, texto_v in enumerate(versiculos, start=1):
-                st.markdown(f'<div class="leitura-box"><b>{num_v}.</b> {texto_v}</div>', unsafe_allow_html=True)
-        else:
-            st.error("⚠️ Não foi possível indexar os livros automaticamente. Verifique se o servidor possui conexão estável.")
+        abrir_aba_biblia()
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros da Igreja")
         if st.session_state.nivel_atual == "Pastor":
-            with st.expander("➕ Cadastrar Novo Membro", expanded=False):
-                with st.form("form_membro"):
-                    nome = st.text_input("Nome Completo (Obrigatório)")
-                    tel = st.text_input("Telefone / WhatsApp")
-                    cargo = st.selectbox("Cargo / Função", ["Membro", "Diácono", "Presbítero", "Evangelista", "Pastor", "Líder de Louvor"])
-                    mes_aniv = st.selectbox("Mês de Aniversário", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
-                    obs = st.text_area("Observações Internas")
-                    salvar = st.form_submit_button("Salvar Registro")
-                    if salvar and nome.strip() != "":
