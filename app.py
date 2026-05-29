@@ -26,37 +26,44 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Função isolada para converter o arquivo SQL da Bíblia corrigindo incompatibilidades
-def processar_conversao_biblia(caminho_sql, caminho_db):
-    try:
-        engine_b = create_engine(f"sqlite:///{caminho_db}")
-        with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
-            linhas = f.readlines()
-        
-        buffer_comando = []
-        with engine_b.begin() as conn_b:
-            for linha in linhas:
-                linha_limpa = linha.strip()
-                if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
-                    continue
-                
-                # Remove modificadores específicos do MySQL que travam o SQLite
-                linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
-                linha_limpa = linha_limpa.replace("unsigned", "")
-                linha_limpa = linha_limpa.replace("UNSIGNED", "")
-                
-                buffer_comando.append(linha_limpa)
-                
-                if linha_limpa.endswith(";"):
-                    comando_completo = " ".join(buffer_comando)
-                    conn_b.execute(text(comando_completo))
-                    buffer_comando = []
-        return True
-    except Exception as e:
-        st.error(f"Erro interno de conversão: {e}")
-        return False
+# --- 3. CONVERSOR AUTOMÁTICO E ISOLADO DE BANCO DE DADOS ---
+def processar_conversao_biblia():
+    nome_sql = "biblia.sql"
+    nome_db_biblia = "biblia_acf.db"
+    
+    if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
+        try:
+            engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+            with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                linhas = f.readlines()
+            
+            comando_acumulado = []
+            with engine_b.begin() as conn_b:
+                for linha in linhas:
+                    linha_limpa = linha.strip()
+                    if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
+                        continue
+                    
+                    # Remove incompatibilidades conhecidas com dialeto SQLite
+                    linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
+                    linha_limpa = linha_limpa.replace("unsigned", "")
+                    linha_limpa = linha_limpa.replace("UNSIGNED", "")
+                    
+                    comando_acumulado.append(linha_limpa)
+                    
+                    if linha_limpa.endswith(";"):
+                        sql_completo = " ".join(comando_acumulado)
+                        conn_b.execute(text(sql_completo))
+                        comando_acumulado = []
+            return True
+        except:
+            return False
+    return False
 
-# Criação inicial das tabelas do sistema
+# Executa conversão silenciosa de pré-carregamento
+processar_conversao_biblia()
+
+# Criação inicial das tabelas do sistema corporativo
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -72,7 +79,7 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
+# --- 4. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
 BIBLIA_ESTAVEL = {
     "Gênesis": {
         1: {
@@ -168,9 +175,3 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
-        
-        nome_sql = "biblia.sql"
-        nome_db_biblia = "biblia_acf.db"
-        
-        if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
