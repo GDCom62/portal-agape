@@ -143,28 +143,26 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
-        # --- CONVERSOR ATUALIZADO VIA EXECUTESCRIPT ---
+        # --- CONVERSOR ADAPTADO COM LIMPEZA DE SINTAXE MYSQL ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando script estrutural da Bíblia pela primeira vez... Aguarde alguns instantes."):
+            with st.spinner("⚙️ Configurando a Bíblia pela primeira vez e limpando incompatibilidades... Aguarde."):
                 try:
-                    import sqlite3
-                    conn_raw = sqlite3.connect(nome_db_biblia)
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                         instrucoes_sql = f.read()
-                    conn_raw.executescript(instrucoes_sql)
-                    conn_raw.commit()
-                    conn_raw.close()
-                    st.success("🎉 Arquivo de dados indexado com sucesso!")
+                    
+                    # Remove comandos específicos de MySQL incompatíveis com o SQLite
+                    instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
+                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
+                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
+                    
+                    with engine_b.begin() as conn:
+                        for comando in instrucoes_sql.split(";"):
+                            comando_limpo = comando.strip()
+                            if comando_limpo and not comando_limpo.startswith("--") and not comando_limpo.startswith("/*"):
+                                conn.execute(text(comando_limpo))
+                    st.success("🎉 Bíblia convertida com sucesso!")
                 except Exception as e:
-                    if os.path.exists(nome_db_biblia):
-                        os.remove(nome_db_biblia)
                     st.error(f"Erro ao processar SQL: {e}")
         
         if os.path.exists(nome_db_biblia):
-            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
-            
-            with engine_biblia.connect() as conn:
-                tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), conn)
-                
-                if not tabelas.empty:
-                    nome_tabela = str(tabelas.iloc[0, 0])
