@@ -17,7 +17,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
@@ -30,39 +30,58 @@ def consultar_db(sql, params=None):
 
 # Criação das tabelas de forma encapsulada
 def criar_tabelas_sistema():
-    executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
-    executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
-    executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
-    executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
-    executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
-    executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
-    executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
-    executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
-    executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
-    executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, miembro_id INTEGER);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
+    ejecutar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
     admin_user = "admin@agape.com"
     if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
-        executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+        ejecutar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
 criar_tabelas_sistema()
 
-# --- 3. LISTA DOS 66 LIVROS E ABREVIAÇÕES INTERNACIONAIS ---
+# --- 3. DICIONÁRIO DE MAPEAMENTO PARA O PADRÃO DA API (66 LIVROS) ---
 LIVROS_BIBLE = {
-    "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
-    "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
-    "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles", "Esdras": "ezra",
-    "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms", "Provérbios": "proverbs",
-    "Eclesiastes": "ecclesiastes", "Cantares": "songofsolomon", "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations",
-    "Ezequiel": "ezekiel", "Daniel": "daniel", "Oséias": "hosea", "Joel": "joel", "Amós": "amos",
-    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque": "habakkuk",
-    "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi", "Mateus": "matthew",
-    "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts", "Romanos": "romans",
-    "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians", "Filipenses": "philippians",
-    "Colossenses": "colossians", "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians", "1 Timóteo": "1timothy", "2 Timóteo": "2timothy",
-    "Tito": "titus", "Filemom": "philemon", "Hebreus": "hebrews", "Tiago": "james", "1 Pedro": "1peter",
-    "2 Pedro": "2peter", "1 João": "1john", "2 João": "2john", "3 João": "3john", "Judas": "jude",
-    "Apocalipse": "revelation"
+    "Gênesis": {"en": "genesis", "caps": 50}, "Êxodo": {"en": "exodus", "caps": 40}, 
+    "Levítico": {"en": "leviticus", "caps": 27}, "Números": {"en": "numbers", "caps": 36}, 
+    "Deuteronômio": {"en": "deuteronomy", "caps": 34}, "Josué": {"en": "joshua", "caps": 24}, 
+    "Juízes": {"en": "judges", "caps": 21}, "Rute": {"en": "ruth", "caps": 4}, 
+    "1 Samuel": {"en": "1samuel", "caps": 31}, "2 Samuel": {"en": "2samuel", "caps": 24}, 
+    "1 Reis": {"en": "1kings", "caps": 22}, "2 Reis": {"en": "2kings", "caps": 25}, 
+    "1 Crônicas": {"en": "1chronicles", "caps": 29}, "2 Crônicas": {"en": "2chronicles", "caps": 36}, 
+    "Esdras": {"en": "ezra", "caps": 10}, "Neemias": {"en": "nehemiah", "caps": 13}, 
+    "Ester": {"en": "esther", "caps": 10}, "Jó": {"en": "job", "caps": 42}, 
+    "Salmos": {"en": "psalms", "caps": 150}, "Provérbios": {"en": "proverbs", "caps": 31}, 
+    "Eclesiastes": {"en": "ecclesiastes", "caps": 12}, "Cantares": {"en": "songofsolomon", "caps": 8}, 
+    "Isaías": {"en": "isaiah", "caps": 66}, "Jeremias": {"en": "jeremiah", "caps": 52}, 
+    "Lamentações": {"en": "lamentations", "caps": 5}, "Ezequiel": {"en": "ezekiel", "caps": 48}, 
+    "Daniel": {"en": "daniel", "caps": 12}, "Oséias": {"en": "hosea", "caps": 14}, 
+    "Joel": {"en": "joel", "caps": 3}, "Amós": {"en": "amos", "caps": 9}, 
+    "Obadias": {"en": "obadiah", "caps": 1}, "Jonas": {"en": "jonah", "caps": 4}, 
+    "Miqueias": {"en": "micah", "caps": 7}, "Naum": {"en": "nahum", "caps": 3}, 
+    "Habacuque": {"en": "habakkuk", "caps": 3}, "Sofonias": {"en": "zephaniah", "caps": 3}, 
+    "Ageu": {"en": "haggai", "caps": 2}, "Zacarias": {"en": "zechariah", "caps": 14}, 
+    "Malaquias": {"en": "malachi", "caps": 4}, "Mateus": {"en": "matthew", "caps": 28}, 
+    "Marcos": {"en": "mark", "caps": 16}, "Lucas": {"en": "lukes", "caps": 24}, 
+    "João": {"en": "john", "caps": 21}, "Atos": {"en": "acts", "caps": 28}, 
+    "Romanos": {"en": "romans", "caps": 16}, "1 Coríntios": {"en": "1corinthians", "caps": 16}, 
+    "2 Coríntios": {"en": "2corinthians", "caps": 13}, "Gálatas": {"en": "galatians", "caps": 6}, 
+    "Efésios": {"en": "ephesians", "caps": 6}, "Filipenses": {"en": "philippians", "caps": 4}, 
+    "Colossenses": {"en": "colossians", "caps": 4}, "1 Tessalonicenses": {"en": "1thessalonians", "caps": 5}, 
+    "2 Tessalonicenses": {"en": "2thessalonians", "caps": 3}, "1 Timóteo": {"en": "1timothy", "caps": 6}, 
+    "2 Timóteo": {"en": "2timothy", "caps": 4}, "Tito": {"en": "titus", "caps": 3}, 
+    "Filemom": {"en": "philemon", "caps": 1}, "Hebreus": {"en": "hebrews", "caps": 13}, 
+    "Tiago": {"en": "james", "caps": 5}, "1 Pedro": {"en": "1peter", "caps": 5}, 
+    "2 Pedro": {"en": "2peter", "caps": 3}, "1 João": {"en": "1john", "caps": 5}, 
+    "2 João": {"en": "2john", "caps": 1}, "3 João": {"en": "3john", "caps": 1}, 
+    "Judas": {"en": "jude", "caps": 1}, "Apocalipse": {"en": "revelation", "caps": 22}
 }
 
 @st.cache_data(ttl=3600)
@@ -70,7 +89,7 @@ def buscar_capitulo_online(livro_en, capitulo):
     url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=4) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             return json.loads(response.read().decode('utf-8'))
     except:
         return None
@@ -79,20 +98,24 @@ def abrir_aba_biblia():
     col_l, col_c = st.columns(2)
     with col_l:
         livro_nome = st.selectbox("Selecione o Livro:", list(LIVROS_BIBLE.keys()))
+    
+    # Obtém o total de capítulos correto para o livro selecionado
+    max_caps = LIVROS_BIBLE[livro_nome]["caps"]
     with col_c:
-        cap_sel = st.number_input("Selecione o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+        cap_sel = st.selectbox("Selecione o Capítulo:", list(range(1, max_caps + 1)))
     
     st.write(f"### {livro_nome} - Capítulo {cap_sel}")
     st.divider()
     
-    livro_en = LIVROS_BIBLE[livro_nome]
+    # Envia o termo correto em inglês traduzido para a API externa
+    livro_en = LIVROS_BIBLE[livro_nome]["en"]
     dados = buscar_capitulo_online(livro_en, cap_sel)
     
     if dados and "verses" in dados:
         for verso in dados["verses"]:
             st.markdown(f'<div class="leitura-box"><b>{verso["verse"]}.</b> {verso["text"]}</div>', unsafe_allow_html=True)
     else:
-        st.error("Não foi possível carregar este capítulo. Verifique sua conexão com a internet.")
+        st.error("Servidor de busca ocupado ou sem conexão com a internet. Tente novamente em instantes.")
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -135,29 +158,3 @@ if st.session_state.autenticado:
         st.rerun()
 
     menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Cadastro de Visitantes", "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos", "Patrimônio da Igreja", "Avisos", "Louvores"]
-    escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.sidebar.divider()
-
-    if escolha == "Início & Versículos":
-        st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
-        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        mes_atual_nome = meses[datetime.date.today().month - 1]
-        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
-        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): 
-                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: 
-            st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa":
-        abrir_aba_biblia()
-
-    elif escolha == "Membros":
-        st.subheader("👥 Gestão de Membros da Igreja")
-        if st.session_state.nivel_atual == "Pastor":
-            with st.expander("➕ Cadastrar Novo Membro", expanded=False):
-                with st.form("form_membro"):
-                    nome_m = st.text_input("Nome Completo (Obrigatório)")
