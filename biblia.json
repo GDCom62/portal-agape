@@ -1,26 +1,33 @@
-{
-    "Gênesis": {
-        "1": {
-            "1": "No princípio criou Deus os céus e a terra.",
-            "2": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus pairava sobre a face das águas.",
-            "3": "E disse Deus: Haja luz; e houve luz.",
-            "4": "Viu Deus que a luz era boa; e fez Deus separação entre a luz e as trevas."
-        },
-        "2": {
-            "1": "Assim os céus, a terra e todo o seu exército foram acabados.",
-            "2": "E havendo Deus acabado no dia sétimo a obra que fizera, descansou."
-        }
-    },
-    "Salmos": {
-        "23": {
-            "1": "O Senhor é o meu pastor, nada me faltará.",
-            "2": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
-            "3": "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome."
-        }
-    },
-    "João": {
-        "3": {
-            "16": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."
-        }
-    }
-}
+import json
+import urllib.request
+
+# URL pública e confiável contendo a Bíblia ACF completa em formato estruturado
+url_fonte = "https://githubusercontent.com"
+
+try:
+    print("Baixando a Bíblia sagrada completa...")
+    req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req, timeout=15) as response:
+        dados_originais = json.loads(response.read().decode('utf-8'))
+    
+    biblia_completa = {}
+    
+    # Converte o formato do repositório para o formato exato que o seu app.py lê
+    for livro in dados_originais:
+        nome_livro = livro["name"]
+        biblia_completa[nome_livro] = {}
+        
+        for idx_cap, capitulo in enumerate(livro["chapters"], start=1):
+            biblia_completa[nome_livro][str(idx_cap)] = {}
+            
+            for idx_ver, texto_verso in enumerate(capitulo, start=1):
+                biblia_completa[nome_livro][str(idx_cap)][str(idx_ver)] = texto_verso
+
+    # Salva o arquivo final pronto para o seu GitHub
+    with open("biblia.json", "w", encoding="utf-8") as f:
+        json.dump(biblia_completa, f, ensure_ascii=False, indent=4)
+        
+    print("🎉 Arquivo 'biblia.json' completo gerado com sucesso!")
+
+except Exception as e:
+    print(f"Erro ao gerar o arquivo: {e}")
