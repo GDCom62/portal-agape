@@ -149,18 +149,20 @@ if st.session_state.autenticado:
                 engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                 with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                     conteudo = f.read()
-                conteudo = conteudo.replace("unsigned int", "INTEGER").replace("unsigned", "").replace("UNSIGNED", "")
+                
+                # Tratamento massivo de incompatibilidades do MySQL para SQLite
+                conteudo = conteudo.replace("unsigned int", "INTEGER")
+                conteudo = conteudo.replace("unsigned", "")
+                conteudo = conteudo.replace("UNSIGNED", "")
+                conteudo = conteudo.replace("int(11)", "INTEGER")
+                conteudo = conteudo.replace("int(10)", "INTEGER")
+                
+                comandos = conteudo.split(";")
+                erros_pulados = 0
+                comandos_sucesso = 0
+                
                 with engine_b.begin() as conn_b:
-                    for cmd in conteudo.split(";"):
+                    for cmd in comandos:
                         cmd_l = cmd.strip()
-                        if cmd_l and not cmd_l.startswith("--") and not cmd_l.startswith("/*"):
-                            conn_b.execute(text(cmd_l))
-                st.success("🎉 Base de dados sincronizada!")
-                st.rerun()
-        
-        if os.path.exists(nome_db_biblia):
-            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
-            with engine_biblia.connect() as conn:
-                tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), conn)
-                if not tabelas.empty:
-                    nome_tabela = str(tabelas.iloc[0, 0])
+                        # Ignora linhas vazias, comentários ou comandos estruturais do MySQL
+                        if not cmd_l or cmd_l.startswith("--") or cmd_l.startswith("/*") or cmd_l.startswith("LOCK TABLES") or cmd_l.startswith("UNLOCK TABLES"):
