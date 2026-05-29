@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
+from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -144,22 +144,24 @@ if st.session_state.autenticado:
         nome_db_biblia = "biblia_acf.db"
         
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Tratando arquivo MySQL e adaptando para o SQLite... Aguarde."):
+            with st.spinner("⚙️ Tratando incompatibilidades e estruturando a Bíblia pela primeira vez... Aguarde."):
                 try:
                     engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                         instrucoes_sql = f.read()
                     
-                    # Remove sintaxes específicas do MySQL incompatíveis com SQLite (ex: unsigned)
+                    # Remove modificadores do MySQL incompatíveis com o SQLite
+                    instrucoes_sql = instrucoes_sql.replace("unsigned int", "INTEGER")
                     instrucoes_sql = instrucoes_sql.replace("unsigned", "")
                     instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
                     
                     with engine_b.begin() as conn:
                         for comando in instrucoes_sql.split(";"):
                             comando_limpo = comando.strip()
-                            if comando_limpo and not comando_limpo.startswith("--") and not comando_limpo.startswith("/*"):
-                                # Pula comandos específicos de configuração do MySQL
-                                if "ENGINE=" in comando_limpo or "CHARSET=" in comando_limpo or "SET " in comando_limpo:
-                                    continue
+                            if comando_limpo and not comando_limpo.startswith("--"):
                                 conn.execute(text(comando_limpo))
                     st.success("🎉 Arquivo de dados da Bíblia estruturado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao processar SQL da Bíblia: {e}")
+        
+        if os.path.exists(nome_db_biblia):
