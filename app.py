@@ -3,13 +3,13 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
-import os
+import urllib.request
 import json
 
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# --- CONEXÃO BANCO DE DADOS ---
+# --- CONEXÃO BANCO DE DADOS LOCAL ---
 @st.cache_resource
 def inicializar_conexoes():
     return create_engine("sqlite:///agape_v70.db", connect_args={"check_same_thread": False, "timeout": 30})
@@ -27,15 +27,40 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Inicialização das tabelas essenciais
+# Inicialização das tabelas essenciais do sistema e da Bíblia interna
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cargo TEXT, data_cadastro TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS tabela_biblia (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     senha_hash = generate_password_hash("agape2026", method="pbkdf2:sha256")
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": senha_hash})
+
+# --- POPULADOR AUTOMÁTICO DE BANCO DE DADOS (RODA SÓ UMA VEZ) ---
+def sincronizar_biblia_no_banco():
+    verificar = consultar_db("SELECT id FROM tabela_biblia LIMIT 1")
+    if verificar.empty:
+        url_fonte = "https://githubusercontent.com"
+        try:
+            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                dados_originais = json.loads(response.read().decode('utf-8'))
+            
+            with engine.begin() as conn:
+                for livro in dados_originais:
+                    nome_livro = livro["name"]
+                    for idx_cap, capitulo in enumerate(livro["chapters"], start=1):
+                        for idx_ver, texto_verso in enumerate(capitulo, start=1):
+                            conn.execute(
+                                text("INSERT INTO tabela_biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
+                                {"l": nome_livro, "c": idx_cap, "v": idx_ver, "t": texto_verso}
+                            )
+            return True
+        except:
+            return False
+    return True
 
 # --- ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -76,43 +101,34 @@ if st.session_state.autenticado:
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span>— João 3:16</span></div>', unsafe_allow_html=True)
 
     elif escolha == "Bíblia":
-        st.subheader("📖 Leitura da Bíblia Sagrada (Arquivo JSON)")
+        st.subheader("📖 Leitura da Bíblia Sagrada")
         
-        # LEITURA DIRETA DO ARQUIVO SEM CACHE PARA FORÇAR A ATUALIZAÇÃO
-        nome_arquivo = "biblia.json"
+        # Garante a carga inicial no banco SQLite local
+        base_pronta = sincronizar_biblia_no_banco()
         
-        if os.path.exists(nome_arquivo):
-            try:
-                with open(nome_arquivo, "r", encoding="utf-8") as f:
-                    bible_data = json.load(f)
-                
-                lista_livros = list(bible_data.keys())
+        if base_pronta:
+            df_livros = consultar_db("SELECT DISTINCT livro FROM tabela_biblia ORDER BY id ASC")
+            if not df_livros.empty:
+                lista_livros = df_livros['livro'].tolist()
                 col_l, col_c = st.columns(2)
                 with col_l:
                     livro_sel = st.selectbox("Livro:", lista_livros)
-                    
-                lista_caps = list(bible_data[livro_sel].keys())
+                
+                df_caps = consultar_db("SELECT DISTINCT capitulo FROM tabela_biblia WHERE livro = :l ORDER BY capitulo ASC", {"l": livro_sel})
+                lista_caps = df_caps['capitulo'].tolist()
                 with col_c:
                     cap_sel = st.selectbox("Capítulo:", lista_caps)
-                    
+                
                 st.write(f"### {livro_sel} - Capítulo {cap_sel}")
                 st.divider()
                 
-                versos = bible_data[livro_sel][cap_sel]
-                
-                # Suporta tanto dicionário {"1": "Texto"} quanto lista ["Texto"]
-                if isinstance(versos, dict):
-                    for num, texto in versos.items():
-                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
-                elif isinstance(versos, list):
-                    for num, texto in enumerate(versos, start=1):
-                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
-                        
-            except Exception as erro:
-                st.error(f"Erro ao processar o arquivo 'biblia.json': {erro}")
-                st.info("Verifique se a formatação das chaves no JSON está correta.")
+                df_versos = consultar_db("SELECT versiculo, texto FROM tabela_biblia WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": livro_sel, "c": cap_sel})
+                for idx, r in df_versos.iterrows():
+                    st.markdown(f'<div class="leitura-box"><b>{r["versiculo"]}.</b> {r["texto"]}</div>', unsafe_allow_html=True)
+            else:
+                st.info("Configurando a base de dados pela primeira vez. Atualize a página em instantes.")
         else:
-            st.error("O arquivo 'biblia.json' não foi encontrado na raiz do projeto. Suba o arquivo pelo GitHub.")
+            st.error("Erro ao inicializar os textos. O servidor está sem conexão estável.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
