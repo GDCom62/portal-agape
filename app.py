@@ -163,7 +163,7 @@ if st.session_state.autenticado:
             
             with engine_biblia.connect() as conn:
                 tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), conn)
-            
-            if not tabelas.empty:
-                nome_tabela = str(tabelas.iloc[0, 0])
-                with engine_biblia.connect() as conn:
+                
+                if not tabelas.empty:
+                    nome_tabela = str(tabelas.iloc[0, 0])
+                    info_colunas = pd.read_sql_query(text(f"PRAGMA table_info([{nome_tabela}])"), conn)
