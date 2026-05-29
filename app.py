@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
+import sqlite3
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -139,27 +140,28 @@ if st.session_state.autenticado:
 
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
-        nome_sql = "biblia.sql"
+        nome_sql = "biblia_13V.sql"
         nome_db_biblia = "biblia_acf.db"
         
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando o arquivo de dados da Bíblia pela primeira vez... Aguarde."):
+            with st.spinner("⚙️ Importando base de dados completa da Bíblia... Aguarde alguns instantes."):
                 try:
-                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                         instrucoes_sql = f.read()
+                    
+                    # Normalização estrutural para o interpretador SQLite nativo
                     instrucoes_sql = instrucoes_sql.replace("unsigned int", "INTEGER")
                     instrucoes_sql = instrucoes_sql.replace("unsigned", "")
                     instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
-                    with engine_b.begin() as conn:
-                        for comando in instrucoes_sql.split(";"):
-                            comando_limpo = comando.strip()
-                            if comando_limpo and not comando_limpo.startswith("--"):
-                                conn.execute(text(comando_limpo))
-                    st.success("🎉 Módulo da Bíblia integrado com sucesso!")
+                    instrucoes_sql = instrucoes_sql.replace("int(11)", "INTEGER")
+                    instrucoes_sql = instrucoes_sql.replace("int(10)", "INTEGER")
+                    
+                    # Conexão direta via driver nativo para evitar estouro de buffer do SQLAlchemy
+                    conn_direta = sqlite3.connect(nome_db_biblia)
+                    cursor_direto = conn_direta.cursor()
+                    cursor_direto.executescript(instrucoes_sql)
+                    conn_direta.commit()
+                    conn_direta.close()
+                    st.success("🎉 Todos os 66 livros foram integrados com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao processar SQL da Bíblia: {e}")
-        
-        if os.path.exists(nome_db_biblia):
-            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
-            tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), engine_biblia)
+                    if os.path.exists(nome_db_biblia):
