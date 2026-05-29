@@ -26,6 +26,27 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
+# Função auxiliar para converter o arquivo SQL corrigindo incompatibilidades de tipos
+def converter_sql_para_db(caminho_sql, caminho_db):
+    try:
+        engine_b = create_engine(f"sqlite:///{caminho_db}")
+        with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
+            conteudo = f.read()
+        
+        # Corrige os tipos do MySQL que quebram o SQLite
+        conteudo = conteudo.replace("unsigned int", "INTEGER")
+        conteudo = conteudo.replace("unsigned", "")
+        conteudo = conteudo.replace("UNSIGNED", "")
+        
+        with engine_b.begin() as conn:
+            for comando in conteudo.split(";"):
+                comando_limpo = comando.strip()
+                if comando_limpo and not comando_limpo.startswith("--"):
+                    conn.execute(text(comando_limpo))
+        return True
+    except:
+        return False
+
 # Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
@@ -144,24 +165,11 @@ if st.session_state.autenticado:
         nome_db_biblia = "biblia_acf.db"
         
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Tratando incompatibilidades e estruturando a Bíblia pela primeira vez... Aguarde."):
-                try:
-                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
-                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        instrucoes_sql = f.read()
-                    
-                    # Remove modificadores do MySQL incompatíveis com o SQLite
-                    instrucoes_sql = instrucoes_sql.replace("unsigned int", "INTEGER")
-                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
-                    instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
-                    
-                    with engine_b.begin() as conn:
-                        for comando in instrucoes_sql.split(";"):
-                            comando_limpo = comando.strip()
-                            if comando_limpo and not comando_limpo.startswith("--"):
-                                conn.execute(text(comando_limpo))
-                    st.success("🎉 Arquivo de dados da Bíblia estruturado com sucesso!")
-                except Exception as e:
-                    st.error(f"Erro ao processar SQL da Bíblia: {e}")
+            with st.spinner("⚙️ Processando o arquivo de dados da Bíblia pela primeira vez... Aguarde."):
+                sucesso = converter_sql_para_db(nome_sql, nome_db_biblia)
+                if sucesso:
+                    st.success("🎉 Bíblia importada com sucesso!")
+                else:
+                    st.error("Erro estrutural ao converter o arquivo SQL da Bíblia.")
         
         if os.path.exists(nome_db_biblia):
