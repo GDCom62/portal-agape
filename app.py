@@ -140,7 +140,7 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Conversor e Módulo Local)")
         
-        nome_sql = "biblia.sql"
+        nome_sql = "biblia_13V.sql"
         nome_db_biblia = "biblia_acf.db"
         
         # --- CONVERSOR AUTOMÁTICO DE .SQL PARA .DB ---
