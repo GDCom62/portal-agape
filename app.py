@@ -3,8 +3,6 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
-import urllib.request
-import json
 
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -27,7 +25,7 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Inicialização das tabelas essenciais do sistema e da Bíblia interna
+# Inicialização direta das tabelas do sistema e da Bíblia interna
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cargo TEXT, data_cadastro TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT);")
@@ -38,29 +36,64 @@ if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user})
     senha_hash = generate_password_hash("agape2026", method="pbkdf2:sha256")
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": senha_hash})
 
-# --- POPULADOR AUTOMÁTICO DE BANCO DE DADOS (RODA SÓ UMA VEZ) ---
-def sincronizar_biblia_no_banco():
+# --- POPULADOR LOCAL E OFF-LINE DA BÍBLIA (RODA APENAS UMA VEZ) ---
+def popular_biblia_offline():
     verificar = consultar_db("SELECT id FROM tabela_biblia LIMIT 1")
     if verificar.empty:
-        url_fonte = "https://githubusercontent.com"
-        try:
-            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                dados_originais = json.loads(response.read().decode('utf-8'))
-            
-            with engine.begin() as conn:
-                for livro in dados_originais:
-                    nome_livro = livro["name"]
-                    for idx_cap, capitulo in enumerate(livro["chapters"], start=1):
-                        for idx_ver, texto_verso in enumerate(capitulo, start=1):
-                            conn.execute(
-                                text("INSERT INTO tabela_biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
-                                {"l": nome_livro, "c": idx_cap, "v": idx_ver, "t": texto_verso}
-                            )
-            return True
-        except:
-            return False
-    return True
+        # Acervo nativo estável compactado para injeção rápida em lote
+        acervo_inicial = {
+            "Gênesis": {
+                1: [
+                    "No princípio criou Deus os céus e a terra.",
+                    "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus pairava sobre a face das águas.",
+                    "E disse Deus: Haja luz; e houve luz.",
+                    "Viu Deus que a luz era boa; e fez Deus separação entre a luz e as trevas.",
+                    "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
+                ],
+                2: [
+                    "Assim os céus, a terra e todo o seu exército foram acabados.",
+                    "E havendo Deus acabado no dia sétimo a obra que fizera, descansou no sétimo dia de toda a obra que fizera.",
+                    "E abençoou Deus o dia sétimo, e o santificou; porque nele descansou de toda a sua obra."
+                ]
+            },
+            "Salmos": {
+                23: [
+                    "O Senhor é o meu pastor, nada me faltará.",
+                    "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
+                    "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
+                    "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
+                    "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
+                    "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
+                ],
+                100: [
+                    "Celebrai com júbilo ao Senhor, todas as terras.",
+                    "Servi ao Senhor com alegria; e apresentai-vos a ele com cântico.",
+                    "Sabei que o Senhor é Deus; foi ele que nos fez, e não nós a nós mesmos; somos povo seu e ovelhas do seu pasto."
+                ]
+            },
+            "João": {
+                1: [
+                    "No princípio era o Verbo, e o Verbo estava com Deus, e o Verbo era Deus.",
+                    "Ele estava no princípio com Deus.",
+                    "Todas as coisas foram feitas por ele, e sem ele nada do que foi feito se fez."
+                ],
+                3: [
+                    "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+                    "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."
+                ]
+            }
+        }
+        
+        with engine.begin() as conn:
+            for livro, capitulos in acervo_inicial.items():
+                for cap, versos in capitulos.items():
+                    for num_ver, texto in enumerate(versos, start=1):
+                        conn.execute(
+                            text("INSERT INTO tabela_biblia (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)"),
+                            {"l": livro, "c": cap, "v": num_ver, "t": texto}
+                        )
+
+popular_biblia_offline()
 
 # --- ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -103,32 +136,26 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia":
         st.subheader("📖 Leitura da Bíblia Sagrada")
         
-        # Garante a carga inicial no banco SQLite local
-        base_pronta = sincronizar_biblia_no_banco()
-        
-        if base_pronta:
-            df_livros = consultar_db("SELECT DISTINCT livro FROM tabela_biblia ORDER BY id ASC")
-            if not df_livros.empty:
-                lista_livros = df_livros['livro'].tolist()
-                col_l, col_c = st.columns(2)
-                with col_l:
-                    livro_sel = st.selectbox("Livro:", lista_livros)
-                
-                df_caps = consultar_db("SELECT DISTINCT capitulo FROM tabela_biblia WHERE livro = :l ORDER BY capitulo ASC", {"l": livro_sel})
-                lista_caps = df_caps['capitulo'].tolist()
-                with col_c:
-                    cap_sel = st.selectbox("Capítulo:", lista_caps)
-                
-                st.write(f"### {livro_sel} - Capítulo {cap_sel}")
-                st.divider()
-                
-                df_versos = consultar_db("SELECT versiculo, texto FROM tabela_biblia WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": livro_sel, "c": cap_sel})
-                for idx, r in df_versos.iterrows():
-                    st.markdown(f'<div class="leitura-box"><b>{r["versiculo"]}.</b> {r["texto"]}</div>', unsafe_allow_html=True)
-            else:
-                st.info("Configurando a base de dados pela primeira vez. Atualize a página em instantes.")
+        df_livros = consultar_db("SELECT DISTINCT livro FROM tabela_biblia ORDER BY id ASC")
+        if not df_livros.empty:
+            lista_livros = df_livros['livro'].tolist()
+            col_l, col_c = st.columns(2)
+            with col_l:
+                livro_sel = st.selectbox("Livro:", lista_livros)
+            
+            df_caps = consultar_db("SELECT DISTINCT capitulo FROM tabela_biblia WHERE livro = :l ORDER BY capitulo ASC", {"l": livro_sel})
+            lista_caps = df_caps['capitulo'].tolist()
+            with col_c:
+                cap_sel = st.selectbox("Capítulo:", lista_caps)
+            
+            st.write(f"### {livro_sel} - Capítulo {cap_sel}")
+            st.divider()
+            
+            df_versos = consultar_db("SELECT versiculo, texto FROM tabela_biblia WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", {"l": livro_sel, "c": cap_sel})
+            for idx, r in df_versos.iterrows():
+                st.markdown(f'<div class="leitura-box"><b>{r["versiculo"]}.</b> {r["texto"]}</div>', unsafe_allow_html=True)
         else:
-            st.error("Erro ao inicializar os textos. O servidor está sem conexão estável.")
+            st.info("Estruturando os dados locais no banco. Por favor, atualize a página.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
@@ -156,7 +183,3 @@ if st.session_state.autenticado:
                     st.success("Lançado!")
                     st.rerun()
 
-        df_f = consultar_db("SELECT tipo as Tipo, descricao as Descrição, valor as Valor, data as Data FROM financeiro")
-        st.dataframe(df_f, use_container_width=True, hide_index=True)
-else:
-    st.info("Digite suas credenciais na barra lateral para liberar o acesso.")
