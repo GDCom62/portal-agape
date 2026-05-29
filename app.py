@@ -26,35 +26,6 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# FUNÇÃO ISOLADA E BLINDADA PARA CARREGAMENTO E CONVERSÃO DA BÍBLIA
-def processar_biblia_sql(arquivo_sql, arquivo_db):
-    if not os.path.exists(arquivo_sql) or os.path.exists(arquivo_db):
-        return
-    try:
-        engine_b = create_engine(f"sqlite:///{arquivo_db}")
-        with open(arquivo_sql, "r", encoding="utf-8", errors="ignore") as f:
-            linhas = f.readlines()
-        
-        cmd_acumulado = ""
-        with engine_b.begin() as conn_b:
-            for linha in linhas:
-                linha_limpa = linha.strip()
-                if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
-                    continue
-                cmd_acumulado += " " + linha_limpa
-                if cmd_acumulado.endswith(";"):
-                    cmd_final = cmd_acumulado.strip()
-                    cmd_final = cmd_final.replace("unsigned int", "INTEGER")
-                    cmd_final = cmd_final.replace("unsigned", "")
-                    cmd_final = cmd_final.replace("UNSIGNED", "")
-                    conn_b.execute(text(cmd_final))
-                    cmd_acumulado = ""
-        st.success("🎉 Base de dados da Bíblia gerada e indexada localmente com sucesso!")
-    except Exception as err:
-        st.error(f"Erro ao estruturar banco de dados da Bíblia: {err}")
-        if os.path.exists(arquivo_db):
-            os.remove(arquivo_db)
-
 # Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
@@ -133,6 +104,7 @@ if not st.session_state.autenticado:
                 st.rerun()
             else: 
                 st.error("Dados incorretos.")
+if not st.session_state.autenticado:
     with tab_new:
         nu = st.text_input("E-mail corporativo", key="u_reg").strip()
         np = st.text_input("Senha de acesso", type="password", key="p_reg")
@@ -171,3 +143,25 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_v2.db"
         
+        if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
+            with st.spinner("⚙️ Processando arquivo SQL da Bíblia pela primeira vez... Aguarde."):
+                try:
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                        linhas_sql = f.readlines()
+                    
+                    cmd_acumulado = ""
+                    with engine_b.begin() as conn_b:
+                        for linha in linhas_sql:
+                            linha_limpa = linha.strip()
+                            if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
+                                continue
+                            cmd_acumulado += " " + linha_limpa
+                            if cmd_acumulado.endswith(";"):
+                                cmd_final = cmd_acumulado.strip()
+                                cmd_final = cmd_final.replace("unsigned int", "INTEGER")
+                                cmd_final = cmd_final.replace("unsigned", "")
+                                cmd_final = cmd_final.replace("UNSIGNED", "")
+                                conn_b.execute(text(cmd_final))
+                                cmd_acumulado = ""
+                    st.success("🎉 Base de dados da Bíblia gerada com sucesso!")
