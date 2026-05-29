@@ -143,27 +143,26 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
-        # --- CONVERSOR INLINE SEGURO ---
+        # --- CONVERSOR LINHA POR LINHA ULTRASSEGURO ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando e estruturando o arquivo de dados da Bíblia... Aguarde."):
+            with st.spinner("⚙️ Importando e otimizando a base de dados da Bíblia... Aguarde."):
                 try:
                     engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        conteudo_sql = f.read()
+                        linhas = f.readlines()
                     
-                    conteudo_sql = conteudo_sql.replace("unsigned int", "INTEGER")
-                    conteudo_sql = conteudo_sql.replace("unsigned", "")
-                    conteudo_sql = conteudo_sql.replace("UNSIGNED", "")
-                    
+                    comando_acumulado = []
                     with engine_b.begin() as conn_b:
-                        for comando in conteudo_sql.split(";"):
-                            comando_limpo = comando.strip()
-                            if comando_limpo and not comando_limpo.startswith("--"):
-                                conn_b.execute(text(comando_limpo))
-                    st.success("🎉 Módulo da Bíblia integrado com sucesso!")
-                except Exception as e_bd:
-                    st.error(f"Não foi possível processar o script SQL: {e_bd}")
-        
-        if os.path.exists(nome_db_biblia):
-            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
-            
+                        for linha in linhas:
+                            linha_limpa = linha.strip()
+                            if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
+                                continue
+                            
+                            # Remove incompatibilidades conhecidas
+                            linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
+                            linha_limpa = linha_limpa.replace("unsigned", "")
+                            linha_limpa = linha_limpa.replace("UNSIGNED", "")
+                            
+                            comando_acumulado.append(linha_limpa)
+                            
+                            # Executa apenas ao encontrar o fim real da instrução SQL
