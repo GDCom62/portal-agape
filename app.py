@@ -121,7 +121,7 @@ if st.session_state.autenticado:
 
     menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Cadastro de Visitantes", "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos", "Patrimônio da Igreja", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.sidebar.divider()
+    st.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -143,24 +143,23 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
-        # --- CONVERSOR TRATADO DE .SQL PARA .DB ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando e indexando os 66 livros da Bíblia... Aguarde um momento."):
+            with st.spinner("⚙️ Tratando arquivo MySQL e adaptando para o SQLite... Aguarde."):
                 try:
                     engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        conteudo_sql = f.read()
+                        instrucoes_sql = f.read()
                     
-                    # Correção em tempo de execução para incompatibilidade do SQLite (unsigned e quebras de string)
-                    conteudo_sql = conteudo_sql.replace("unsigned", "")
-                    conteudo_sql = conteudo_sql.replace("UNSIGNED", "")
+                    # Remove sintaxes específicas do MySQL incompatíveis com SQLite (ex: unsigned)
+                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
+                    instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
                     
-                    # Executa os blocos de forma isolada e limpa
                     with engine_b.begin() as conn:
-                        linhas_comando = conteudo_sql.split(";\n")
-                        for cmd in linhas_comando:
-                            cmd_limpo = cmd.strip()
-                            if cmd_limpo and not cmd_limpo.startswith("--") and not cmd_limpo.startswith("/*"):
-                                conn.execute(text(cmd_limpo))
-                    st.success("🎉 Todos os livros e capítulos foram indexados com sucesso!")
-                except Exception as e:
+                        for comando in instrucoes_sql.split(";"):
+                            comando_limpo = comando.strip()
+                            if comando_limpo and not comando_limpo.startswith("--") and not comando_limpo.startswith("/*"):
+                                # Pula comandos específicos de configuração do MySQL
+                                if "ENGINE=" in comando_limpo or "CHARSET=" in comando_limpo or "SET " in comando_limpo:
+                                    continue
+                                conn.execute(text(comando_limpo))
+                    st.success("🎉 Arquivo de dados da Bíblia estruturado com sucesso!")
