@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
 import json
-import urllib.request
 
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -37,50 +36,6 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     senha_hash = generate_password_hash("agape2026", method="pbkdf2:sha256")
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": senha_hash})
-
-# --- RECONSTRUTOR INTEGRADO DE ALTA PERFORMANCE (BIBLIA.JSON AUTOMÁTICO) ---
-@st.cache_data(show_spinner=False)
-def carregar_e_validar_biblia():
-    nome_arquivo = "biblia.json"
-    url_fonte = "https://githubusercontent.com"
-    
-    # Se o arquivo não existir ou estiver corrompido, reconstrói automaticamente
-    reconstruir = True
-    if os.path.exists(nome_arquivo):
-        try:
-            with open(nome_arquivo, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                if dados and len(dados.keys()) > 2:
-                    reconstruir = False
-                    return dados
-        except:
-            reconstruir = True
-
-    if reconstruir:
-        try:
-            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=12) as response:
-                originais = json.loads(response.read().decode('utf-8'))
-            
-            biblia_limpa = {}
-            for livro in originais:
-                nome_l = livro["name"]
-                biblia_limpa[nome_l] = {}
-                for idx_c, capitulo in enumerate(livro["chapters"], start=1):
-                    biblia_limpa[nome_l][str(idx_c)] = {}
-                    for idx_v, texto_v in enumerate(capitulo, start=1):
-                        biblia_limpa[nome_l][str(idx_c)][str(idx_v)] = texto_v
-            
-            with open(nome_arquivo, "w", encoding="utf-8") as f:
-                json.dump(biblia_limpa, f, ensure_ascii=False, indent=4)
-            return biblia_limpa
-        except:
-            # Contingência estática imediata caso o GitHub falhe
-            return {
-                "Gênesis": {"1": {"1": "No princípio criou Deus os céus e a terra.", "2": "E a terra era sem forma e vazia."}},
-                "Salmos": {"23": {"1": "O Senhor é o meu pastor, nada me faltará."}},
-                "João": {"3": {"16": "Porque Deus amou o mundo de tal maneira..."}}
-            }
 
 # --- ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -121,26 +76,43 @@ if st.session_state.autenticado:
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span>— João 3:16</span></div>', unsafe_allow_html=True)
 
     elif escolha == "Bíblia":
-        st.subheader("📖 Leitura da Bíblia Sagrada")
+        st.subheader("📖 Leitura da Bíblia Sagrada (Arquivo JSON)")
         
-        with st.spinner("Indexando livros e capítulos..."):
-            bible_data = carregar_e_validar_biblia()
-            
-        lista_livros = list(bible_data.keys())
-        col_l, col_c = st.columns(2)
-        with col_l:
-            livro_sel = st.selectbox("Livro:", lista_livros)
-            
-        lista_caps = list(bible_data[livro_sel].keys())
-        with col_c:
-            cap_sel = st.selectbox("Capítulo:", lista_caps)
-            
-        st.write(f"### {livro_sel} - Capítulo {cap_sel}")
-        st.divider()
+        # LEITURA DIRETA DO ARQUIVO SEM CACHE PARA FORÇAR A ATUALIZAÇÃO
+        nome_arquivo = "biblia.json"
         
-        versos = bible_data[livro_sel][cap_sel]
-        for num, texto in versos.items():
-            st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
+        if os.path.exists(nome_arquivo):
+            try:
+                with open(nome_arquivo, "r", encoding="utf-8") as f:
+                    bible_data = json.load(f)
+                
+                lista_livros = list(bible_data.keys())
+                col_l, col_c = st.columns(2)
+                with col_l:
+                    livro_sel = st.selectbox("Livro:", lista_livros)
+                    
+                lista_caps = list(bible_data[livro_sel].keys())
+                with col_c:
+                    cap_sel = st.selectbox("Capítulo:", lista_caps)
+                    
+                st.write(f"### {livro_sel} - Capítulo {cap_sel}")
+                st.divider()
+                
+                versos = bible_data[livro_sel][cap_sel]
+                
+                # Suporta tanto dicionário {"1": "Texto"} quanto lista ["Texto"]
+                if isinstance(versos, dict):
+                    for num, texto in versos.items():
+                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
+                elif isinstance(versos, list):
+                    for num, texto in enumerate(versos, start=1):
+                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
+                        
+            except Exception as erro:
+                st.error(f"Erro ao processar o arquivo 'biblia.json': {erro}")
+                st.info("Verifique se a formatação das chaves no JSON está correta.")
+        else:
+            st.error("O arquivo 'biblia.json' não foi encontrado na raiz do projeto. Suba o arquivo pelo GitHub.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros")
