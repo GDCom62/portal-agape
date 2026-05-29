@@ -166,4 +166,4 @@ if st.session_state.autenticado:
             
             def consultar_biblia(sql, params=None):
                 with engine_biblia.connect() as conn:
-                    try: return pd.read_sql_query(text(sql), conn, params=params or {})
+                    try:
