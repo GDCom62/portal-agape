@@ -82,7 +82,6 @@ BIBLIA_ESTAVEL = {
     }
 }
 
-# --- 4. MAPEAMENTO DE LIVROS DA API BÍBLIA ---
 LIVROS_API = {
     "Gênesis": "GN", "Êxodo": "EX", "Levítico": "LV", "Números": "NU", "Deuteronômio": "DE",
     "Josué": "JS", "Juízes": "JZ", "Rute": "RT", "1 Samuel": "1S", "2 Samuel": "2S",
@@ -110,7 +109,22 @@ def buscar_capitulo_api(livro_abrev, capitulo):
     except:
         return None
 
-# --- 5. ESTILIZAÇÃO VISUAL ---
+def renderizar_modulo_biblia(livro, cap):
+    abrev = LIVROS_API[livro]
+    dados_cap = buscar_capitulo_api(abrev, cap)
+    if dados_cap and "verses" in dados_cap:
+        for verso in dados_cap["verses"]:
+            st.markdown(f'<div class="leitura-box"><b>{verso["verse"]}.</b> {verso["text"]}</div>', unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ Modo Offline Ativado: Exibindo textos locais estáveis.")
+        if livro in BIBLIA_ESTAVEL and cap in BIBLIA_ESTAVEL[livro]:
+            versiculos = BIBLIA_ESTAVEL[livro][cap]
+            for num_ver, texto_ver in versiculos.items():
+                st.markdown(f'<div class="leitura-box"><b>{num_ver}.</b> {texto_ver}</div>', unsafe_allow_html=True)
+        else:
+            st.info("Texto indisponível offline para este capítulo. Verifique sua conexão.")
+
+# --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
     <style>
     .stAppViewContainer { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; }
@@ -157,12 +171,3 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
-        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        mes_atual_nome = meses[datetime.date.today().month - 1]
-        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
-        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): 
-                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: 
