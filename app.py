@@ -26,44 +26,7 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# --- 3. CONVERSOR AUTOMÁTICO E ISOLADO DE BANCO DE DADOS ---
-def processar_conversao_biblia():
-    nome_sql = "biblia.sql"
-    nome_db_biblia = "biblia_acf.db"
-    
-    if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-        try:
-            engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
-            with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                linhas = f.readlines()
-            
-            comando_acumulado = []
-            with engine_b.begin() as conn_b:
-                for linha in linhas:
-                    linha_limpa = linha.strip()
-                    if not linha_limpa or linha_limpa.startswith("--") or linha_limpa.startswith("/*"):
-                        continue
-                    
-                    # Remove incompatibilidades conhecidas com dialeto SQLite
-                    linha_limpa = linha_limpa.replace("unsigned int", "INTEGER")
-                    linha_limpa = linha_limpa.replace("unsigned", "")
-                    linha_limpa = linha_limpa.replace("UNSIGNED", "")
-                    
-                    comando_acumulado.append(linha_limpa)
-                    
-                    if linha_limpa.endswith(";"):
-                        sql_completo = " ".join(comando_acumulado)
-                        conn_b.execute(text(sql_completo))
-                        comando_acumulado = []
-            return True
-        except:
-            return False
-    return False
-
-# Executa conversão silenciosa de pré-carregamento
-processar_conversao_biblia()
-
-# Criação inicial das tabelas do sistema corporativo
+# Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id INTEGER);")
@@ -79,7 +42,7 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 4. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
+# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
 BIBLIA_ESTAVEL = {
     "Gênesis": {
         1: {
@@ -175,3 +138,28 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
+        st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
+        nome_sql = "biblia.sql"
+        nome_db_biblia = "biblia_acf.db"
+        
+        if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
+            with st.spinner("⚙️ Processando o arquivo de dados da Bíblia pela primeira vez... Aguarde."):
+                try:
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                        instrucoes_sql = f.read()
+                    instrucoes_sql = instrucoes_sql.replace("unsigned int", "INTEGER")
+                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
+                    instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
+                    with engine_b.begin() as conn:
+                        for comando in instrucoes_sql.split(";"):
+                            comando_limpo = comando.strip()
+                            if comando_limpo and not comando_limpo.startswith("--"):
+                                conn.execute(text(comando_limpo))
+                    st.success("🎉 Módulo da Bíblia integrado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao processar SQL da Bíblia: {e}")
+        
+        if os.path.exists(nome_db_biblia):
+            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
+            with engine_biblia.connect() as conn:
