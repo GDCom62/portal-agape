@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-import sqlite3
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -140,28 +139,30 @@ if st.session_state.autenticado:
 
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Módulo Local)")
-        nome_sql = "biblia_13V.sql"
+        nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
+        # --- PARSER LINEAR SEGURO CONTRA ERROS DE SINTAXE E INDENTAÇÃO ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Importando base de dados completa da Bíblia... Aguarde alguns instantes."):
+            with st.spinner("⚙️ Processando e estruturando o banco de dados da Bíblia... Aguarde."):
                 try:
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
                     with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
-                        instrucoes_sql = f.read()
+                        linhas = f.readlines()
                     
-                    # Normalização estrutural para o interpretador SQLite nativo
-                    instrucoes_sql = instrucoes_sql.replace("unsigned int", "INTEGER")
-                    instrucoes_sql = instrucoes_sql.replace("unsigned", "")
-                    instrucoes_sql = instrucoes_sql.replace("UNSIGNED", "")
-                    instrucoes_sql = instrucoes_sql.replace("int(11)", "INTEGER")
-                    instrucoes_sql = instrucoes_sql.replace("int(10)", "INTEGER")
+                    # Concatena preservando espaços sem quebrar os comandos longos do SQL
+                    script_tratado = ""
+                    for linha in linhas:
+                        l_limpa = linha.strip()
+                        if l_limpa and not l_limpa.startswith("--") and not l_limpa.startswith("/*"):
+                            script_tratado += " " + l_limpa
                     
-                    # Conexão direta via driver nativo para evitar estouro de buffer do SQLAlchemy
-                    conn_direta = sqlite3.connect(nome_db_biblia)
-                    cursor_direto = conn_direta.cursor()
-                    cursor_direto.executescript(instrucoes_sql)
-                    conn_direta.commit()
-                    conn_direta.close()
-                    st.success("🎉 Todos os 66 livros foram integrados com sucesso!")
-                except Exception as e:
-                    if os.path.exists(nome_db_biblia):
+                    # Padroniza tipos incompatíveis
+                    script_tratado = script_tratado.replace("unsigned int", "INTEGER")
+                    script_tratado = script_tratado.replace("unsigned", "")
+                    script_tratado = script_tratado.replace("UNSIGNED", "")
+                    
+                    with engine_b.begin() as conn_b:
+                        for comando in script_tratado.split(";"):
+                            cmd_final = comando.strip()
+                            if cmd_final:
