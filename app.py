@@ -4,8 +4,6 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-import urllib.request
-import json
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -40,74 +38,29 @@ executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
+# Garante o usuário Administrador padrão
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
-BIBLIA_ESTAVEL = {
-    "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.", 
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
-            3: "E disse Deus: Haja luz; e houve luz.", 
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
-        }
-    },
-    "Números": {
-        4: {
-            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 
-            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 
-            3: "Da idade de trinta anos para cima até aos cinquenta anos...", 
-            4: "Este será o serviço dos filhos de Coate na tenda da congregação."
-        }
-    },
-    "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.", 
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
-            5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
-            6: "Certamente que a bondade e a misericórdia me seguirão."
-        }
-    },
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 
-            18: "Quem crê nele não é condizido à condenação."
-        }
-    }
-}
-
-LIVROS_API = {
-    "Gênesis": "GN", "Êxodo": "EX", "Levítico": "LV", "Números": "NU", "Deuteronômio": "DE",
-    "Josué": "JS", "Juízes": "JZ", "Rute": "RT", "1 Samuel": "1S", "2 Samuel": "2S",
-    "1 Reis": "1R", "2 Reis": "2R", "1 Crônicas": "1C", "2 Crônicas": "2C", "Esdras": "ED",
-    "Neemias": "NE", "Ester": "ET", "Jó": "JO", "Salmos": "SL", "Provérbios": "PV",
-    "Eclesiastes": "EC", "Cantares": "CT", "Isaías": "IS", "Jeremias": "JR", "Lamentações": "LM",
-    "Ezequiel": "EZ", "Daniel": "DN", "Oséias": "OS", "Joel": "JL", "Amós": "AM",
-    "Obadias": "OB", "Jonas": "JN", "Miqueias": "MQ", "Naum": "NA", "Habacuque": "HC",
-    "Sofonias": "SF", "Ageu": "AG", "Zacarias": "ZC", "Malaquias": "ML", "Mateus": "MT",
-    "Marcos": "MC", "Lucas": "LC", "João": "JO", "Atos": "AT", "Romanos": "RM",
-    "1 Coríntios": "1C", "2 Coríntios": "2C", "Gálatas": "GL", "Efésios": "EF", "Filipenses": "FL",
-    "Colossenses": "CL", "1 Tessalonicenses": "1T", "2 Tessalonicenses": "2T", "1 Timóteo": "1T", "2 Timóteo": "2T",
-    "Tito": "TT", "Filemom": "FL", "Hebreus": "HB", "Tiago": "TG", "1 Pedro": "1P",
-    "2 Pedro": "2P", "1 João": "1J", "2 João": "2J", "3 João": "3J", "Judas": "JD",
-    "Apocalipse": "AP"
-}
-
-@st.cache_data(ttl=3600)
-def buscar_capitulo_api(livro_abrev, capitulo):
-    url = f"https://bible-api.com{livro_abrev}+{capitulo}?translation=almeida-recebida"
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except:
-        return None
+# --- 3. PROVEDOR INTERNO DA BÍBLIA (BANCO SQL LOCAL) ---
+def extrair_dados_da_biblia():
+    """Busca os dados do banco local mapeando colunas dinamicamente para evitar travamentos"""
+    tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico')")
+    if tabelas.empty:
+        return pd.DataFrame(), "", "", "", ""
+    
+    tab_nome = str(tabelas.iloc[0, 0])
+    info_cols = consultar_db(f"PRAGMA table_info([{tab_nome}])")
+    cols = info_cols['name'].tolist() if not info_cols.empty else []
+    
+    c_livro = 'livro' if 'livro' in cols else ('livro_nome' if 'livro_nome' in cols else (cols[1] if len(cols) > 1 else ''))
+    c_cap = 'capitulo' if 'capitulo' in cols else ('cap' if 'cap' in cols else (cols[2] if len(cols) > 2 else ''))
+    c_ver = 'versiculo' if 'versiculo' in cols else ('ver' if 'ver' in cols else (cols[3] if len(cols) > 3 else ''))
+    c_txt = 'texto' if 'texto' in cols else ('txt' if 'txt' in cols else (cols[4] if len(cols) > 4 else ''))
+    
+    df_livros = consultar_db(f"SELECT DISTINCT [{c_livro}] as livro_nome FROM [{tab_nome}] ORDER BY rowid ASC")
+    return df_livros, tab_nome, c_livro, c_cap, c_ver, c_txt
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -165,3 +118,36 @@ if st.session_state.autenticado:
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
             st.caption("Nenhum aniversário registrado para este mês.")
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
+    elif escolha == "Bíblia Completa":
+        st.subheader("📖 Bíblia Sagrada Completa (Módulo Offline de Alta Performance)")
+        
+        # Rotina de Verificação e Importação Local do arquivo biblia.sql
+        nome_src_sql = "biblia.sql"
+        tabelas_existentes = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico')")
+        
+        if tabelas_existentes.empty and os.path.exists(nome_src_src := nome_src_sql):
+            st.warning("📦 O arquivo `biblia.sql` foi localizado! Clique abaixo para carregar todos os livros permanentemente offline.")
+            if st.button("⚡ Sincronizar e Indexar Bíblia Completa"):
+                with st.spinner("Estruturando os 66 livros no banco de dados local... Isso levará apenas alguns segundos."):
+                    try:
+                        with open(nome_src_src, "r", encoding="utf-8", errors="ignore") as f:
+                            linhas = f.readlines()
+                        
+                        query_acumulada = ""
+                        for linha in linhas:
+                            l_limpa = linha.strip()
+                            if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
+                                continue
+                            query_acumulada += " " + l_limpa
+                            if query_acumulada.endswith(";"):
+                                q_final = query_acumulada.replace("unsigned int", "INTEGER").replace("unsigned", "").replace("UNSIGNED", "")
+                                if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
+                                    executar_query(q_final)
+                                query_acumulada = ""
+                        st.success("🎉 Todos os 66 livros foram sincronizados com sucesso!")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Erro durante a leitura do arquivo SQL: {ex}")
+        
