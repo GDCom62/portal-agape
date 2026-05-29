@@ -4,6 +4,8 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
+import urllib.request
+import json
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -45,26 +47,30 @@ def criar_tabelas_sistema():
 
 criar_tabelas_sistema()
 
-# --- 3. DICIONÁRIO BÍBLICO NATIVO DE BACKUP ---
-BIBLIA_ESTAVEL = {
-    "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.", 
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
-            3: "E disse Deus: Haja luz; e houve luz.", 
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
-        }
-    },
-    "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.", 
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum."
-        }
-    }
-}
+# --- 3. PROVEDOR DA BÍBLIA COMPLETA EM PORTUGUÊS (BAIXADO AUTOMATICAMENTE) ---
+@st.cache_data(ttl=86400)
+def carregar_biblia_completa_json():
+    """Baixa e armazena localmente a Bíblia completa em formato JSON de alta performance"""
+    caminho_local = "biblia_completa_acf.json"
+    url_fonte = "https://githubusercontent.com"
+    
+    if not os.path.exists(caminho_local):
+        try:
+            req = urllib.request.Request(url_fonte, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                dados = json.loads(response.read().decode('utf-8'))
+                with open(caminho_local, "w", encoding="utf-8") as f:
+                    json.dump(dados, f, ensure_ascii=False, indent=4)
+        except:
+            return None
+            
+    if os.path.exists(caminho_local):
+        try:
+            with open(caminho_local, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return None
+    return None
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -125,18 +131,30 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa":
-        st.subheader("📖 Bíblia Sagrada Completa (Módulo Estável de Segurança)")
-        col_livro, col_cap = st.columns(2)
-        with col_livro:
-            livro_sel = st.selectbox("Selecione o Livro:", list(BIBLIA_ESTAVEL.keys()))
-        with col_cap:
-            cap_sel = st.selectbox("Selecione o Capítulo:", list(BIBLIA_ESTAVEL[livro_sel].keys()))
+        st.subheader("📖 Bíblia Sagrada Completa (Almeida Corrigida Fiel)")
         
-        st.write(f"### {livro_sel} - Capítulo {cap_sel}")
-        st.divider()
-        versiculos = BIBLIA_ESTAVEL[livro_sel][cap_sel]
-        for num_ver, texto_ver in versiculos.items():
-            st.markdown(f'<div class="leitura-box"><b>{num_ver}.</b> {texto_ver}</div>', unsafe_allow_html=True)
+        dados_biblia = carregar_biblia_completa_json()
+        
+        if dados_biblia is not None:
+            lista_livros = [livro["name"] for livro in dados_biblia]
+            col_l, col_c = st.columns(2)
+            with col_l:
+                livro_sel = st.selectbox("Selecione o Livro:", lista_livros)
+            
+            idx_livro = lista_livros.index(livro_sel)
+            total_capitulos = len(dados_biblia[idx_livro]["chapters"])
+            
+            with col_c:
+                cap_sel = st.selectbox("Selecione o Capítulo:", list(range(1, total_capitulos + 1)))
+            
+            st.write(f"### {livro_sel} - Capítulo {cap_sel}")
+            st.divider()
+            
+            versiculos = dados_biblia[idx_livro]["chapters"][cap_sel - 1]
+            for num_v, texto_v in enumerate(versiculos, start=1):
+                st.markdown(f'<div class="leitura-box"><b>{num_v}.</b> {texto_v}</div>', unsafe_allow_html=True)
+        else:
+            st.error("⚠️ Não foi possível indexar os livros automaticamente. Verifique se o servidor possui conexão estável.")
 
     elif escolha == "Membros":
         st.subheader("👥 Gestão de Membros da Igreja")
@@ -150,13 +168,3 @@ if st.session_state.autenticado:
                     obs = st.text_area("Observações Internas")
                     salvar = st.form_submit_button("Salvar Registro")
                     if salvar and nome.strip() != "":
-                        executar_query(
-                            "INSERT INTO membros (nome, telephone, cargo, data_cadastro, mes_aniversario, observacoes) VALUES (:n, :t, :c, :d, :m, :o)",
-                            {"n": nome, "t": tel, "c": cargo, "d": str(datetime.date.today()), "m": mes_aniv, "o": obs}
-                        )
-                        st.success("Membro cadastrado com sucesso!")
-                        st.rerun()
-
-        df_membros = consultar_db("SELECT id, nome as Nome, telephone as Telefone, cargo as Cargo, mes_aniversario as Aniversário, data_cadastro as Cadastro FROM membros ORDER BY nome ASC")
-        if not df_membros.empty:
-            st.dataframe(df_membros, use_container_width=True, hide_index=True)
