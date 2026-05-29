@@ -43,24 +43,22 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. PROVEDOR INTERNO DA BÍBLIA (BANCO SQL LOCAL) ---
+# --- 3. PROVEDOR INTERNE DA BÍBLIA (BANCO SQL LOCAL) ---
 def extrair_dados_da_biblia():
-    """Busca os dados do banco local mapeando colunas dinamicamente para evitar travamentos"""
-    tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico')")
+    """Busca os dados do banco local mapeando colunas dinamicamente"""
+    tabelas = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
     if tabelas.empty:
         return pd.DataFrame(), "", "", "", ""
     
-    tab_nome = str(tabelas.iloc[0, 0])
+    # Seleciona a tabela principal que contém os livros
+    tab_nome = "livros" if "livros" in tabelas['name'].tolist() else tabelas.iloc[0, 0]
     info_cols = consultar_db(f"PRAGMA table_info([{tab_nome}])")
     cols = info_cols['name'].tolist() if not info_cols.empty else []
     
-    c_livro = 'livro' if 'livro' in cols else ('livro_nome' if 'livro_nome' in cols else (cols[1] if len(cols) > 1 else ''))
-    c_cap = 'capitulo' if 'capitulo' in cols else ('cap' if 'cap' in cols else (cols[2] if len(cols) > 2 else ''))
-    c_ver = 'versiculo' if 'versiculo' in cols else ('ver' if 'ver' in cols else (cols[3] if len(cols) > 3 else ''))
-    c_txt = 'texto' if 'texto' in cols else ('txt' if 'txt' in cols else (cols[4] if len(cols) > 4 else ''))
+    c_livro = 'liv_nome' if 'liv_nome' in cols else ('livro' if 'livro' in cols else ('livro_nome' if 'livro_nome' in cols else cols[0]))
     
     df_livros = consultar_db(f"SELECT DISTINCT [{c_livro}] as livro_nome FROM [{tab_nome}] ORDER BY rowid ASC")
-    return df_livros, tab_nome, c_livro, c_cap, c_ver, c_txt
+    return df_livros, tab_nome, c_livro
 
 # --- 4. ESTILIZAÇÃO VISUAL ---
 st.markdown("""
@@ -104,7 +102,7 @@ if st.session_state.autenticado:
 
     menu = ["Início & Versículos", "Bíblia Completa", "Membros", "Cadastro de Visitantes", "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos", "Patrimônio da Igreja", "Avisos", "Louvores"]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.divider()
+    st.sidebar.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -123,31 +121,33 @@ if st.session_state.autenticado:
     elif escolha == "Bíblia Completa":
         st.subheader("📖 Bíblia Sagrada Completa (Módulo Offline de Alta Performance)")
         
-        # Rotina de Verificação e Importação Local do arquivo biblia.sql
         nome_src_sql = "biblia.sql"
-        tabelas_existentes = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico')")
+        tabelas_existentes = consultar_db("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('versiculos', 'bible', 'biblia', 'texto_biblico', 'livros')")
         
-        if tabelas_existentes.empty and os.path.exists(nome_src_src := nome_src_sql):
+        if tabelas_existentes.empty and os.path.exists(nome_src_sql):
             st.warning("📦 O arquivo `biblia.sql` foi localizado! Clique abaixo para carregar todos os livros permanentemente offline.")
             if st.button("⚡ Sincronizar e Indexar Bíblia Completa"):
-                with st.spinner("Estruturando os 66 livros no banco de dados local... Isso levará apenas alguns segundos."):
+                with st.spinner("Limpando incompatibilidades do MySQL e estruturando banco SQLite local... Isso levará alguns segundos."):
                     try:
-                        with open(nome_src_src, "r", encoding="utf-8", errors="ignore") as f:
+                        with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
                             linhas = f.readlines()
                         
                         query_acumulada = ""
-                        for linha in linhas:
+                        for linha in lines:
                             l_limpa = linha.strip()
                             if not l_limpa or l_limpa.startswith("--") or l_limpa.startswith("/*"):
                                 continue
                             query_acumulada += " " + l_limpa
                             if query_acumulada.endswith(";"):
-                                q_final = query_acumulada.replace("unsigned int", "INTEGER").replace("unsigned", "").replace("UNSIGNED", "")
+                                # LIMPEZA ABSOLUTA DE SINTAXE DO MYSQL PARA SQLITE
+                                q_final = query_acumulada.replace("auto_increment", "PRIMARY KEY AUTOINCREMENT")
+                                q_final = q_final.replace("AUTO_INCREMENT", "")
+                                q_final = q_final.replace("unsigned int", "INTEGER")
+                                q_final = q_final.replace("unsigned", "")
+                                q_final = q_final.replace("UNSIGNED", "")
+                                q_final = q_final.replace("NOT NULL PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY AUTOINCREMENT")
+                                if "ENGINE=" in q_final:
+                                    q_final = q_final.split("ENGINE=")[0] + ";"
+                                
+                                # Ignora travas de tabelas do MySQL
                                 if not q_final.startswith("LOCK") and not q_final.startswith("UNLOCK"):
-                                    executar_query(q_final)
-                                query_acumulada = ""
-                        st.success("🎉 Todos os 66 livros foram sincronizados com sucesso!")
-                        st.rerun()
-                    except Exception as ex:
-                        st.error(f"Erro durante a leitura do arquivo SQL: {ex}")
-        
