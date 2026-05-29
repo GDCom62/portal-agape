@@ -66,7 +66,7 @@ BIBLIA_ESTAVEL = {
             1: "O Senhor é o meu pastor, nada me faltará.", 
             2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
             3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algúm.", 
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
             5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
             6: "Certamente que a bondade e a misericórdia me seguirão."
         }
