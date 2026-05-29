@@ -66,7 +66,7 @@ BIBLIA_ESTAVEL = {
             1: "O Senhor é o meu pastor, nada me faltará.", 
             2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
             3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algúm.", 
             5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
             6: "Certamente que a bondade e a misericórdia me seguirão."
         }
@@ -162,4 +162,4 @@ if st.session_state.autenticado:
         
         if os.path.exists(nome_db_biblia):
             engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
-            with engine_biblia.connect() as conn:
+            tabelas = pd.read_sql_query(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"), engine_biblia)
