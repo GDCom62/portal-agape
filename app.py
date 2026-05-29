@@ -26,27 +26,6 @@ def consultar_db(sql, params=None):
         except: 
             return pd.DataFrame()
 
-# Função auxiliar para converter o arquivo SQL corrigindo incompatibilidades de tipos
-def converter_sql_para_db(caminho_sql, caminho_db):
-    try:
-        engine_b = create_engine(f"sqlite:///{caminho_db}")
-        with open(caminho_sql, "r", encoding="utf-8", errors="ignore") as f:
-            conteudo = f.read()
-        
-        # Corrige os tipos do MySQL que quebram o SQLite
-        conteudo = conteudo.replace("unsigned int", "INTEGER")
-        conteudo = conteudo.replace("unsigned", "")
-        conteudo = conteudo.replace("UNSIGNED", "")
-        
-        with engine_b.begin() as conn:
-            for comando in conteudo.split(";"):
-                comando_limpo = comando.strip()
-                if comando_limpo and not comando_limpo.startswith("--"):
-                    conn.execute(text(comando_limpo))
-        return True
-    except:
-        return False
-
 # Criação inicial das tabelas do sistema
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
@@ -164,12 +143,27 @@ if st.session_state.autenticado:
         nome_sql = "biblia.sql"
         nome_db_biblia = "biblia_acf.db"
         
+        # --- CONVERSOR INLINE SEGURO ---
         if os.path.exists(nome_sql) and not os.path.exists(nome_db_biblia):
-            with st.spinner("⚙️ Processando o arquivo de dados da Bíblia pela primeira vez... Aguarde."):
-                sucesso = converter_sql_para_db(nome_sql, nome_db_biblia)
-                if sucesso:
-                    st.success("🎉 Bíblia importada com sucesso!")
-                else:
-                    st.error("Erro estrutural ao converter o arquivo SQL da Bíblia.")
+            with st.spinner("⚙️ Processando e estruturando o arquivo de dados da Bíblia... Aguarde."):
+                try:
+                    engine_b = create_engine(f"sqlite:///{nome_db_biblia}")
+                    with open(nome_sql, "r", encoding="utf-8", errors="ignore") as f:
+                        conteudo_sql = f.read()
+                    
+                    conteudo_sql = conteudo_sql.replace("unsigned int", "INTEGER")
+                    conteudo_sql = conteudo_sql.replace("unsigned", "")
+                    conteudo_sql = conteudo_sql.replace("UNSIGNED", "")
+                    
+                    with engine_b.begin() as conn_b:
+                        for comando in conteudo_sql.split(";"):
+                            comando_limpo = comando.strip()
+                            if comando_limpo and not comando_limpo.startswith("--"):
+                                conn_b.execute(text(comando_limpo))
+                    st.success("🎉 Módulo da Bíblia integrado com sucesso!")
+                except Exception as e_bd:
+                    st.error(f"Não foi possível processar o script SQL: {e_bd}")
         
         if os.path.exists(nome_db_biblia):
+            engine_biblia = create_engine(f"sqlite:///{nome_db_biblia}")
+            
