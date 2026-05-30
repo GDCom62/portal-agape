@@ -81,7 +81,8 @@ if st.session_state.autenticado:
         nome_arquivo = "biblia.json"
         if os.path.exists(nome_arquivo):
             try:
-                with open(nome_arquivo, "r", encoding="utf-8") as f:
+                # CORREÇÃO CRÍTICA: Uso de utf-8-sig para ignorar o caractere BOM oculto do Windows
+                with open(nome_arquivo, "r", encoding="utf-8-sig") as f:
                     bible_data = json.load(f)
                 
                 lista_livros = list(bible_data.keys())
@@ -97,8 +98,14 @@ if st.session_state.autenticado:
                 st.divider()
                 
                 versos = bible_data[livro_sel][cap_sel]
-                for num, texto in versos.items():
-                    st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
+                
+                # Renderiza dinamicamente se for dicionário ou lista
+                if isinstance(versos, dict):
+                    for num, texto in versos.items():
+                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
+                elif isinstance(versos, list):
+                    for num, texto in enumerate(versos, start=1):
+                        st.markdown(f'<div class="leitura-box"><b>{num}.</b> {texto}</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Erro na estrutura do arquivo 'biblia.json': {e}")
         else:
