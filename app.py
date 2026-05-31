@@ -1,41 +1,39 @@
-import json
 import os
+import sys
 
-def inspecionar_primeiro_item():
+def diagnostico_imediato():
     caminho_arquivo = 'biblia.json'
     
-    # Verifica se o arquivo realmente existe no diretório
+    # 1. Forçar print imediato para testar o terminal
+    print("=== INICIANDO O SCRIPT APP.PY ===", flush=True)
+    
+    # 2. Verificar se o arquivo existe e o tamanho dele
     if not os.path.exists(caminho_arquivo):
-        print(f"Erro: O arquivo '{caminho_arquivo}' não foi encontrado.")
+        print(f"ERRO CRÍTICO: O arquivo '{caminho_arquivo}' NÃO está na mesma pasta que o app.py!", flush=True)
+        return
+        
+    tamanho_bytes = os.path.getsize(caminho_arquivo)
+    tamanho_mb = tamanho_bytes / (1024 * 1024)
+    print(f"Arquivo encontrado! Tamanho: {tamanho_mb:.2f} MB", flush=True)
+    
+    if tamanho_bytes == 0:
+        print("AVISO: O seu arquivo 'biblia.json' está totalmente VAZIO (0 bytes).", flush=True)
         return
 
+    # 3. Ler apenas as primeiras 10 linhas para descobrir o formato real sem travar a memória
+    print("\n--- LENDO AS PRIMEIRAS LINHAS DO ARQUIVO ---", flush=True)
     try:
-        # Abre o arquivo tratando a codificação para evitar erros com acentos
         with open(caminho_arquivo, 'r', encoding='utf-8') as f:
-            dados_biblia = json.load(f)
-        
-        print("--- Inspecionando o primeiro item (Opção 2) ---\n")
-        
-        # Verifica se a lista não está vazia antes de acessar o índice 0
-        if len(dados_biblia) > 0:
-            primeiro_item = dados_biblia[0]
-            
-            # Agora que pegamos o elemento de dentro da lista, ele deve ser um dicionário
-            if isinstance(primeiro_item, dict):
-                chaves = primeiro_item.keys()
-                print("Sucesso! O primeiro item é um dicionário.")
-                print(f"As chaves encontradas foram: {list(chaves)}")
-                print("\nExemplo do conteúdo do primeiro item:")
-                print(json.dumps(primeiro_item, indent=4, ensure_ascii=False)[:500] + "... (resumido)")
-            else:
-                print(f"O primeiro item da lista não possui chaves porque ele é do tipo: {type(primeiro_item)}")
-        else:
-            print("A lista dentro do arquivo 'biblia.json' está vazia.")
-
-    except json.JSONDecodeError:
-        print("Erro: O arquivo 'biblia.json' não está em um formato JSON válido.")
+            for i in range(15):
+                linha = f.readline()
+                if not linha:
+                    break
+                # Remove espaços em branco nas pontas e exibe
+                print(f"Linha {i+1}: {linha.strip()}", flush=True)
     except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}")
+        print(f"Erro ao tentar ler o arquivo texto: {e}", flush=True)
+        
+    print("\n=== FIM DO DIAGNÓSTICO ===", flush=True)
 
 if __name__ == '__main__':
-    inspecionar_primeiro_item()
+    diagnostico_imediato()
