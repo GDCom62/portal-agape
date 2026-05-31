@@ -1,40 +1,49 @@
+import streamlit as st
+import json
 import os
-import sys
 
-def diagnostico_imediato():
-    caminho_arquivo = 'biblia.json'
-    
-    # 1. Forçar print imediato para testar o terminal
-    print("=== INICIANDO O SCRIPT APP.PY ===", flush=True)
-    
-    # 2. Verificar se o arquivo existe e o tamanho dele
-    if not os.path.exists(caminho_arquivo):
-        print(f"ERRO CRÍTICO: O arquivo '{caminho_arquivo}' NÃO está na mesma pasta que o app.py!", flush=True)
-        return
-        
-    tamanho_bytes = os.path.getsize(caminho_arquivo)
-    tamanho_mb = tamanho_bytes / (1024 * 1024)
-    print(f"Arquivo encontrado! Tamanho: {tamanho_mb:.2f} MB", flush=True)
-    
-    if tamanho_bytes == 0:
-        print("AVISO: O seu arquivo 'biblia.json' está totalmente VAZIO (0 bytes).", flush=True)
-        return
+# Configuração da página do Streamlit
+st.set_page_config(page_title="Bíblia Sagrada - Ágape", page_icon="📖", layout="wide")
 
-    # 3. Ler apenas as primeiras 10 linhas para descobrir o formato real sem travar a memória
-    print("\n--- LENDO AS PRIMEIRAS LINHAS DO ARQUIVO ---", flush=True)
+st.title("📖 Aplicativo Bíblia Sagrada")
+st.markdown("---")
+
+caminho_arquivo = 'biblia.json'
+
+# 1. Verifica se o arquivo existe
+if not os.path.exists(caminho_arquivo):
+    st.error(f"Erro: O arquivo '{caminho_arquivo}' não foi encontrado na pasta C:\\AGAPE.")
+else:
     try:
+        # 2. Carrega o arquivo JSON tratando os acentos corretamente
         with open(caminho_arquivo, 'r', encoding='utf-8') as f:
-            for i in range(15):
-                linha = f.readline()
-                if not linha:
-                    break
-                # Remove espaços em branco nas pontas e exibe
-                print(f"Linha {i+1}: {linha.strip()}", flush=True)
-    except Exception as e:
-        print(f"Erro ao tentar ler o arquivo texto: {e}", flush=True)
-        
-    print("\n=== FIM DO DIAGNÓSTICO ===", flush=True)
+            dados_biblia = json.load(f)
 
-if __name__ == '__main__':
-    diagnostico_imediato()
-python -c "print('O terminal está funcionando!')"
+        # 3. CORREÇÃO DO ERRO: Valida se é uma lista e renderiza os dados
+        if isinstance(dados_biblia, list):
+            if len(dados_biblia) > 0:
+                st.success(f"Bíblia carregada com sucesso! Total de registros encontrados: {len(dados_biblia)}")
+                
+                # Exemplo: Pega as chaves internas do primeiro dicionário da lista de forma segura
+                primeiro_registro = dados_biblia[0]
+                if isinstance(primeiro_registro, dict):
+                    chaves_disponiveis = list(primeiro_registro.keys())
+                    st.write(f"**Campos disponíveis no seu arquivo:** {chaves_disponiveis}")
+                    
+                    # Interface interativa básica para navegar pelos dados da lista
+                    st.subheader("Navegador de Conteúdo")
+                    indice = st.number_input("Escolha o índice do livro/versículo:", min_value=0, max_value=len(dados_biblia)-1, value=0)
+                    
+                    # Exibe o item selecionado de forma organizada na página web
+                    st.json(dados_biblia[indice])
+                else:
+                    st.warning("Os itens dentro da lista do arquivo JSON não são estruturas de dados legíveis (dicionários).")
+            else:
+                st.warning("O arquivo 'biblia.json' contém uma lista, mas ela está totalmente vazia.")
+        else:
+            st.error("A estrutura do arquivo não é uma lista. Verifique a formatação do seu JSON.")
+
+    except json.JSONDecodeError:
+        st.error("Erro Crítico: O arquivo 'biblia.json' contém erros de digitação e não é um JSON válido.")
+    except Exception as e:
+        st.error(f"Ocorreu um erro inesperado: {e}")
