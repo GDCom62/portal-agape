@@ -37,3 +37,4 @@ def diagnostico_imediato():
 
 if __name__ == '__main__':
     diagnostico_imediato()
+python -c "print('O terminal está funcionando!')"
