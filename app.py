@@ -3,39 +3,37 @@ import streamlit as st
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Portal Ágape - Login", page_icon="📖", layout="wide")
 
-# --- SISTEMA DE CONTROLE DE ACESSO (LOGIN) ---
+# Inicializa o estado de autenticação de forma segura
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
-def realizar_login(usuario, senha):
-    # Altere aqui o usuário e a senha padrão do seu portal
-    if usuario == "agape" and senha == "12345":
-        st.session_state['autenticado'] = True
-        st.success("Acesso liberado com sucesso!")
-        st.rerun()
-    else:
-        st.error("Usuário ou senha incorretos. Tente novamente.")
-
-# Se NÃO estiver logado, exibe apenas o formulário de login na tela
+# --- TELA DE LOGIN ---
 if not st.session_state['autenticado']:
     st.markdown("<h2 style='text-align: center;'>🔒 Portal Ágape - Área Restrita</h2>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # Centraliza o formulário de login na tela
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    # Centraliza o formulário de login usando colunas
+    col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
-        with st.form("formulario_login"):
-            st.markdown("### Digite suas credenciais")
-            campo_usuario = st.text_input("Usuário")
-            campo_senha = st.text_input("Senha", type="password")
-            botao_entrar = st.form_submit_button("Entrar no Sistema")
-            
-            if botao_entrar:
-                realizar_login(campo_usuario, campo_senha)
+        # Usamos uma caixa visual limpa em vez do elemento "st.form" clássico para evitar travamentos de envio
+        st.markdown("### Digite suas credenciais")
+        campo_usuario = st.text_input("Usuário", key="login_user")
+        campo_senha = st.text_input("Senha", type="password", key="login_pass")
+        botao_entrar = st.button("Entrar no Sistema", use_container_width=True)
+        
+        if botao_entrar:
+            # Defina aqui o seu usuário e senha de acesso
+            if campo_usuario == "agape" and campo_senha == "12345":
+                st.session_state['autenticado'] = True
+                st.success("Acesso liberado com sucesso!")
+                st.rerun() # Agora executado com segurança fora de um bloco de formulário estático
+            else:
+                st.error("Usuário ou senha incorretos. Tente novamente.")
 
-# Se JÁ estiver logado, libera o acesso completo ao Portal da Bíblia
+# --- TELA DO SISTEMA DA BÍBLIA (SÓ APARECE SE ESTIVER LOGADO) ---
 else:
-    # Botão de Sair no menu lateral
-    if st.sidebar.button("🚪 Sair / Fazer Logout"):
+    # Botão de Sair posicionado no topo do menu lateral para fácil acesso
+    if st.sidebar.button("🚪 Sair / Fazer Logout", use_container_width=True):
         st.session_state['autenticado'] = False
         st.rerun()
 
