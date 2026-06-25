@@ -40,7 +40,6 @@ else:
     caminho_json = 'biblia.json'
 
     # --- SISTEMA DE AUTOREPARAÇÃO DO ARQUIVO JSON ---
-    # Se o arquivo não existir, estiver vazio ou corrompido, recriamos com uma estrutura válida
     criar_novo = False
     if not os.path.exists(caminho_json) or os.path.getsize(caminho_json) == 0:
         criar_novo = True
@@ -52,7 +51,6 @@ else:
             criar_novo = True
 
     if criar_novo:
-        # Estrutura base padrão que funciona perfeitamente com o layout
         dados_padrao = {
             "Gênesis": {
                 "Capítulo 1": [
@@ -73,7 +71,7 @@ else:
         }
         with open(caminho_json, 'w', encoding='utf-8') as f:
             json.dump(dados_padrao, f, indent=4, ensure_ascii=False)
-        st.sidebar.info("Aviso: 'biblia.json' estava vazio ou inválido e foi restaurado com sucesso!")
+        st.sidebar.info("Aviso: 'biblia.json' padrão criado!")
 
     # --- LEITURA E RENDERIZAÇÃO DOS DADOS ---
     try:
@@ -89,24 +87,34 @@ else:
             
             # 2. Seleciona o Capítulo baseado no Livro escolhido
             conteudo_livro = dados_biblia[livro_sel]
-            lista_capitulos = list(conteudo_livro.keys())
-            capitulo_sel = st.sidebar.selectbox("Escolha o Capítulo:", lista_capitulos)
             
-            # 3. Pega os versículos do capítulo selecionado
-            versiculos = conteudo_livro[capitulo_sel]
+            # Correção para caso o formato do JSON externo seja uma lista de capítulos em vez de dicionário
+            if isinstance(conteudo_livro, list):
+                lista_capitulos = [f"Capítulo {i+1}" for i in range(len(conteudo_livro))]
+                capitulo_sel = st.sidebar.selectbox("Escolha o Capítulo:", lista_capitulos)
+                # Extrai o índice numérico do capítulo
+                idx_capitulo = lista_capitulos.index(capitulo_sel)
+                versiculos = conteudo_livro[idx_capitulo]
+            else:
+                lista_capitulos = list(conteudo_livro.keys())
+                capitulo_sel = st.sidebar.selectbox("Escolha o Capítulo:", lista_capitulos)
+                versiculos = conteudo_livro[capitulo_sel]
             
             # Exibe na tela principal
             st.subheader(f"📖 {livro_sel} - {capitulo_sel}")
             st.markdown("---")
             
+            # Renderização flexível de versículos
             if isinstance(versiculos, list):
                 for idx, texto in enumerate(versiculos, start=1):
                     st.markdown(f"**{idx}** {texto}")
             elif isinstance(versiculos, dict):
                 for v_num, v_texto in versiculos.items():
                     st.markdown(f"**{v_num}** {v_texto}")
+            else:
+                st.markdown(str(versiculos))
         else:
-            st.error("A estrutura dentro do 'biblia.json' não está no formato esperado de dicionário.")
+            st.error("A estrutura dentro do 'biblia.json' não está no formato esperado.")
 
     except Exception as e:
         st.error(f"Erro crítico ao processar a Bíblia: {e}")
