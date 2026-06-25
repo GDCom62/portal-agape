@@ -65,7 +65,8 @@ else:
                 st.error(f"Erro ao baixar base da bíblia: {e}")
 
         try:
-            with open(caminho_json, 'r', encoding='utf-8') as f:
+           with open(caminho_json, 'r', encoding='utf-8-sig') as f:
+
                 dados_biblia = json.load(f)
 
             # Estrutura flexível para ler o JSON padrão do GitHub (Lista de livros com lista de capítulos)
