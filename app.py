@@ -132,12 +132,12 @@ else:
         
         st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
 
-           # --- ABA 4: RÁDIO CRISTÃ ---
+        # --- ABA 4: RÁDIO CRISTÃ ---
     elif aba_selecionada == "📻 Rádio Cristã":
         st.title("📻 Rádio Web Ágape")
         st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
         
-        # Canais com transmissões abertas (sem bloqueio de segurança/CORS)
+        # Canais com transmissões abertas (sem bloqueio de segurança)
         opcoes_radios = {
             "Rádio Melodia (Streaming Direto)": "https://painelcast.com",
             "Rádio Novo Tempo (Canal Aberto)": "https://novotempo.com",
@@ -164,5 +164,3 @@ else:
         """
         
         st.components.v1.html(codigo_player_html, height=160)
-
-            st.caption("📱 Clique no Play caso o som não comece sozinho.")
