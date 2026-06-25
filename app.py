@@ -1,12 +1,16 @@
 import streamlit as st
 import json
 import os
+import urllib.request
 
 # Configuração da página do Streamlit
-st.set_page_config(page_title="Portal Ágape", page_icon="📖", layout="wide")
+st.set_page_config(page_title="Portal Ágape", page_icon="✝️", layout="wide")
 
+# Inicialização das variáveis de estado (Session State)
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
+if 'mensagens_chat' not in st.session_state:
+    st.session_state['mensagens_chat'] = []
 
 # --- TELA DE LOGIN ---
 if not st.session_state['autenticado']:
@@ -28,93 +32,130 @@ if not st.session_state['autenticado']:
             else:
                 st.error("Usuário ou senha incorretos.")
 
-# --- TELA DA BÍBLIA (APÓS LOGIN CORRETO) ---
+# --- SISTEMA APÓS LOGIN (DASHBOARD) ---
 else:
-    if st.sidebar.button("🚪 Sair / Fazer Logout", use_container_width=True):
+    # Menu lateral de navegação principal
+    st.sidebar.title("⛪ Portal Ágape")
+    st.sidebar.markdown(f"Bem-vindo, **{st.session_state.get('login_user', 'Membro')}**")
+    
+    # Seletor de abas do sistema
+    aba_selecionada = st.sidebar.radio(
+        "Navegar para:",
+        ["📖 Bíblia Sagrada", "💬 Bate-Papo & Reuniões", "🙏 Sala de Oração Individual", "📻 Rádio Cristã"]
+    )
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Fazer Logout", use_container_width=True):
         st.session_state['autenticado'] = False
         st.rerun()
 
-    st.title("📖 Portal Ágape - Bíblia Sagrada")
-    st.markdown("---")
+    # --- ABA 1: BÍBLIA SAGRADA ---
+    if aba_selecionada == "📖 Bíblia Sagrada":
+        st.title("📖 Bíblia Sagrada Completa")
+        caminho_json = 'biblia.json'
 
-    caminho_json = 'biblia.json'
+        # Baixa automaticamente a bíblia completa caso não exista localmente
+        if not os.path.exists(caminho_json) or os.path.getsize(caminho_json) < 1000:
+            st.info("Baixando Bíblia completa em português, por favor aguarde...")
+            url_biblia = "https://githubusercontent.com"
+            try:
+                urllib.request.urlretrieve(url_biblia, caminho_json)
+                st.success("Bíblia baixada com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao baixar base da bíblia: {e}")
 
-    # --- SISTEMA DE AUTOREPARAÇÃO DO ARQUIVO JSON ---
-    criar_novo = False
-    if not os.path.exists(caminho_json) or os.path.getsize(caminho_json) == 0:
-        criar_novo = True
-    else:
         try:
             with open(caminho_json, 'r', encoding='utf-8') as f:
-                json.load(f)
-        except json.JSONDecodeError:
-            criar_novo = True
+                dados_biblia = json.load(f)
 
-    if criar_novo:
-        dados_padrao = {
-            "Gênesis": {
-                "Capítulo 1": [
-                    "No princípio, criou Deus os céus e a terra.",
-                    "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
-                    "E disse Deus: Haja luz. E houve luz."
-                ],
-                "Capítulo 2": [
-                    "Assim os céus, a terra e todo o seu exército foram acabados.",
-                    "E havendo Deus acabado no dia sétimo a sua obra, que tinha feito, descansou."
-                ]
-            },
-            "Êxodo": {
-                "Capítulo 1": [
-                    "Estes pois são os nomes dos filhos de Israel, que entraram no Egito com Jacó."
-                ]
-            }
-        }
-        with open(caminho_json, 'w', encoding='utf-8') as f:
-            json.dump(dados_padrao, f, indent=4, ensure_ascii=False)
-        st.sidebar.info("Aviso: 'biblia.json' padrão criado!")
-
-    # --- LEITURA E RENDERIZAÇÃO DOS DADOS ---
-    try:
-        with open(caminho_json, 'r', encoding='utf-8') as f:
-            dados_biblia = json.load(f)
-
-        if isinstance(dados_biblia, dict):
-            st.sidebar.markdown("### 🔍 Navegação")
-            
-            # 1. Seleciona o Livro
-            lista_livros = list(dados_biblia.keys())
-            livro_sel = st.sidebar.selectbox("Escolha o Livro:", lista_livros)
-            
-            # 2. Seleciona o Capítulo baseado no Livro escolhido
-            conteudo_livro = dados_biblia[livro_sel]
-            
-            # Correção para caso o formato do JSON externo seja uma lista de capítulos em vez de dicionário
-            if isinstance(conteudo_livro, list):
-                lista_capitulos = [f"Capítulo {i+1}" for i in range(len(conteudo_livro))]
-                capitulo_sel = st.sidebar.selectbox("Escolha o Capítulo:", lista_capitulos)
-                # Extrai o índice numérico do capítulo
+            # Estrutura flexível para ler o JSON padrão do GitHub (Lista de livros com lista de capítulos)
+            if isinstance(dados_biblia, list):
+                lista_livros = [livro['name'] for livro in dados_biblia]
+                livro_sel = st.selectbox("Escolha o Livro:", lista_livros)
+                
+                # Busca o livro selecionado
+                dados_livro = next(item for item in dados_biblia if item["name"] == livro_sel)
+                
+                lista_capitulos = [f"Capítulo {i+1}" for i in range(len(dados_livro["chapters"]))]
+                capitulo_sel = st.selectbox("Escolha o Capítulo:", lista_capitulos)
                 idx_capitulo = lista_capitulos.index(capitulo_sel)
-                versiculos = conteudo_livro[idx_capitulo]
-            else:
-                lista_capitulos = list(conteudo_livro.keys())
-                capitulo_sel = st.sidebar.selectbox("Escolha o Capítulo:", lista_capitulos)
-                versiculos = conteudo_livro[capitulo_sel]
-            
-            # Exibe na tela principal
-            st.subheader(f"📖 {livro_sel} - {capitulo_sel}")
-            st.markdown("---")
-            
-            # Renderização flexível de versículos
-            if isinstance(versiculos, list):
+                
+                versiculos = dados_livro["chapters"][idx_capitulo]
+                
+                st.markdown(f"### {livro_sel} - {capitulo_sel}")
+                st.markdown("---")
                 for idx, texto in enumerate(versiculos, start=1):
                     st.markdown(f"**{idx}** {texto}")
-            elif isinstance(versiculos, dict):
-                for v_num, v_texto in versiculos.items():
-                    st.markdown(f"**{v_num}** {v_texto}")
-            else:
-                st.markdown(str(versiculos))
-        else:
-            st.error("A estrutura dentro do 'biblia.json' não está no formato esperado.")
+        except Exception as e:
+            st.error(f"Erro ao carregar os livros da Bíblia: {e}")
 
-    except Exception as e:
-        st.error(f"Erro crítico ao processar a Bíblia: {e}")
+    # --- ABA 2: BATE-PAPO & VIDEOCONFERÊNCIA ---
+    elif aba_selecionada == "💬 Bate-Papo & Reuniões":
+        st.title("💬 Comunidade e Reuniões Ágape")
+        
+        col_video, col_chat = st.columns([2, 1])
+        
+        with col_video:
+            st.subheader("📹 Sala de Transmissão / Videoconferência")
+            st.caption("Ideal para cultos online, reuniões com o pastor e estudos bíblicos.")
+            
+            # Link público do Jitsi Meet embutido de forma segura
+            sala_id = "PortalAgapeReuniaoGeral"
+            jitsi_url = f"https://jit.si{sala_id}"
+            
+            # Incorpora a sala dentro do Streamlit via Iframe HTML
+            st.components.v1.iframe(jitsi_url, height=550, scrolling=True)
+            st.info("💡 Você também pode acessar diretamente ou convidar de fora usando o link público do [Jitsi Meet](https://jit.si).")
+
+        with col_chat:
+            st.subheader("💬 Mural de Conversas")
+            
+            # Caixa para digitar novas mensagens
+            nova_msg = st.text_input("Digite sua mensagem para a igreja:", key="input_chat")
+            if st.button("Enviar Mensagem", use_container_width=True):
+                if nova_msg:
+                    autor = st.session_state['login_user']
+                    st.session_state['mensagens_chat'].append(f"**{autor}:** {nova_msg}")
+                    st.rerun()
+            
+            # Exibição do histórico de mensagens enviadas nesta sessão
+            st.markdown("---")
+            for msg in reversed(st.session_state['mensagens_chat']):
+                st.markdown(msg)
+
+    # --- ABA 3: SALA DE ORAÇÃO INDIVIDUAL ---
+    elif aba_selecionada == "🙏 Sala de Oração Individual":
+        st.title("🙏 Sala de Oração Privada")
+        st.markdown("Esta é uma sala reservada para atendimento pastoral individual ou orações particulares em vídeo.")
+        
+        # Gerador dinâmico de salas privadas com base no nome do usuário para não cruzar conexões
+        usuario_atual = st.session_state.get('login_user', 'Membro')
+        sala_privada_id = f"PortalAgapeOracao_{usuario_atual}"
+        jitsi_privado_url = f"https://jit.si{sala_privada_id}"
+        
+        st.subheader("🎥 Sua Conexão Particular de Oração")
+        st.caption("Passe o link da sua sala para o pastor entrar e orar com você de forma 100% isolada.")
+        st.code(jitsi_privado_url, language="text")
+        
+        st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
+
+    # --- ABA 4: RÁDIO CRISTÃ ---
+    elif aba_selecionada == "📻 Rádio Cristã":
+        st.title("📻 Rádio Web Ágape")
+        st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
+        
+        # Lista de rádios cristãs brasileiras com links diretos de áudio válidos
+        opcoes_radios = {
+            "Rádio Novo Tempo (Geral)": "https://novotempo.com",
+            "Rádio Gospel FM": "https://gospelfm.com.br",
+            "Bíblia Áudio (Streaming de Leitura)": "https://zoeweb.com.br"
+        }
+        
+        radio_sel = st.selectbox("Escolha uma estação de rádio:", list(opcoes_radios.keys()))
+        url_audio = opcoes_radios[radio_sel]
+        
+        st.markdown(f"### Ouvindo agora: **{radio_sel}**")
+        
+        # Player HTML5 nativo que funciona em qualquer navegador sem travar o Streamlit
+        st.audio(url_audio, format="audio/mp3")
+        st.caption("Se o áudio não iniciar imediatamente, certifique-se de clicar no botão de Play do player acima.")
