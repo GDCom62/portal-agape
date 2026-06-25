@@ -137,26 +137,32 @@ else:
         st.title("📻 Rádio Web Ágape")
         st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
         
-        # Seleção de rádios usando players visuais e funcionais seguros
-        radio_sel = st.selectbox(
-            "Escolha uma estação de rádio:", 
-            ["Rádio Melodia FM (Rio)", "Rádio Novo Tempo", "Rádio Gospel Adoração 24h"]
-        )
+        # Canais com transmissões abertas (sem bloqueio de segurança/CORS)
+        opcoes_radios = {
+            "Rádio Melodia (Streaming Direto)": "https://painelcast.com",
+            "Rádio Novo Tempo (Canal Aberto)": "https://novotempo.com",
+            "BBN Cristã (Estudos e Palavra)": "https://streamguys1.com",
+            "Rádio Gospel Mix": "https://mixgospel.com.br"
+        }
         
-        st.markdown(f"### Sintonizado: **{radio_sel}**")
+        radio_sel = st.selectbox("Escolha uma estação de rádio:", list(opcoes_radios.keys()))
+        url_audio = opcoes_radios[radio_sel]
+        
+        st.markdown(f"### Sintonizado em: **{radio_sel}**")
         st.markdown("---")
         
-        if radio_sel == "Rádio Melodia FM (Rio)":
-            # Embutindo o player oficial que funciona direto sem travar o navegador
-            st.components.v1.iframe("https://www.melodia.com.br/player/", height=180, scrolling=False)
-            st.caption("📱 Toque no botão de 'Play' dentro da janela acima para ouvir a Melodia FM [Rádio Melodia](https://www.melodia.com.br/).")
-            
-        elif radio_sel == "Rádio Novo Tempo":
-            # Player de transmissão oficial integrado da Novo Tempo
-            st.components.v1.iframe("https://www.novotempo.com/radioaovivo/", height=400, scrolling=True)
-            st.caption("📱 Navegue e ligue o áudio pelo painel oficial da [Rádio Novo Tempo](https://www.novotempo.com/radioaovivo/).")
-            
-        elif radio_sel == "Rádio Gospel Adoração 24h":
-            # Player alternativo via rádio web aberta estável
-            st.components.v1.iframe("https://vcfon.com", height=150, scrolling=False)
+        # Player HTML5 puro injetado diretamente para burlar bloqueios do navegador
+        codigo_player_html = f"""
+        <div style="background-color: #f1f3f4; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ccc;">
+            <p style="color: #333; font-family: sans-serif; font-weight: bold; margin-bottom: 15px;">▶️ Reprodutor Ágape Link Direto</p>
+            <audio controls autoplay style="width: 100%;">
+                <source src="{url_audio}" type="audio/mpeg">
+                Seu navegador não suporta este tocador de áudio.
+            </audio>
+            <p style="color: #666; font-size: 12px; margin-top: 10px;">Se o som não iniciar sozinho, clique no botão Play acima.</p>
+        </div>
+        """
+        
+        st.components.v1.html(codigo_player_html, height=160)
+
             st.caption("📱 Clique no Play caso o som não comece sozinho.")
