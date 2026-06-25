@@ -132,35 +132,33 @@ else:
         
         st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
 
-        # --- ABA 4: RÁDIO CRISTÃ ---
+      # --- ABA 4: RÁDIO CRISTÃ ---
     elif aba_selecionada == "📻 Rádio Cristã":
         st.title("📻 Rádio Web Ágape")
-        st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
-        
-        # Canais com transmissões abertas (sem bloqueio de segurança)
-        opcoes_radios = {
-            "Rádio Melodia (Streaming Direto)": "https://painelcast.com",
-            "Rádio Novo Tempo (Canal Aberto)": "https://novotempo.com",
-            "BBN Cristã (Estudos e Palavra)": "https://streamguys1.com",
-            "Rádio Gospel Mix": "https://mixgospel.com.br"
-        }
-        
-        radio_sel = st.selectbox("Escolha uma estação de rádio:", list(opcoes_radios.keys()))
-        url_audio = opcoes_radios[radio_sel]
-        
-        st.markdown(f"### Sintonizado em: **{radio_sel}**")
+        st.markdown("Ouça louvores e programações edificantes de grandes emissoras cristãs.")
         st.markdown("---")
         
-        # Player HTML5 puro injetado diretamente para burlar bloqueios do navegador
-        codigo_player_html = f"""
-        <div style="background-color: #f1f3f4; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ccc;">
-            <p style="color: #333; font-family: sans-serif; font-weight: bold; margin-bottom: 15px;">▶️ Reprodutor Ágape Link Direto</p>
-            <audio controls autoplay style="width: 100%;">
-                <source src="{url_audio}" type="audio/mpeg">
-                Seu navegador não suporta este tocador de áudio.
-            </audio>
-            <p style="color: #666; font-size: 12px; margin-top: 10px;">Se o som não iniciar sozinho, clique no botão Play acima.</p>
-        </div>
-        """
-        
+        st.subheader("🎵 Selecione uma Estação para Ouvir:")
+        st.caption("Devido às regras de segurança do navegador na nuvem, clique no link da rádio escolhida para abrir o player oficial que transmite sem travamentos.")
+
+        col_nt, col_mel, col_bbn = st.columns(3)
+
+        with col_nt:
+            st.markdown("### 🕊️ Rádio Novo Tempo")
+            st.write("Mensagens de esperança, estudos bíblicos estruturados e música gospel tradicional diária.")
+            st.link_button("▶️ Ouvir Rádio Novo Tempo", "https://www.novotempo.com/radioaovivo/", use_container_width=True)
+
+        with col_mel:
+            st.markdown("### 🎸 Rádio Melodia FM")
+            st.write("Uma das maiores audiências do segmento cristão nacional, focada em louvores e adoração.")
+            st.link_button("▶️ Ouvir Rádio Melodia", "https://melodia.com.br", use_container_width=True)
+
+        with col_bbn:
+            st.markdown("### 📖 BBN Rádio Cristã")
+            st.write("Rede focada puramente no ensino bíblico aprofundado e transmissão de hinos tradicionais instrumentais.")
+            st.link_button("▶️ Ouvir BBN Cristã", "https://bbnradio.org", use_container_width=True)
+            
+        st.markdown("---")
+        st.info("💡 Dica: Deixe a aba da rádio aberta ao lado enquanto você lê os capítulos da Bíblia na primeira aba do Portal Ágape!")
+
         st.components.v1.html(codigo_player_html, height=160)
