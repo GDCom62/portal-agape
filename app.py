@@ -49,32 +49,19 @@ else:
         st.session_state['autenticado'] = False
         st.rerun()
 
-    # --- ABA 1: BÍBLIA SAGRADA ---
+       # --- ABA 1: BÍBLIA SAGRADA ---
     if aba_selecionada == "📖 Bíblia Sagrada":
         st.title("📖 Bíblia Sagrada Completa")
         caminho_json = 'biblia.json'
 
-        # Baixa automaticamente a bíblia completa caso não exista localmente
-        if not os.path.exists(caminho_json) or os.path.getsize(caminho_json) < 1000:
-            st.info("Baixando Bíblia completa em português, por favor aguarde...")
-            url_biblia = "https://githubusercontent.com"
-            try:
-                urllib.request.urlretrieve(url_biblia, caminho_json)
-                st.success("Bíblia baixada com sucesso!")
-            except Exception as e:
-                st.error(f"Erro ao baixar base da bíblia: {e}")
-
         try:
-           with open(caminho_json, 'r', encoding='utf-8-sig') as f:
-
+            with open(caminho_json, 'r', encoding='utf-8-sig') as f:
                 dados_biblia = json.load(f)
 
-            # Estrutura flexível para ler o JSON padrão do GitHub (Lista de livros com lista de capítulos)
             if isinstance(dados_biblia, list):
                 lista_livros = [livro['name'] for livro in dados_biblia]
                 livro_sel = st.selectbox("Escolha o Livro:", lista_livros)
                 
-                # Busca o livro selecionado
                 dados_livro = next(item for item in dados_biblia if item["name"] == livro_sel)
                 
                 lista_capitulos = [f"Capítulo {i+1}" for i in range(len(dados_livro["chapters"]))]
@@ -87,8 +74,13 @@ else:
                 st.markdown("---")
                 for idx, texto in enumerate(versiculos, start=1):
                     st.markdown(f"**{idx}** {texto}")
+            else:
+                st.error("O arquivo JSON não está no formato de lista esperado.")
+        except FileNotFoundError:
+            st.error("O arquivo 'biblia.json' não foi encontrado na pasta do projeto.")
         except Exception as e:
             st.error(f"Erro ao carregar os livros da Bíblia: {e}")
+
 
     # --- ABA 2: BATE-PAPO & VIDEOCONFERÊNCIA ---
     elif aba_selecionada == "💬 Bate-Papo & Reuniões":
