@@ -132,24 +132,31 @@ else:
         
         st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
 
-        # --- ABA 4: RÁDIO CRISTÃ ---
+           # --- ABA 4: RÁDIO CRISTÃ ---
     elif aba_selecionada == "📻 Rádio Cristã":
         st.title("📻 Rádio Web Ágape")
         st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
         
-        # LINKS DE STREAMING ATUALIZADOS E TESTADOS
-        opcoes_radios = {
-            "Rádio Novo Tempo": "https://novotempo.com",
-            "BBN Rádio Cristã (Ensino Bíblico)": "https://streamguys1.com",
-            "Rádio Melodia FM": "https://streamtheworld.com",
-            "Rádio Sara Brasil FM": "https://painelcast.com"
-        }
+        # Seleção de rádios usando players visuais e funcionais seguros
+        radio_sel = st.selectbox(
+            "Escolha uma estação de rádio:", 
+            ["Rádio Melodia FM (Rio)", "Rádio Novo Tempo", "Rádio Gospel Adoração 24h"]
+        )
         
-        radio_sel = st.selectbox("Escolha uma estação de rádio:", list(opcoes_radios.keys()))
-        url_audio = opcoes_radios[radio_sel]
+        st.markdown(f"### Sintonizado: **{radio_sel}**")
+        st.markdown("---")
         
-        st.markdown(f"### Ouvindo agora: **{radio_sel}**")
-        
-        # Player HTML5 nativo
-        st.audio(url_audio, format="audio/mp3")
-        st.caption("Nota: O carregamento pode levar de 3 a 5 segundos após clicar no Play, dependendo do servidor da rádio.")
+        if radio_sel == "Rádio Melodia FM (Rio)":
+            # Embutindo o player oficial que funciona direto sem travar o navegador
+            st.components.v1.iframe("https://www.melodia.com.br/player/", height=180, scrolling=False)
+            st.caption("📱 Toque no botão de 'Play' dentro da janela acima para ouvir a Melodia FM [Rádio Melodia](https://www.melodia.com.br/).")
+            
+        elif radio_sel == "Rádio Novo Tempo":
+            # Player de transmissão oficial integrado da Novo Tempo
+            st.components.v1.iframe("https://www.novotempo.com/radioaovivo/", height=400, scrolling=True)
+            st.caption("📱 Navegue e ligue o áudio pelo painel oficial da [Rádio Novo Tempo](https://www.novotempo.com/radioaovivo/).")
+            
+        elif radio_sel == "Rádio Gospel Adoração 24h":
+            # Player alternativo via rádio web aberta estável
+            st.components.v1.iframe("https://vcfon.com", height=150, scrolling=False)
+            st.caption("📱 Clique no Play caso o som não comece sozinho.")
