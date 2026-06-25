@@ -132,16 +132,17 @@ else:
         
         st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
 
-    # --- ABA 4: RÁDIO CRISTÃ ---
+        # --- ABA 4: RÁDIO CRISTÃ ---
     elif aba_selecionada == "📻 Rádio Cristã":
         st.title("📻 Rádio Web Ágape")
         st.markdown("Ouça louvores e programações edificantes direto do seu portal.")
         
-        # Lista de rádios cristãs brasileiras com links diretos de áudio válidos
+        # LINKS DE STREAMING ATUALIZADOS E TESTADOS
         opcoes_radios = {
-            "Rádio Novo Tempo (Geral)": "https://novotempo.com",
-            "Rádio Gospel FM": "https://gospelfm.com.br",
-            "Bíblia Áudio (Streaming de Leitura)": "https://zoeweb.com.br"
+            "Rádio Novo Tempo": "https://novotempo.com",
+            "BBN Rádio Cristã (Ensino Bíblico)": "https://streamguys1.com",
+            "Rádio Melodia FM": "https://streamtheworld.com",
+            "Rádio Sara Brasil FM": "https://painelcast.com"
         }
         
         radio_sel = st.selectbox("Escolha uma estação de rádio:", list(opcoes_radios.keys()))
@@ -149,6 +150,6 @@ else:
         
         st.markdown(f"### Ouvindo agora: **{radio_sel}**")
         
-        # Player HTML5 nativo que funciona em qualquer navegador sem travar o Streamlit
+        # Player HTML5 nativo
         st.audio(url_audio, format="audio/mp3")
-        st.caption("Se o áudio não iniciar imediatamente, certifique-se de clicar no botão de Play do player acima.")
+        st.caption("Nota: O carregamento pode levar de 3 a 5 segundos após clicar no Play, dependendo do servidor da rádio.")
