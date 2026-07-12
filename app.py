@@ -12,6 +12,7 @@ st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 from google import genai
 from google.types import GenerateContentConfig
 
+
 @st.cache_resource
 def info_ia():
     try:
