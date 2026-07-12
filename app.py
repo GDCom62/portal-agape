@@ -124,27 +124,29 @@ if st.session_state.autenticado:
     st.divider()
 
     # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
-    def sugerir_louvores_ia(texto_v, ref_v):
-        if not client_gemini:
-            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
-        try:
-            config = GenerateContentConfig(
-                system_instruction=(
-                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
-                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
-                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
-                ),
-                temperature=0.4
-            )
-            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
-            response = client_gemini.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                config=config
-            )
-            return response.text
-        except Exception as e:
-            return f"Não foi possível contactar a IA para buscar louvores: {e}"
+   # Modifique a sua função para ficar exatamente assim:
+def sugerir_louvores_ia(texto_v, ref_v):
+    if not client_gemini:
+        return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
+    try:
+        # Repare na alteração para types.GenerateContentConfig abaixo:
+        config = types.GenerateContentConfig(
+            system_instruction=(
+                "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
+                "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
+                "perfeitamente com o tema central do texto. Seja breve na justificativa."
+            ),
+            temperature=0.4
+        )
+        prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
+        response = client_gemini.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=config
+        )
+        return response.text
+    except Exception as e:
+        return f"Não foi possível contactar a IA para buscar louvores: {e}"
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
