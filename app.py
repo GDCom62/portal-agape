@@ -3,19 +3,18 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
-import os
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# IMPORTAÇÃO CORRETA PARA O NOVO SDK GOOGLE-GENAI
+# Instancia o cliente da IA utilizando a biblioteca oficial google-genai
 from google import genai
 from google.genai import types
 
 @st.cache_resource
 def info_ia():
     try:
-        # Busca automaticamente a variável de ambiente GEMINI_API_KEY do Streamlit Cloud
+        # Busca automaticamente a variável de ambiente GEMINI_API_KEY configurada no painel do Streamlit Cloud
         return genai.Client()
     except Exception:
         return None
@@ -29,7 +28,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn: conn.execute(text(sql), params or {})
 
 def consultar_db(sql, params=None):
@@ -38,34 +37,56 @@ def consultar_db(sql, params=None):
         except: return pd.DataFrame()
 
 # Criação inicial das tabelas do sistema
-executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
-executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
-executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
-executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
-executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
+ejecutar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
+ejecutar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
+ejecutar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
-    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+    ejecutar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
 # --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
 BIBLIA_ESTAVEL = {
     "Gênesis": {
-        1: {1: "No princípio criou Deus os céus e a terra.", 2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 3: "E disse Deus: Haja luz; e houve luz.", 4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 5: "E Deus chamou à luz Dia; e às trevas chamou Noite."}
+        1: {
+            1: "No princípio criou Deus os céus e a terra.", 
+            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
+            3: "E disse Deus: Haja luz; e houve luz.", 
+            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
+            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
+        }
     },
     "Números": {
-        4: {1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 3: "Da idade de trinta anos para cima até aos cinquenta anos...", 4: "Este será o serviço dos filhos de Coate na tenda da congregação."}
+        4: {
+            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 
+            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 
+            3: "Da idade de trinta anos para cima até aos cinquenta anos...", 
+            4: "Este será o serviço dos filhos de Coate na tenda da congregação."
+        }
     },
     "Salmos": {
-        23: {1: "O Senhor é o meu pastor, nada me faltará.", 2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 6: "Certamente que a bondade e a misericórdia me seguirão."}
+        23: {
+            1: "O Senhor é o meu pastor, nada me faltará.", 
+            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
+            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
+            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
+            5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
+            6: "Certamente que a bondade e a misericórdia me seguirão."
+        }
     },
     "João": {
-        3: {16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 18: "Quem crê nele não é condizido à condenação."}
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 
+            18: "Quem crê nele não é condizido à condenação."
+        }
     }
 }
 
@@ -102,7 +123,7 @@ if not st.session_state.autenticado:
         if st.button("Cadastrar conta", use_container_width=True):
             if nu and len(np) >= 4:
                 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": nu}).empty:
-                    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
+                    ejecutar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
                     st.success("Conta criada!")
 
 if st.session_state.autenticado:
@@ -120,20 +141,19 @@ if st.session_state.autenticado:
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
     st.divider()
 
-    # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
+    # --- FUNÇÕES INTERNAS DE ASSISTÊNCIA DE IA (GEMINI 2.5) ---
     def sugerir_louvores_ia(texto_v, ref_v):
         if not client_gemini:
-            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
+            return "Chave de IA (GEMINI_API_KEY) não configurada nas variáveis de ambiente do Streamlit."
         try:
             config = types.GenerateContentConfig(
                 system_instruction=(
-                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
-                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
-                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
+                    "Atue como um experiente diretor de louvor cristão. Sugira 3 louvores ou hinos conhecidos "
+                    "relevantes ao tema espiritual deste versículo. Seja breve e edificante."
                 ),
                 temperature=0.4
             )
-            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
+            prompt = f"Sugira louvores para o versículo {ref_v}: '{texto_v}'"
             response = client_gemini.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
@@ -141,22 +161,25 @@ if st.session_state.autenticado:
             )
             return response.text
         except Exception as e:
-            return f"Não foi possível contactar a IA para buscar louvores: {e}"
+            return f"Não foi possível buscar as sugestões da IA: {e}"
+
+    def analisar_exegese_ia(texto_v, ref_v):
+        if not client_gemini:
+            return "Chave de IA (GEMINI_API_KEY) ausente."
+        try:
+            config = types.GenerateContentConfig(
+                system_instruction="Atue como um teólogo experiente. Forneça uma breve análise exegética e uma aplicação pastoral prática para o versículo.",
+                temperature=0.3
+            )
+            prompt = f"Faça uma análise exegética de {ref_v} - '{texto_v}'"
+            response = client_gemini.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=config
+            )
+            return response.text
+        except Exception as e:
+            return f"Erro na análise: {e}"
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
-        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        mes_atual_nome = meses[datetime.date.today().month - 1]
-        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
-        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: st.caption("Nenhum aniversário registrado para este mês.")
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia & Roteiro de Culto":
-        st.subheader("📖 Bíblia Sagrada ACF e Montagem de Roteiro Exegético")
-        
-        livros_disp = list(BIBLIA_ESTAVEL.keys())
-        c1, c2, c3 = st.columns(3)
