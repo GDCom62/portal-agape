@@ -4,6 +4,8 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
+from google import genai
+from google.genai import types
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
