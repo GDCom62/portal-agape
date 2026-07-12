@@ -1,164 +1,161 @@
 import streamlit as st
-import json
+import pandas as pd
+from sqlalchemy import create_engine, text
+from werkzeug.security import generate_password_hash, check_password_hash
+import datetime
 import os
-import urllib.request
 
-# Configuração da página do Streamlit
-st.set_page_config(page_title="Portal Ágape", page_icon="✝️", layout="wide")
+# --- 1. CONFIGURAÇÕES DA PÁGINA ---
+st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Inicialização das variáveis de estado (Session State)
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
-if 'mensagens_chat' not in st.session_state:
-    st.session_state['mensagens_chat'] = []
+# Instancia o cliente da IA utilizando a nova biblioteca google-genai documentada
+from google import genai
+from google.types import GenerateContentConfig
 
-# --- TELA DE LOGIN ---
-if not st.session_state['autenticado']:
-    st.markdown("<h2 style='text-align: center;'>🔒 Portal Ágape - Área Restrita</h2>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.3, 1])
-    with col2:
-        st.markdown("### Digite suas credenciais")
-        campo_usuario = st.text_input("Usuário", key="login_user")
-        campo_senha = st.text_input("Senha", type="password", key="login_pass")
-        botao_entrar = st.button("Entrar no Sistema", use_container_width=True)
-        
-        if botao_entrar:
-            if campo_usuario == "agape" and campo_senha == "12345":
-                st.session_state['autenticado'] = True
-                st.success("Acesso liberado!")
+@st.cache_resource
+def info_ia():
+    try:
+        # Busca automaticamente a variável de ambiente GEMINI_API_KEY
+        return genai.Client()
+    except Exception:
+        return None
+
+client_gemini = info_ia()
+
+# --- 2. CONEXÃO BANCO DE DADOS LOCAL ---
+@st.cache_resource
+def inicializar_conexoes():
+    return create_engine("sqlite:///agape_v60.db", connect_args={"check_same_thread": False, "timeout": 30})
+
+engine = inicializar_conexoes()
+
+def executar_query(sql, params=None):
+    with engine.begin() as conn: conn.execute(text(sql), params or {})
+
+def consultar_db(sql, params=None):
+    with engine.connect() as conn:
+        try: return pd.read_sql_query(text(sql), conn, params=params or {})
+        except: return pd.DataFrame()
+
+# Criação inicial das tabelas do sistema
+executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
+executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
+executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
+executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+
+admin_user = "admin@agape.com"
+if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
+    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+
+# --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
+BIBLIA_ESTAVEL = {
+    "Gênesis": {
+        1: {1: "No princípio criou Deus os céus e a terra.", 2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 3: "E disse Deus: Haja luz; e houve luz.", 4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 5: "E Deus chamou à luz Dia; e às trevas chamou Noite."}
+    },
+    "Números": {
+        4: {1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 3: "Da idade de trinta anos para cima até aos cinquenta anos...", 4: "Este será o serviço dos filhos de Coate na tenda da congregação."}
+    },
+    "Salmos": {
+        23: {1: "O Senhor é o meu pastor, nada me faltará.", 2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 6: "Certamente que a bondade e a misericórdia me seguirão."}
+    },
+    "João": {
+        3: {16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 18: "Quem crê nele não é condizido à condenação."}
+    }
+}
+
+# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO (ROTEIRO) ---
+if "roteiro_culto" not in st.session_state:
+    st.session_state.roteiro_culto = []
+
+st.markdown("""
+    <style>
+    .stAppViewContainer { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; }
+    .versiculo-box { background: linear-gradient(135deg, #212529 0%, #0d0d0d 100%) !important; color: #FFD700 !important; padding: 25px !important; border-radius: 15px !important; border: 2px solid #FFD700 !important; text-align: center !important; }
+    .leitura-box { background-color: #ffffff !important; padding: 20px; border-radius: 12px; border: 1px solid #e0a800; color: #212529 !important; margin-bottom: 10px; }
+    </style>
+""", unsafe_allow_html=True)
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado, st.session_state.usuario_atual, st.session_state.nivel_atual = False, None, "Membro"
+
+st.sidebar.title("🔐 Acesso ao Portal")
+if not st.session_state.autenticado:
+    tab_log, tab_new = st.sidebar.tabs(["Entrar", "Novo Acesso"])
+    with tab_log:
+        u = st.text_input("Usuário", value="admin@agape.com", key="u_log").strip()
+        p = st.text_input("Senha", type="password", value="agape2026", key="p_log")
+        if st.button("Autenticar", use_container_width=True):
+            df = consultar_db("SELECT senha, nivel FROM usuarios WHERE usuario = :u", {"u": u})
+            if not df.empty and check_password_hash(str(df.loc[0, 'senha']), p):
+                st.session_state.autenticado, st.session_state.usuario_atual, st.session_state.nivel_atual = True, u, df.loc[0, 'nivel']
                 st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
+            else: st.error("Dados incorretos.")
+    with tab_new:
+        nu = st.text_input("E-mail corporativo", key="u_reg").strip()
+        np = st.text_input("Senha de acesso", type="password", key="p_reg")
+        if st.button("Cadastrar conta", use_container_width=True):
+            if nu and len(np) >= 4:
+                if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": nu}).empty:
+                    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
+                    st.success("Conta criada!")
 
-# --- SISTEMA APÓS LOGIN (DASHBOARD) ---
-else:
-    # Menu lateral de navegação principal
-    st.sidebar.title("⛪ Portal Ágape")
-    st.sidebar.markdown(f"Bem-vindo, **{st.session_state.get('login_user', 'Membro')}**")
-    
-    # Seletor de abas do sistema
-    aba_selecionada = st.sidebar.radio(
-        "Navegar para:",
-        ["📖 Bíblia Sagrada", "💬 Bate-Papo & Reuniões", "🙏 Sala de Oração Individual", "📻 Rádio Cristã"]
-    )
-    
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🚪 Fazer Logout", use_container_width=True):
-        st.session_state['autenticado'] = False
+if st.session_state.autenticado:
+    st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
+    if st.sidebar.button("🚪 Desconectar Sistema", use_container_width=True):
+        st.session_state.autenticado = False
         st.rerun()
 
-       # --- ABA 1: BÍBLIA SAGRADA ---
-    if aba_selecionada == "📖 Bíblia Sagrada":
-        st.title("📖 Bíblia Sagrada Completa")
-        caminho_json = 'biblia.json'
+    menu = [
+        "Início & Versículos", "Bíblia & Roteiro de Culto", "Comunhão Online (Jitsi)", 
+        "Rádio Web & Transmissão", "Membros", "Cadastro de Visitantes", 
+        "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos Protegidos", 
+        "Patrimônio da Igreja", "Avisos", "Louvores"
+    ]
+    escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
+    st.divider()
 
+    # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
+    def sugerir_louvores_ia(texto_v, ref_v):
+        if not client_gemini:
+            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
         try:
-            with open(caminho_json, 'r', encoding='utf-8-sig') as f:
-                dados_biblia = json.load(f)
-
-            if isinstance(dados_biblia, list):
-                lista_livros = [livro['name'] for livro in dados_biblia]
-                livro_sel = st.selectbox("Escolha o Livro:", lista_livros)
-                
-                dados_livro = next(item for item in dados_biblia if item["name"] == livro_sel)
-                
-                lista_capitulos = [f"Capítulo {i+1}" for i in range(len(dados_livro["chapters"]))]
-                capitulo_sel = st.selectbox("Escolha o Capítulo:", lista_capitulos)
-                idx_capitulo = lista_capitulos.index(capitulo_sel)
-                
-                versiculos = dados_livro["chapters"][idx_capitulo]
-                
-                st.markdown(f"### {livro_sel} - {capitulo_sel}")
-                st.markdown("---")
-                for idx, texto in enumerate(versiculos, start=1):
-                    st.markdown(f"**{idx}** {texto}")
-            else:
-                st.error("O arquivo JSON não está no formato de lista esperado.")
-        except FileNotFoundError:
-            st.error("O arquivo 'biblia.json' não foi encontrado na pasta do projeto.")
+            config = GenerateContentConfig(
+                system_instruction=(
+                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
+                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
+                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
+                ),
+                temperature=0.4
+            )
+            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
+            response = client_gemini.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=config
+            )
+            return response.text
         except Exception as e:
-            st.error(f"Erro ao carregar os livros da Bíblia: {e}")
+            return f"Não foi possível contactar a IA para buscar louvores: {e}"
 
+    if escolha == "Início & Versículos":
+        st.subheader("⛪ Bem-vindo ao Portal Ágape")
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual_nome = meses[datetime.date.today().month - 1]
+        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
+        if not df_aniv.empty:
+            for idx, row in df_aniv.iterrows(): st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
+        else: st.caption("Nenhum aniversário registrado para este mês.")
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
-    # --- ABA 2: BATE-PAPO & VIDEOCONFERÊNCIA ---
-    elif aba_selecionada == "💬 Bate-Papo & Reuniões":
-        st.title("💬 Comunidade e Reuniões Ágape")
+    elif escolha == "Bíblia & Roteiro de Culto":
+        st.subheader("📖 Bíblia Sagrada ACF e Montagem de Roteiro Exegético")
         
-        col_video, col_chat = st.columns([2, 1])
-        
-        with col_video:
-            st.subheader("📹 Sala de Transmissão / Videoconferência")
-            st.caption("Ideal para cultos online, reuniões com o pastor e estudos bíblicos.")
-            
-            # Link público do Jitsi Meet embutido de forma segura
-            sala_id = "PortalAgapeReuniaoGeral"
-            jitsi_url = f"https://jit.si{sala_id}"
-            
-            # Incorpora a sala dentro do Streamlit via Iframe HTML
-            st.components.v1.iframe(jitsi_url, height=550, scrolling=True)
-            st.info("💡 Você também pode acessar diretamente ou convidar de fora usando o link público do [Jitsi Meet](https://jit.si).")
-
-        with col_chat:
-            st.subheader("💬 Mural de Conversas")
-            
-            # Caixa para digitar novas mensagens
-            nova_msg = st.text_input("Digite sua mensagem para a igreja:", key="input_chat")
-            if st.button("Enviar Mensagem", use_container_width=True):
-                if nova_msg:
-                    autor = st.session_state['login_user']
-                    st.session_state['mensagens_chat'].append(f"**{autor}:** {nova_msg}")
-                    st.rerun()
-            
-            # Exibição do histórico de mensagens enviadas nesta sessão
-            st.markdown("---")
-            for msg in reversed(st.session_state['mensagens_chat']):
-                st.markdown(msg)
-
-    # --- ABA 3: SALA DE ORAÇÃO INDIVIDUAL ---
-    elif aba_selecionada == "🙏 Sala de Oração Individual":
-        st.title("🙏 Sala de Oração Privada")
-        st.markdown("Esta é uma sala reservada para atendimento pastoral individual ou orações particulares em vídeo.")
-        
-        # Gerador dinâmico de salas privadas com base no nome do usuário para não cruzar conexões
-        usuario_atual = st.session_state.get('login_user', 'Membro')
-        sala_privada_id = f"PortalAgapeOracao_{usuario_atual}"
-        jitsi_privado_url = f"https://jit.si{sala_privada_id}"
-        
-        st.subheader("🎥 Sua Conexão Particular de Oração")
-        st.caption("Passe o link da sua sala para o pastor entrar e orar com você de forma 100% isolada.")
-        st.code(jitsi_privado_url, language="text")
-        
-        st.components.v1.iframe(jitsi_privado_url, height=500, scrolling=True)
-
-      # --- ABA 4: RÁDIO CRISTÃ ---
-    elif aba_selecionada == "📻 Rádio Cristã":
-        st.title("📻 Rádio Web Ágape")
-        st.markdown("Ouça louvores e programações edificantes de grandes emissoras cristãs.")
-        st.markdown("---")
-        
-        st.subheader("🎵 Selecione uma Estação para Ouvir:")
-        st.caption("Devido às regras de segurança do navegador na nuvem, clique no link da rádio escolhida para abrir o player oficial que transmite sem travamentos.")
-
-        col_nt, col_mel, col_bbn = st.columns(3)
-
-        with col_nt:
-            st.markdown("### 🕊️ Rádio Novo Tempo")
-            st.write("Mensagens de esperança, estudos bíblicos estruturados e música gospel tradicional diária.")
-            st.link_button("▶️ Ouvir Rádio Novo Tempo", "https://www.novotempo.com/radioaovivo/", use_container_width=True)
-
-        with col_mel:
-            st.markdown("### 🎸 Rádio Melodia FM")
-            st.write("Uma das maiores audiências do segmento cristão nacional, focada em louvores e adoração.")
-            st.link_button("▶️ Ouvir Rádio Melodia", "https://melodia.com.br", use_container_width=True)
-
-        with col_bbn:
-            st.markdown("### 📖 BBN Rádio Cristã")
-            st.write("Rede focada puramente no ensino bíblico aprofundado e transmissão de hinos tradicionais instrumentais.")
-            st.link_button("▶️ Ouvir BBN Cristã", "https://bbnradio.org", use_container_width=True)
-            
-        st.markdown("---")
-        st.info("💡 Dica: Deixe a aba da rádio aberta ao lado enquanto você lê os capítulos da Bíblia na primeira aba do Portal Ágape!")
-
-        st.components.v1.html(codigo_player_html, height=160)
+        livros_disp = list(BIBLIA_ESTAVEL.keys())
