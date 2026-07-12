@@ -4,21 +4,18 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import os
-from google import genai
-from google.genai import types
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Instancia o cliente da IA utilizando a nova biblioteca google-genai documentada
+# IMPORTAÇÃO CORRETA PARA O NOVO SDK GOOGLE-GENAI
 from google import genai
-from google.types import GenerateContentConfig
-
+from google.genai import types
 
 @st.cache_resource
 def info_ia():
     try:
-        # Busca automaticamente a variável de ambiente GEMINI_API_KEY
+        # Busca automaticamente a variável de ambiente GEMINI_API_KEY do Streamlit Cloud
         return genai.Client()
     except Exception:
         return None
@@ -124,29 +121,27 @@ if st.session_state.autenticado:
     st.divider()
 
     # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
-   # Modifique a sua função para ficar exatamente assim:
-def sugerir_louvores_ia(texto_v, ref_v):
-    if not client_gemini:
-        return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
-    try:
-        # Repare na alteração para types.GenerateContentConfig abaixo:
-        config = types.GenerateContentConfig(
-            system_instruction=(
-                "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
-                "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
-                "perfeitamente com o tema central do texto. Seja breve na justificativa."
-            ),
-            temperature=0.4
-        )
-        prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
-        response = client_gemini.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=config
-        )
-        return response.text
-    except Exception as e:
-        return f"Não foi possível contactar a IA para buscar louvores: {e}"
+    def sugerir_louvores_ia(texto_v, ref_v):
+        if not client_gemini:
+            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
+        try:
+            config = types.GenerateContentConfig(
+                system_instruction=(
+                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
+                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
+                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
+                ),
+                temperature=0.4
+            )
+            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
+            response = client_gemini.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=config
+            )
+            return response.text
+        except Exception as e:
+            return f"Não foi possível contactar a IA para buscar louvores: {e}"
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -164,3 +159,4 @@ def sugerir_louvores_ia(texto_v, ref_v):
         st.subheader("📖 Bíblia Sagrada ACF e Montagem de Roteiro Exegético")
         
         livros_disp = list(BIBLIA_ESTAVEL.keys())
+        c1, c2, c3 = st.columns(3)
