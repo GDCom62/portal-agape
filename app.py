@@ -14,7 +14,7 @@ from google.genai import types
 @st.cache_resource
 def info_ia():
     try:
-        # Busca automaticamente a variável de ambiente GEMINI_API_KEY do Streamlit
+        # Busca automaticamente a variável de ambiente GEMINI_API_KEY
         return genai.Client()
     except Exception:
         return None
@@ -36,7 +36,7 @@ def consultar_db(sql, params=None):
     with engine.connect() as conn:
         try: 
             return pd.read_sql_query(text(sql), conn, params=params or {})
-        except: 
+        except Exception: 
             return pd.DataFrame()
 
 # Criação inicial das tabelas do sistema
@@ -93,6 +93,7 @@ BIBLIA_ESTAVEL = {
     }
 }
 
+# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO (ROTEIRO) ---
 if "roteiro_culto" not in st.session_state:
     st.session_state.roteiro_culto = []
 
@@ -136,7 +137,7 @@ if st.session_state.autenticado:
         st.rerun()
 
     menu = [
-        "Início & Versículos", "Bíblia Completa & Filtro IA", "Comunhão Online (Jitsi)", 
+        "Início & Versículos", "Bíblia Completa & IA", "Comunhão Online (Jitsi)", 
         "Rádio Web & Transmissão", "Membros", "Cadastro de Visitantes", 
         "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos Protegidos", 
         "Patrimônio da Igreja", "Avisos", "Louvores"
@@ -151,13 +152,11 @@ if st.session_state.autenticado:
         try:
             config = types.GenerateContentConfig(
                 system_instruction=(
-                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
-                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
-                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
+                    "Atue como um ministro de louvor. Sugira 3 louvores populares que combinem com o tema do versículo. Seja breve."
                 ),
                 temperature=0.4
             )
-            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
+            prompt = f"Sugira louvores baseados em: {ref_v} - '{texto_v}'"
             response = client_gemini.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
@@ -167,26 +166,21 @@ if st.session_state.autenticado:
         except Exception as e:
             return f"Não foi possível contactar a IA: {e}"
 
-    # --- NOVO RECURSO: ANÁLISE EXEGÉTICA DO VERSÍCULO COMPLETO ---
-    def analisar_versiculo_ia(texto_v, ref_v):
-        if not client_gemini:
-            return "Chave de IA não configurada."
-        try:
-            config = types.GenerateContentConfig(
-                system_instruction=(
-                    "Você é um teólogo cristão ortodoxo erudito. Faça um breve resumo exegético/devocional "
-                    "do versículo enviado, explicando o contexto histórico e uma aplicação prática para a igreja hoje."
-                ),
-                temperature=0.3
-            )
-            prompt = f"Faça o estudo teológico do versículo: {ref_v} - '{texto_v}'"
-            response = client_gemini.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                config=config
-            )
-            return response.text
-        except Exception as e:
-            return f"Erro na análise: {e}"
-
     if escolha == "Início & Versículos":
+        st.subheader("⛪ Bem-vindo ao Portal Ágape")
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual_nome = meses[datetime.date.today().month - 1]
+        
+        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
+        if not df_aniv.empty:
+            for idx, row in df_aniv.iterrows(): 
+                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
+        else: 
+            st.caption("Nenhum aniversário registrado para este mês.")
+            
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
+    elif escolha == "Bíblia Completa & IA":
