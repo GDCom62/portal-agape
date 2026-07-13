@@ -7,14 +7,14 @@ import datetime
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Instancia o cliente da IA utilizando a biblioteca oficial google-genai
+# Instancia o cliente da IA utilizando a nova biblioteca google-genai
 from google import genai
 from google.genai import types
 
 @st.cache_resource
 def info_ia():
     try:
-        # Busca automaticamente a variável de ambiente GEMINI_API_KEY configurada no painel do Streamlit Cloud
+        # Busca automaticamente a variável de ambiente GEMINI_API_KEY do Streamlit
         return genai.Client()
     except Exception:
         return None
@@ -28,29 +28,32 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
-    with engine.begin() as conn: conn.execute(text(sql), params or {})
+def executar_query(sql, params=None):
+    with engine.begin() as conn: 
+        conn.execute(text(sql), params or {})
 
 def consultar_db(sql, params=None):
     with engine.connect() as conn:
-        try: return pd.read_sql_query(text(sql), conn, params=params or {})
-        except: return pd.DataFrame()
+        try: 
+            return pd.read_sql_query(text(sql), conn, params=params or {})
+        except: 
+            return pd.DataFrame()
 
 # Criação inicial das tabelas do sistema
-ejecutar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
-ejecutar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
-ejecutar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
-ejecutar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
+executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
+executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT, data TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS louvores (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, artista TEXT, text TEXT, arquivo_audio BLOB);")
+executar_query("CREATE TABLE IF NOT EXISTS escalas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, ministerio TEXT, voluntario TEXT, periodo TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS escalas_visitas (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, irmao_visitado TEXT, endereço TEXT, responsavel TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, data_visita TEXT, observacoes TEXT, precisa_visita TEXT DEFAULT 'Não');")
+executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
+executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
-    ejecutar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
 # --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
 BIBLIA_ESTAVEL = {
@@ -90,7 +93,6 @@ BIBLIA_ESTAVEL = {
     }
 }
 
-# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO (ROTEIRO) ---
 if "roteiro_culto" not in st.session_state:
     st.session_state.roteiro_culto = []
 
@@ -116,14 +118,15 @@ if not st.session_state.autenticado:
             if not df.empty and check_password_hash(str(df.loc[0, 'senha']), p):
                 st.session_state.autenticado, st.session_state.usuario_atual, st.session_state.nivel_atual = True, u, df.loc[0, 'nivel']
                 st.rerun()
-            else: st.error("Dados incorretos.")
+            else: 
+                st.error("Dados incorretos.")
     with tab_new:
         nu = st.text_input("E-mail corporativo", key="u_reg").strip()
         np = st.text_input("Senha de acesso", type="password", key="p_reg")
         if st.button("Cadastrar conta", use_container_width=True):
             if nu and len(np) >= 4:
                 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": nu}).empty:
-                    ejecutar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
+                    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Membro')", {"u": nu, "s": generate_password_hash(np, method="scrypt")})
                     st.success("Conta criada!")
 
 if st.session_state.autenticado:
@@ -133,7 +136,7 @@ if st.session_state.autenticado:
         st.rerun()
 
     menu = [
-        "Início & Versículos", "Bíblia & Roteiro de Culto", "Comunhão Online (Jitsi)", 
+        "Início & Versículos", "Bíblia Completa & Filtro IA", "Comunhão Online (Jitsi)", 
         "Rádio Web & Transmissão", "Membros", "Cadastro de Visitantes", 
         "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos Protegidos", 
         "Patrimônio da Igreja", "Avisos", "Louvores"
@@ -141,19 +144,20 @@ if st.session_state.autenticado:
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
     st.divider()
 
-    # --- FUNÇÕES INTERNAS DE ASSISTÊNCIA DE IA (GEMINI 2.5) ---
+    # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
     def sugerir_louvores_ia(texto_v, ref_v):
         if not client_gemini:
-            return "Chave de IA (GEMINI_API_KEY) não configurada nas variáveis de ambiente do Streamlit."
+            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
         try:
             config = types.GenerateContentConfig(
                 system_instruction=(
-                    "Atue como um experiente diretor de louvor cristão. Sugira 3 louvores ou hinos conhecidos "
-                    "relevantes ao tema espiritual deste versículo. Seja breve e edificante."
+                    "Atue como um experiente diretor de culto e ministro de louvor. Com base no versículo fornecido, "
+                    "sugira 3 louvores ou hinos populares no meio cristão evangélico brasileiro que combinem "
+                    "perfeitamente com o tema central do texto. Seja breve na justificativa."
                 ),
                 temperature=0.4
             )
-            prompt = f"Sugira louvores para o versículo {ref_v}: '{texto_v}'"
+            prompt = f"Sugira louvores inspirados no versículo: {ref_v} - '{texto_v}'"
             response = client_gemini.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
@@ -161,17 +165,21 @@ if st.session_state.autenticado:
             )
             return response.text
         except Exception as e:
-            return f"Não foi possível buscar as sugestões da IA: {e}"
+            return f"Não foi possível contactar a IA: {e}"
 
-    def analisar_exegese_ia(texto_v, ref_v):
+    # --- NOVO RECURSO: ANÁLISE EXEGÉTICA DO VERSÍCULO COMPLETO ---
+    def analisar_versiculo_ia(texto_v, ref_v):
         if not client_gemini:
-            return "Chave de IA (GEMINI_API_KEY) ausente."
+            return "Chave de IA não configurada."
         try:
             config = types.GenerateContentConfig(
-                system_instruction="Atue como um teólogo experiente. Forneça uma breve análise exegética e uma aplicação pastoral prática para o versículo.",
+                system_instruction=(
+                    "Você é um teólogo cristão ortodoxo erudito. Faça um breve resumo exegético/devocional "
+                    "do versículo enviado, explicando o contexto histórico e uma aplicação prática para a igreja hoje."
+                ),
                 temperature=0.3
             )
-            prompt = f"Faça uma análise exegética de {ref_v} - '{texto_v}'"
+            prompt = f"Faça o estudo teológico do versículo: {ref_v} - '{texto_v}'"
             response = client_gemini.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
@@ -182,4 +190,3 @@ if st.session_state.autenticado:
             return f"Erro na análise: {e}"
 
     if escolha == "Início & Versículos":
-        st.subheader("⛪ Bem-vindo ao Portal Ágape")
