@@ -56,54 +56,20 @@ executar_query(
     {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")}
 )
 
-# --- 3. LIVRARIA BÍBLICA COMPLETA EM MEMÓRIA (TEXTOS FIXOS EM PORTUGUÊS) ---
-BIBLIA_ESTAVEL = {
-    "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.",
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
-            3: "E disse Deus: Haja luz; e houve luz.",
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.",
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."
-        }
-    },
-    "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.",
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome.",
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam.",
-            5: "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda.",
-            6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."
-        },
-        91: {
-            1: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
-            2: "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei.",
-            3: "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.",
-            4: "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel.",
-            5: "Cairão mil ao teu lado, e dez mil à tua direita, mas não chegará a ti."
-        }
-    },
-    "Mateus": {
-        6: {
-            9: "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;",
-            10: "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;",
-            11: "O pão nosso de cada dia nos dá hoje;",
-            12: "E perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores;"
-        }
-    },
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-            18: "Quem crê nele não é condenado; mas quem não crê já está condizido à condenação."
-        }
-    }
-}
+# LISTA DOS 66 LIVROS DA BÍBLIA
+LIVROS_BIBLE = [
+    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
+    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
+    "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos", "Isaías", "Jeremias",
+    "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas",
+    "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
+    "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
+    "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
+    "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
+    "1 João", "2 João", "3 João", "Judas", "Apocalipse"
+]
 
-LIVROS_DISPONIVEIS = list(BIBLIA_ESTAVEL.keys())
-
-# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
+# --- 3. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
     st.session_state.roteiro_culto = []
 
@@ -153,7 +119,7 @@ if st.session_state.autenticado:
         "Patrimônio da Igreja", "Avisos", "Louvores"
     ]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.divider()
+    st.sidebar.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -173,5 +139,41 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa & IA":
-        st.subheader("📖 Bíblia Sagrada ACF Nativa e Balizada")
+        st.subheader("📖 Bíblia Sagrada Completa")
         
+        c1, c2 = st.columns(2)
+        with c1:
+            livro_sel = st.selectbox("Selecione o Livro:", LIVROS_BIBLE)
+        with c2:
+            capitulo_sel = st.number_input("Digite o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+            
+        st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
+        
+        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB
+        df_versiculos = consultar_db(
+            "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
+            {"l": livro_sel, "c": capitulo_sel}
+        )
+        
+        texto_completo_capitulo = ""
+        
+        if not df_versiculos.empty:
+            for idx, row in df_versiculos.iterrows():
+                num_v = row['versiculo']
+                txt_v = row['texto']
+                st.markdown(f'<div class="leitura-box"><b>{num_v}.</b> {txt_v}</div>', unsafe_allow_html=True)
+                texto_completo_capitulo += f"{num_v}. {txt_v}\n"
+        else:
+            st.warning("⚠️ Este capítulo ou livro ainda não foi encontrado no banco de dados local.")
+            st.info("💡 Siga as instruções enviadas pelo assistente para fazer o upload do arquivo da Bíblia completa para o seu repositório.")
+            
+        if texto_completo_capitulo:
+            st.divider()
+            st.write("### 🧠 Painel Teológico de Auxílio Homilético (IA)")
+            if st.button("✨ Solicitar Análise Teológica e Esboço de Sermão", type="primary"):
+                if not client_gemini:
+                    st.error("Chave de IA (GEMINI_API_KEY) ausente ou bloqueada no Streamlit Cloud.")
+                else:
+                    with st.spinner("O Gemini está estruturando a análise exegética..."):
+                        try:
+                            config_exegese = types.GenerateContentConfig(
