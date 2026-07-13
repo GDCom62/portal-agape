@@ -151,7 +151,7 @@ if st.session_state.autenticado:
         # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
-            {"l": livro_sel, "c": capitulo_sel}
+            {"l": libro_sel, "c": capitulo_sel}
         )
         
         texto_completo_capitulo = ""
@@ -175,4 +175,4 @@ if st.session_state.autenticado:
                 else:
                     with st.spinner("O Gemini está estruturando a análise exegética..."):
                         try:
-                            # MODIFICAÇÃO DEFINITIVA: Passando a instrução como um dicionário plano aceito perfeitamente pelo SDK
+                            # CORREÇÃO DE INDENTAÇÃO: Todo o bloco interno do try agora possui o recuo correto de 4 espaços
