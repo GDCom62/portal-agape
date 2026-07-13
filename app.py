@@ -26,7 +26,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
@@ -151,7 +151,7 @@ if st.session_state.autenticado:
         # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
-            {"l": libro_sel, "c": capitulo_sel}
+            {"l": livro_sel, "c": capitulo_sel}
         )
         
         texto_completo_capitulo = ""
@@ -175,4 +175,4 @@ if st.session_state.autenticado:
                 else:
                     with st.spinner("O Gemini está estruturando a análise exegética..."):
                         try:
-                            # CORREÇÃO DE INDENTAÇÃO: Todo o bloco interno do try agora possui o recuo correto de 4 espaços
+                            prompt_ia = f"Gere um esboço sobre: {livro_sel} {capitulo_sel} com base no texto: {texto_completo_capitulo}"
