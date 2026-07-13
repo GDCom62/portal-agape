@@ -148,7 +148,6 @@ if st.session_state.autenticado:
             
         st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
         
-        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
             {"l": livro_sel, "c": capitulo_sel}
@@ -175,4 +174,6 @@ if st.session_state.autenticado:
                 else:
                     with st.spinner("O Gemini está estruturando a análise exegética..."):
                         try:
-                            # ATUALIZAÇÃO DO SDK: Passando os parâmetros de configuração como dicionário simples aceito nativamente
+                            prompt_ia = f"Gere um esboço sobre: {livro_sel} {capitulo_sel} com base no texto: {texto_completo_capitulo}"
+                            res = client_gemini.models.generate_content(
+                                model='gemini-2.5-flash',
