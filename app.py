@@ -50,7 +50,6 @@ executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
-# CORREÇÃO CRUCIAL: 'INSERT OR IGNORE' evita o IntegrityError caso o admin já exista
 admin_user = "admin@agape.com"
 executar_query(
     "INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", 
@@ -174,3 +173,5 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa & IA":
+        st.subheader("📖 Bíblia Sagrada ACF Nativa e Balizada")
+        
