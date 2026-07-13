@@ -27,7 +27,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def ejecutar_query(sql, params=None):
+def executar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
@@ -149,7 +149,6 @@ if st.session_state.autenticado:
             
         st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
         
-        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
             {"l": livro_sel, "c": capitulo_sel}
