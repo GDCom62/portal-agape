@@ -50,9 +50,12 @@ executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
+# CORREÇÃO CRUCIAL: 'INSERT OR IGNORE' evita o IntegrityError caso o admin já exista
 admin_user = "admin@agape.com"
-if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
-    executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
+executar_query(
+    "INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", 
+    {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")}
+)
 
 # --- 3. LIVRARIA BÍBLICA COMPLETA EM MEMÓRIA (TEXTOS FIXOS EM PORTUGUÊS) ---
 BIBLIA_ESTAVEL = {
@@ -94,7 +97,7 @@ BIBLIA_ESTAVEL = {
         3: {
             16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
             17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-            18: "Quem crê nele não é condemned; mas quem não crê já está condizido à condenação."
+            18: "Quem crê nele não é condenado; mas quem não crê já está condizido à condenação."
         }
     }
 }
