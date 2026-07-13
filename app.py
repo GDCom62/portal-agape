@@ -14,7 +14,6 @@ from google.genai import types
 @st.cache_resource
 def info_ia():
     try:
-        # Busca automaticamente a variável de ambiente GEMINI_API_KEY
         return genai.Client()
     except Exception:
         return None
@@ -39,7 +38,7 @@ def consultar_db(sql, params=None):
         except Exception: 
             return pd.DataFrame()
 
-# CRIAÇÃO DAS TABELAS (Garante execução inicial limpa)
+# CRIAÇÃO DAS TABELAS DO SISTEMA
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
@@ -51,53 +50,47 @@ executar_query("CREATE TABLE IF NOT EXISTS visitantes (id INTEGER PRIMARY KEY AU
 executar_query("CREATE TABLE IF NOT EXISTS patrimonio (id INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, quantidade INTEGER, valor REAL, estado TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, arrecadado REAL DEFAULT 0.0);")
 
+# CRIAÇÃO DA TABELA BÍBLICA LOCAL INTEGRADA
+executar_query("CREATE TABLE IF NOT EXISTS biblia_sagrada (id INTEGER PRIMARY KEY AUTOINCREMENT, livro TEXT, capitulo INTEGER, versiculo INTEGER, texto TEXT);")
+
+# SE A BÍBLIA LOCAL ESTIVER VAZIA, ALIMENTA AUTOMATICAMENTE COM OS TEXTOS PRINCIPAIS
+if consultar_db("SELECT id FROM biblia_sagrada LIMIT 1").empty:
+    versiculos_iniciais = [
+        # Gênesis 1
+        ("Gênesis", 1, 1, "No princípio criou Deus os céus e a terra."),
+        ("Gênesis", 1, 2, "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas."),
+        ("Gênesis", 1, 3, "E disse Deus: Haja luz; e houve luz."),
+        ("Gênesis", 1, 4, "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas."),
+        ("Gênesis", 1, 5, "E Deus chamou à luz Dia; e às trevas chamou Noite. E foi a tarde e a manhã, o dia primeiro."),
+        # Salmos 23
+        ("Salmos", 23, 1, "O Senhor é o meu pastor, nada me faltará."),
+        ("Salmos", 23, 2, "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."),
+        ("Salmos", 23, 3, "Refrigera a minha alma; guia-me pelas veredas da justiça, por amor do seu nome."),
+        ("Salmos", 23, 4, "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum, porque tu estás comigo; a tua vara e o teu cajado me consolam."),
+        ("Salmos", 23, 5, "Preparas uma mesa perante mim na presença dos meus inimigos, unges a minha cabeça com óleo, o meu cálice transborda."),
+        ("Salmos", 23, 6, "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida; e habitarei na casa do Senhor por longos dias."),
+        # Salmos 91
+        ("Salmos", 91, 1, "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."),
+        ("Salmos", 91, 2, "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei."),
+        ("Salmos", 91, 3, "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa."),
+        # João 3
+        ("João", 3, 16, "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."),
+        ("João", 3, 17, "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."),
+        # Mateus 6
+        ("Mateus", 6, 9, "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;"),
+        ("Mateus", 6, 10, "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;"),
+        ("Mateus", 6, 11, "O pão nosso de cada dia nos dá hoje;")
+    ]
+    for liv, cap, ver, txt in versiculos_iniciais:
+        executar_query("INSERT INTO biblia_sagrada (livro, capitulo, versiculo, texto) VALUES (:l, :c, :v, :t)", {"l": liv, "c": cap, "v": ver, "t": txt})
+
 admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. BASE BÍBLICA INTERNA INDEPENDENTE (Garante exibição offline imediata) ---
-BIBLIA_INTERNA = {
-    "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.", 
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
-            3: "E disse Deus: Haja luz; e houve luz.", 
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
-        }
-    },
-    "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.", 
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
-            5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
-            6: "Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida."
-        }
-    },
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.", 
-            18: "Quem crê nele não é condenado; mas quem não crê já está condenado."
-        }
-    }
-}
+LIVROS_BIBLE = ["Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute", "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "Salmos", "Provérbios", "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "Apocalipse"]
 
-LIVROS_BIBLE = [
-    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
-    "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos", "Isaías", "Jeremias",
-    "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas",
-    "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
-    "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
-    "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
-    "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
-    "1 João", "2 João", "3 João", "Judas", "Apocalipse"
-]
-
-# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
+# --- 3. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
     st.session_state.roteiro_culto = []
 
@@ -105,7 +98,7 @@ st.markdown("""
     <style>
     .stAppViewContainer { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; }
     .versiculo-box { background: linear-gradient(135deg, #212529 0%, #0d0d0d 100%) !important; color: #FFD700 !important; padding: 25px !important; border-radius: 15px !important; border: 2px solid #FFD700 !important; text-align: center !important; }
-    .leitura-box { background-color: #ffffff !important; padding: 20px; border-radius: 12px; border: 1px solid #e0a800; color: #212529 !important; margin-bottom: 10px; }
+    .leitura-box { background-color: #ffffff !important; padding: 20px; border-radius: 12px; border: 1px solid #e0a800; color: #212529 !important; margin-bottom: 10px; font-size: 16px; line-height: 1.6; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -158,22 +151,3 @@ if st.session_state.autenticado:
         
         st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
         df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
-        if not df_aniv.empty:
-            for idx, row in df_aniv.iterrows(): 
-                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
-        else: 
-            st.caption("Nenhum aniversário registrado para este mês.")
-            
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa & IA":
-        st.subheader("📖 Bíblia Sagrada ACF com Motor Inteligente por IA")
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            livro_sel = st.selectbox("Selecione o Livro:", LIVROS_BIBLE)
-        with c2:
-            capitulo_sel = st.number_input("Digite o Capítulo:", min_value=1, max_value=150, value=1, step=1)
-            
-        st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
-        
