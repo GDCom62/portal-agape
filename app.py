@@ -119,7 +119,7 @@ if st.session_state.autenticado:
         "Patrimônio da Igreja", "Avisos", "Louvores"
     ]
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
-    st.sidebar.divider()
+    st.divider()
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
@@ -149,7 +149,7 @@ if st.session_state.autenticado:
             
         st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
         
-        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB
+        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
             {"l": livro_sel, "c": capitulo_sel}
@@ -165,7 +165,7 @@ if st.session_state.autenticado:
                 texto_completo_capitulo += f"{num_v}. {txt_v}\n"
         else:
             st.warning("⚠️ Este capítulo ou livro ainda não foi encontrado no banco de dados local.")
-            st.info("💡 Siga as instruções enviadas pelo assistente para fazer o upload do arquivo da Bíblia completa para o seu repositório.")
+            st.info("💡 Certifique-se de carregar a tabela 'versiculos' no seu arquivo agape_v60.db para leitura offline.")
             
         if texto_completo_capitulo:
             st.divider()
