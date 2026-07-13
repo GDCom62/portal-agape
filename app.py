@@ -7,9 +7,8 @@ import datetime
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Instancia o cliente da IA utilizando a nova biblioteca oficial google-genai
+# Instancia o cliente da IA utilizando a nova biblioteca google-genai
 from google import genai
-from google.genai import types
 
 @st.cache_resource
 def info_ia():
@@ -149,6 +148,7 @@ if st.session_state.autenticado:
             
         st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
         
+        # CONSULTA DIRETAMENTE A TABELA DA BÍBLIA DENTRO DO SEU ARQUIVO .DB LOCAL
         df_versiculos = consultar_db(
             "SELECT versiculo, texto FROM versiculos WHERE livro = :l AND capitulo = :c ORDER BY versiculo ASC", 
             {"l": livro_sel, "c": capitulo_sel}
@@ -175,5 +175,4 @@ if st.session_state.autenticado:
                 else:
                     with st.spinner("O Gemini está estruturando a análise exegética..."):
                         try:
-                            # ATUALIZAÇÃO DA SINTAXE: Usando o objeto formal types da nova biblioteca google-genai
-                            config_exegese = types.GenerateContentConfig(
+                            # MODIFICAÇÃO DEFINITIVA: Passando a instrução como um dicionário plano aceito perfeitamente pelo SDK
