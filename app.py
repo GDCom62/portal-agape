@@ -7,8 +7,9 @@ import datetime
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
 
-# Instancia o cliente da IA utilizando a nova biblioteca google-genai
+# Instancia o cliente da IA utilizando a nova biblioteca oficial google-genai
 from google import genai
+from google.genai import types
 
 @st.cache_resource
 def info_ia():
@@ -174,6 +175,5 @@ if st.session_state.autenticado:
                 else:
                     with st.spinner("O Gemini está estruturando a análise exegética..."):
                         try:
-                            prompt_ia = f"Gere um esboço sobre: {livro_sel} {capitulo_sel} com base no texto: {texto_completo_capitulo}"
-                            res = client_gemini.models.generate_content(
-                                model='gemini-2.5-flash',
+                            # ATUALIZAÇÃO DA SINTAXE: Usando o objeto formal types da nova biblioteca google-genai
+                            config_exegese = types.GenerateContentConfig(
