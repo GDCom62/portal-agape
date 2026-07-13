@@ -64,7 +64,7 @@ MAPA_LIVROS = {
     "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms", "Provérbios": "proverbs",
     "Eclesiastes": "ecclesiastes", "Cânticos": "songofsolomon", "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations",
     "Ezequiel": "ezekiel", "Daniel": "daniel", "Oseias": "hosea", "Joel": "joel", "Amós": "amos",
-    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque", "habakkuk",
+    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque": "habakkuk",
     "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi",
     "Mateus": "matthew", "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts",
     "Romanos": "romans", "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians",
