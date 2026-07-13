@@ -56,40 +56,54 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. LISTA OFICIAL DE LIVROS DA BÍBLIA PARA OS FILTROS ---
-LIVROS_BIBLE = [
-    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
-    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
-    "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos", "Isaías", "Jeremias",
-    "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas",
-    "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
-    "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
-    "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
-    "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
-    "1 João", "2 João", "3 João", "Judas", "Apocalipse"
-]
+# --- 3. MAPEAMENTO DE LIVROS DA BÍBLIA (Português -> Inglês para compatibilidade com API) ---
+MAPA_LIVROS = {
+    "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
+    "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
+    "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles", "Esdras": "ezra",
+    "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms", "Provérbios": "proverbs",
+    "Eclesiastes": "ecclesiastes", "Cânticos": "songofsolomon", "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations",
+    "Ezequiel": "ezekiel", "Daniel": "daniel", "Oseias": "hosea", "Joel": "joel", "Amós": "amos",
+    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque", "habakkuk",
+    "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi",
+    "Mateus": "matthew", "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts",
+    "Romanos": "romans", "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians",
+    "Filipenses": "philippians", "Colossenses": "colossians", "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians", "1 Timóteo": "1timothy",
+    "2 Timóteo": "2timothy", "Tito": "titus", "Filemom": "philemon", "Hebreus": "hebrews", "Tiago": "james",
+    "1 Pedro": "1peter", "2 Pedro": "2peter", "1 João": "1john", "2 João": "2john", "3 João": "3john",
+    "Judas": "jude", "Apocalipse": "revelation"
+}
+LIVROS_BIBLE = list(MAPA_LIVROS.keys())
 
-# --- 4. FUNÇÃO PARA BUSCAR TEXTOS NA API DA BÍBLIA COMPLETA ---
+# --- 4. FUNÇÃO ROBUSTA COM CONTINGÊNCIA PARA CARREGAR OS VERSÍCULOS ---
 @st.cache_data(ttl=3600)
-def buscar_capitulo_api(livro, capitulo):
-    livro_url = livro.replace(" ", "%20")
-    url = f"https://bible-api.com{livro_url}+{capitulo}?translation=almeida"
+def buscar_capitulo_api(livro_pt, capitulo):
+    livro_en = MAPA_LIVROS.get(livro_pt, "genesis")
+    
+    # Rota primária: bible-api convertendo o nome para o padrão inglês aceito nativamente
+    url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
     try:
-        resposta = requests.get(url, timeout=10)
+        resposta = requests.get(url, timeout=7)
         if resposta.status_code == 200:
             dados = resposta.json()
-            return dados.get("verses", [])
-        return []
+            verses = dados.get("verses", [])
+            if verses:
+                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
     except Exception:
-        # Fallback para API secundária caso a primeira falhe
-        url_alt = f"https://bible-api.com{livro_url}+{capitulo}"
-        try:
-            resposta = requests.get(url_alt, timeout=10)
-            if resposta.status_code == 200:
-                return resposta.json().get("verses", [])
-        except Exception:
-            return []
+        pass
+        
+    # Rota de contingência: Caso a primeira falhe ou venha vazia, busca em inglês genérico
+    url_alt = f"https://bible-api.com{livro_en}+{capitulo}"
+    try:
+        resposta = requests.get(url_alt, timeout=7)
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            verses = dados.get("verses", [])
+            if verses:
+                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
+    except Exception:
         return []
+    return []
 
 # --- 5. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
@@ -156,27 +170,3 @@ if st.session_state.autenticado:
             for idx, row in df_aniv.iterrows(): 
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
-            st.caption("Nenhum aniversário registrado para este mês.")
-            
-        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
-
-    elif escolha == "Bíblia Completa & IA":
-        st.subheader("📖 Bíblia Sagrada Completa com Integração Homilética por IA")
-        
-        # Filtros e Seletores Dinâmicos de Livros e Capítulos
-        c1, c2 = st.columns(2)
-        with c1:
-            livro_sel = st.selectbox("Selecione o Livro:", LIVROS_BIBLE)
-        with c2:
-            capitulo_sel = st.number_input("Digite o Capítulo:", min_value=1, max_value=150, value=1, step=1)
-            
-        with st.spinner("Carregando escrituras sagradas de forma estável..."):
-            versiculos_lista = buscar_capitulo_api(livro_sel, capitulo_sel)
-            
-        if versiculos_lista:
-            st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
-            
-            # Caixa para seleção de versículo específico focado para a IA
-            numeros_versiculos = [v.get("verse") for v in versiculos_lista]
-            versiculo_foco = st.selectbox("Escolha um versículo deste capítulo para análise da IA:", numeros_versiculos)
-            
