@@ -80,7 +80,6 @@ LIVROS_BIBLE = list(MAPA_LIVROS.keys())
 def buscar_capitulo_api(livro_pt, capitulo):
     livro_en = MAPA_LIVROS.get(livro_pt, "genesis")
     
-    # Rota primária: bible-api convertendo o nome para o padrão inglês aceito nativamente
     url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
     try:
         resposta = requests.get(url, timeout=7)
@@ -92,7 +91,6 @@ def buscar_capitulo_api(livro_pt, capitulo):
     except Exception:
         pass
         
-    # Rota de contingência: Caso a primeira falhe ou venha vazia, busca em inglês genérico
     url_alt = f"https://bible-api.com{livro_en}+{capitulo}"
     try:
         resposta = requests.get(url_alt, timeout=7)
@@ -170,3 +168,7 @@ if st.session_state.autenticado:
             for idx, row in df_aniv.iterrows(): 
                 st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
         else: 
+            st.caption("Nenhum aniversário registrado para este mês.")
+            
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
