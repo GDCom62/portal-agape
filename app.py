@@ -56,52 +56,45 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. MAPEAMENTO DE LIVROS DA BÍBLIA (Português -> Inglês para compatibilidade com API) ---
+# --- 3. MAPEAMENTO DE LIVROS DA BÍBLIA (Português -> Abreviações para API Estável) ---
 MAPA_LIVROS = {
-    "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
-    "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
-    "1 Reis": "1kings", "2 Reis": "2kings", "1 Crônicas": "1chronicles", "2 Crônicas": "2chronicles", "Esdras": "ezra",
-    "Neemias": "nehemiah", "Ester": "esther", "Jó": "job", "Salmos": "psalms", "Provérbios": "proverbs",
-    "Eclesiastes": "ecclesiastes", "Cânticos": "songofsolomon", "Isaías": "isaiah", "Jeremias": "jeremiah", "Lamentações": "lamentations",
-    "Ezequiel": "ezekiel", "Daniel": "daniel", "Oseias": "hosea", "Joel": "joel", "Amós": "amos",
-    "Obadias": "obadiah", "Jonas": "jonah", "Miqueias": "micah", "Naum": "nahum", "Habacuque": "habakkuk",
-    "Sofonias": "zephaniah", "Ageu": "haggai", "Zacarias": "zechariah", "Malaquias": "malachi",
-    "Mateus": "matthew", "Marcos": "mark", "Lucas": "lucas", "João": "john", "Atos": "acts",
-    "Romanos": "romans", "1 Coríntios": "1corinthians", "2 Coríntios": "2corinthians", "Gálatas": "galatians", "Efésios": "ephesians",
-    "Filipenses": "philippians", "Colossenses": "colossians", "1 Tessalonicenses": "1thessalonians", "2 Tessalonicenses": "2thessalonians", "1 Timóteo": "1timothy",
-    "2 Timóteo": "2timothy", "Tito": "titus", "Filemom": "philemon", "Hebreus": "hebrews", "Tiago": "james",
-    "1 Pedro": "1peter", "2 Pedro": "2peter", "1 João": "1john", "2 João": "2john", "3 João": "3john",
-    "Judas": "jude", "Apocalipse": "revelation"
+    "Gênesis": "gn", "Êxodo": "ex", "Levítico": "lv", "Números": "num", "Deuteronômio": "dt",
+    "Josué": "js", "Juízes": "jz", "Rute": "rt", "1 Samuel": "1sm", "2 Samuel": "2sm",
+    "1 Reis": "1rs", "2 Reis": "2rs", "1 Crônicas": "1cr", "2 Crônicas": "2cr", "Esdras": "ez",
+    "Neemias": "ne", "Ester": "et", "Jó": "jo", "Salmos": "sl", "Provérbios": "pv",
+    "Eclesiastes": "ec", "Cânticos": "ct", "Isaías": "is", "Jeremias": "jr", "Lamentações": "lm",
+    "Ezequiel": "ezq", "Daniel": "dn", "Oseias": "os", "Joel": "jl", "Amós": "am",
+    "Obadias": "ob", "Jonas": "jn", "Miqueias": "mq", "Naum": "na", "Habacuque": "hc",
+    "Sofonias": "sf", "Ageu": "ag", "Zacarias": "zc", "Malaquias": "ml",
+    "Mateus": "mt", "Marcos": "mc", "Lucas": "lc", "João": "joao", "Atos": "at",
+    "Romanos": "rm", "1 Coríntios": "1co", "2 Coríntios": "2co", "Gálatas": "gl", "Efésios": "ef",
+    "Filipenses": "fp", "Colossenses": "cl", "1 Tessalonicenses": "1ts", "2 Tessalonicenses": "2ts", "1 Timóteo": "1tm",
+    "2 Timóteo": "2tm", "Tito": "tt", "Filemom": "fm", "Hebreus": "hb", "Tiago": "tg",
+    "1 Pedro": "1pe", "2 Pedro": "2pe", "1 João": "1jo", "2 João": "2jo", "3 João": "3jo",
+    "Judas": "jd", "Apocalipse": "ap"
 }
 LIVROS_BIBLE = list(MAPA_LIVROS.keys())
 
-# --- 4. FUNÇÃO ROBUSTA COM CONTINGÊNCIA PARA CARREGAR OS VERSÍCULOS ---
-@st.cache_data(ttl=3600)
+# --- 4. FUNÇÃO ULTRA ESTÁVEL EM PORTUGUÊS (Almeida Recebida) ---
+@st.cache_data(ttl=86400)
 def buscar_capitulo_api(livro_pt, capitulo):
-    livro_en = MAPA_LIVROS.get(livro_pt, "genesis")
-    
-    url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
+    abrev = MAPA_LIVROS.get(livro_pt, "gn")
+    # Requisição direta a um repositório estável de arquivos JSON bíblicos em português
+    url = f"https://githubusercontent.com{abrev}.json"
     try:
-        resposta = requests.get(url, timeout=7)
+        resposta = requests.get(url, timeout=10)
         if resposta.status_code == 200:
             dados = resposta.json()
-            verses = dados.get("verses", [])
-            if verses:
-                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
-    except Exception:
-        pass
-        
-    url_alt = f"https://bible-api.com{livro_en}+{capitulo}"
-    try:
-        resposta = requests.get(url_alt, timeout=7)
-        if resposta.status_code == 200:
-            dados = resposta.json()
-            verses = dados.get("verses", [])
-            if verses:
-                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
+            # O JSON é estruturado como uma lista de capítulos (índice começa em 0)
+            if 0 < capitulo <= len(dados):
+                versiculos_do_cap = dados[capitulo - 1]
+                lista_formatada = []
+                for index, texto in enumerate(versiculos_do_cap):
+                    lista_formatada.append({"verse": index + 1, "text": texto})
+                return lista_formatada
+        return []
     except Exception:
         return []
-    return []
 
 # --- 5. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
@@ -157,7 +150,7 @@ if st.session_state.autenticado:
 
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
-        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a via eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
         
         meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
         mes_atual_nome = meses[datetime.date.today().month - 1]
@@ -172,3 +165,12 @@ if st.session_state.autenticado:
             
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
+    elif escolha == "Bíblia Completa & IA":
+        st.subheader("📖 Bíblia Sagrada Completa em Português (Almeida)")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            livro_sel = st.selectbox("Selecione o Livro:", LIVROS_BIBLE)
+        with c2:
+            capitulo_sel = st.number_input("Digite o Capítulo:", min_value=1, max_value=150, value=1, step=1)
+            
