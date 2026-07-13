@@ -27,7 +27,7 @@ def inicializar_conexoes():
 
 engine = inicializar_conexoes()
 
-def executar_query(sql, params=None):
+def ejecutar_query(sql, params=None):
     with engine.begin() as conn: 
         conn.execute(text(sql), params or {})
 
