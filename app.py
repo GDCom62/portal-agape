@@ -54,8 +54,8 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. BÍBLIA REAL COMPLETA EM MEMÓRIA (LIVRARIA DE TEXTOS EM PORTUGUÊS) ---
-BIBLIA_REAL = {
+# --- 3. LIVRARIA BÍBLICA COMPLETA EM MEMÓRIA (TEXTOS FIXOS EM PORTUGUÊS) ---
+BIBLIA_ESTAVEL = {
     "Gênesis": {
         1: {
             1: "No princípio criou Deus os céus e a terra.",
@@ -78,14 +78,8 @@ BIBLIA_REAL = {
             1: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.",
             2: "Direi do Senhor: Ele é o meu Deus, o meu refúgio, a minha fortaleza, e nele confiarei.",
             3: "Porque ele te livrará do laço do passarinheiro, e da peste perniciosa.",
-            4: "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel."
-        }
-    },
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
-            18: "Quem crê nele não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus."
+            4: "Ele te cobrirá com as suas penas, e debaixo das suas asas te confiarás; a sua verdade será o teu escudo e broquel.",
+            5: "Cairão mil ao teu lado, e dez mil à tua direita, mas não chegará a ti."
         }
     },
     "Mateus": {
@@ -93,12 +87,19 @@ BIBLIA_REAL = {
             9: "Portanto, vós orareis assim: Pai nosso, que estás nos céus, santificado seja o teu nome;",
             10: "Venha o teu reino, seja feita a tua vontade, assim na terra como no céu;",
             11: "O pão nosso de cada dia nos dá hoje;",
-            12: "And perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores."
+            12: "E perdoa-nos as nossas dívidas, assim como nós perdoamos aos nossos devedores;"
+        }
+    },
+    "João": {
+        3: {
+            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
+            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele.",
+            18: "Quem crê nele não é condemned; mas quem não crê já está condizido à condenação."
         }
     }
 }
 
-LIVROS_BIBLE = ["Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute", "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "Salmos", "Provérbios", "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "Apocalipse"]
+LIVROS_DISPONIVEIS = list(BIBLIA_ESTAVEL.keys())
 
 # --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
@@ -167,3 +168,6 @@ if st.session_state.autenticado:
         else: 
             st.caption("Nenhum aniversário registrado para este mês.")
             
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
+    elif escolha == "Bíblia Completa & IA":
