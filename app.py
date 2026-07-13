@@ -3,6 +3,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
+import requests
 
 # --- 1. CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Portal Ágape", layout="wide", page_icon="⛪")
@@ -55,45 +56,42 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. DICIONÁRIO BÍBLICO NATIVO AUTOMÁTICO ---
-BIBLIA_ESTAVEL = {
-    "Gênesis": {
-        1: {
-            1: "No princípio criou Deus os céus e a terra.", 
-            2: "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo.", 
-            3: "E disse Deus: Haja luz; e houve luz.", 
-            4: "E viu Deus que era boa a luz; e fez Deus separação entre a luz e as trevas.", 
-            5: "E Deus chamou à luz Dia; e às trevas chamou Noite."
-        }
-    },
-    "Números": {
-        4: {
-            1: "Falou mais o Senhor a Moisés e a Arão, dizendo:", 
-            2: "Toma a soma dos filhos de Coate, dentre os filhos de Levi...", 
-            3: "Da idade de trinta anos para cima até aos cinquenta anos...", 
-            4: "Este será o serviço dos filhos de Coate na tenda da congregação."
-        }
-    },
-    "Salmos": {
-        23: {
-            1: "O Senhor é o meu pastor, nada me faltará.", 
-            2: "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.", 
-            3: "Refrigera a minha alma; guia-me pelas veredas da justiça.", 
-            4: "Ainda que eu andasse pelo vale da sombra da morte, não temeria mal algum.", 
-            5: "Preparas uma mesa perante mim na presença dos meus inimigos.", 
-            6: "Certamente que a bondade e a misericórdia me seguirão."
-        }
-    },
-    "João": {
-        3: {
-            16: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", 
-            17: "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo.", 
-            18: "Quem crê nele não é condizido à condenação."
-        }
-    }
-}
+# --- 3. LISTA OFICIAL DE LIVROS DA BÍBLIA PARA OS FILTROS ---
+LIVROS_BIBLE = [
+    "Gênesis", "Êxodo", "Levítico", "Números", "Deuteronômio", "Josué", "Juízes", "Rute",
+    "1 Samuel", "2 Samuel", "1 Reis", "2 Reis", "1 Crônicas", "2 Crônicas", "Esdras", "Neemias",
+    "Ester", "Jó", "Salmos", "Provérbios", "Eclesiastes", "Cânticos", "Isaías", "Jeremias",
+    "Lamentações", "Ezequiel", "Daniel", "Oseias", "Joel", "Amós", "Obadias", "Jonas",
+    "Miqueias", "Naum", "Habacuque", "Sofonias", "Ageu", "Zacarias", "Malaquias",
+    "Mateus", "Marcos", "Lucas", "João", "Atos", "Romanos", "1 Coríntios", "2 Coríntios",
+    "Gálatas", "Efésios", "Filipenses", "Colossenses", "1 Tessalonicenses", "2 Tessalonicenses",
+    "1 Timóteo", "2 Timóteo", "Tito", "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro",
+    "1 João", "2 João", "3 João", "Judas", "Apocalipse"
+]
 
-# --- 4. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO (ROTEIRO) ---
+# --- 4. FUNÇÃO PARA BUSCAR TEXTOS NA API DA BÍBLIA COMPLETA ---
+@st.cache_data(ttl=3600)
+def buscar_capitulo_api(livro, capitulo):
+    livro_url = livro.replace(" ", "%20")
+    url = f"https://bible-api.com{livro_url}+{capitulo}?translation=almeida"
+    try:
+        resposta = requests.get(url, timeout=10)
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            return dados.get("verses", [])
+        return []
+    except Exception:
+        # Fallback para API secundária caso a primeira falhe
+        url_alt = f"https://bible-api.com{livro_url}+{capitulo}"
+        try:
+            resposta = requests.get(url_alt, timeout=10)
+            if resposta.status_code == 200:
+                return resposta.json().get("verses", [])
+        except Exception:
+            return []
+        return []
+
+# --- 5. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
     st.session_state.roteiro_culto = []
 
@@ -163,21 +161,22 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa & IA":
-        st.subheader("📖 Bíblia Sagrada ACF com Análise Teológica por IA")
+        st.subheader("📖 Bíblia Sagrada Completa com Integração Homilética por IA")
         
-        livros_disp = list(BIBLIA_ESTAVEL.keys())
-        c1, c2, c3 = st.columns(3)
+        # Filtros e Seletores Dinâmicos de Livros e Capítulos
+        c1, c2 = st.columns(2)
         with c1:
-            livro_sel = st.selectbox("Selecione o Livro:", livros_disp)
+            livro_sel = st.selectbox("Selecione o Livro:", LIVROS_BIBLE)
         with c2:
-            capitulos_disp = list(BIBLIA_ESTAVEL[livro_sel].keys())
-            capitulo_sel = st.selectbox("Capítulo:", capitulos_disp)
-        with c3:
-            versiculos_disp = list(BIBLIA_ESTAVEL[livro_sel][capitulo_sel].keys())
-            versiculo_sel = st.selectbox("Versículo Inicial:", versiculos_disp)
+            capitulo_sel = st.number_input("Digite o Capítulo:", min_value=1, max_value=150, value=1, step=1)
             
-        texto_destaque = BIBLIA_ESTAVEL[livro_sel][capitulo_sel][versiculo_sel]
-        ref_completa = f"{livro_sel} {capitulo_sel}:{versiculo_sel}"
-        
-        st.markdown(f"### 📍 Versículo Focado: {ref_completa}")
-        st.markdown(f'<div class="leitura-box" style="font-size:18px;">{texto_destaque}</div>', unsafe_allow_html=True)
+        with st.spinner("Carregando escrituras sagradas de forma estável..."):
+            versiculos_lista = buscar_capitulo_api(livro_sel, capitulo_sel)
+            
+        if versiculos_lista:
+            st.write(f"### 📑 {livro_sel} - Capítulo {capitulo_sel}")
+            
+            # Caixa para seleção de versículo específico focado para a IA
+            numeros_versiculos = [v.get("verse") for v in versiculos_lista]
+            versiculo_foco = st.selectbox("Escolha um versículo deste capítulo para análise da IA:", numeros_versiculos)
+            
