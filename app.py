@@ -56,7 +56,7 @@ admin_user = "admin@agape.com"
 if consultar_db("SELECT id FROM usuarios WHERE usuario = :u", {"u": admin_user}).empty:
     executar_query("INSERT INTO usuarios (usuario, senha, nivel) VALUES (:u, :s, 'Pastor')", {"u": admin_user, "s": generate_password_hash("agape2026", method="scrypt")})
 
-# --- 3. MAPEAMENTO E BASE DE DADOS BÍBLICA LOCAL INTEGRADA (Garante que nunca fique vazio) ---
+# --- 3. MAPEAMENTO DE LIVROS DA BÍBLIA (Português -> Inglês para compatibilidade com API) ---
 MAPA_LIVROS = {
     "Gênesis": "genesis", "Êxodo": "exodus", "Levítico": "leviticus", "Números": "numbers", "Deuteronômio": "deuteronomy",
     "Josué": "joshua", "Juízes": "judges", "Rute": "ruth", "1 Samuel": "1samuel", "2 Samuel": "2samuel",
@@ -75,53 +75,33 @@ MAPA_LIVROS = {
 }
 LIVROS_BIBLE = list(MAPA_LIVROS.keys())
 
-BIBLIA_LOCAL_SEGURANCA = {
-    "Gênesis": {
-        1: [{"verse": 1, "text": "No princípio criou Deus os céus e a terra."}, {"verse": 2, "text": "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo."}, {"verse": 3, "text": "E disse Deus: Haja luz; e houve luz."}]
-    },
-    "Salmos": {
-        23: [{"verse": 1, "text": "O Senhor é o meu pastor, nada me faltará."}, {"verse": 2, "text": "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas."}, {"verse": 3, "text": "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome."}]
-    },
-    "João": {
-        3: [{"verse": 16, "text": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."}, {"verse": 17, "text": "Porque Deus enviou o seu Filho ao mundo, não para condenar o mundo, mas para que o mundo fosse salvo por ele."}]
-    }
-}
-
-# --- 4. FUNÇÃO HÍBRIDA ROBUSTA PARA CARREGAR OS VERSÍCULOS ---
+# --- 4. FUNÇÃO ROBUSTA COM CONTINGÊNCIA PARA CARREGAR OS VERSÍCULOS ---
 @st.cache_data(ttl=3600)
 def buscar_capitulo_api(livro_pt, capitulo):
     livro_en = MAPA_LIVROS.get(livro_pt, "genesis")
     
-    # 1. Tenta carregar da API primária (Traduzida)
     url = f"https://bible-api.com{livro_en}+{capitulo}?translation=almeida"
     try:
-        resposta = requests.get(url, timeout=5)
+        resposta = requests.get(url, timeout=7)
         if resposta.status_code == 200:
             dados = resposta.json()
             verses = dados.get("verses", [])
             if verses:
-                return [{"verse": int(v.get("verse")), "text": str(v.get("text"))} for v in verses]
+                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
     except Exception:
         pass
         
-    # 2. Tenta carregar da API secundária de contingência
     url_alt = f"https://bible-api.com{livro_en}+{capitulo}"
     try:
-        resposta = requests.get(url_alt, timeout=5)
+        resposta = requests.get(url_alt, timeout=7)
         if resposta.status_code == 200:
             dados = resposta.json()
             verses = dados.get("verses", [])
             if verses:
-                return [{"verse": int(v.get("verse")), "text": str(v.get("text"))} for v in verses]
+                return [{"verse": v.get("verse"), "text": v.get("text")} for v in verses]
     except Exception:
-        pass
-        
-    # 3. BACKUP SEGURO LOCAL: Se a internet falhar, busca na memória nativa do portal
-    if livro_pt in BIBLIA_LOCAL_SEGURANCA and capitulo in BIBLIA_LOCAL_SEGURANCA[livro_pt]:
-        return BIBLIA_LOCAL_SEGURANCA[livro_pt][capitulo]
-        
-    # Mensagem amigável caso seja um livro fora do backup local e a API esteja instável
-    return [{"verse": 1, "text": "O servidor bíblico mundial está temporariamente instável, mas você pode usar o painel da IA abaixo para analisar qualquer texto digitando ou colando a referência desejada!"}]
+        return []
+    return []
 
 # --- 5. INICIALIZAÇÃO DE MEMÓRIA DE SESSÃO ---
 if "roteiro_culto" not in st.session_state:
@@ -163,3 +143,32 @@ if not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.sidebar.success(f"Conectado: {st.session_state.usuario_atual}")
     if st.sidebar.button("🚪 Desconectar Sistema", use_container_width=True):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    menu = [
+        "Início & Versículos", "Bíblia Completa & IA", "Comunhão Online (Jitsi)", 
+        "Rádio Web & Transmissão", "Membros", "Cadastro de Visitantes", 
+        "Escala de Cultos", "Escala de Visitas", "Financeiro & Dízimos Protegidos", 
+        "Patrimônio da Igreja", "Avisos", "Louvores"
+    ]
+    escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
+    st.divider()
+
+    if escolha == "Início & Versículos":
+        st.subheader("⛪ Bem-vindo ao Portal Ágape")
+        st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
+        
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        mes_atual_nome = meses[datetime.date.today().month - 1]
+        
+        st.write(f"🎉 **Aniversariantes do Mês de {mes_atual_nome}:**")
+        df_aniv = consultar_db("SELECT nome, cargo FROM membros WHERE mes_aniversario = :m", {"m": mes_atual_nome})
+        if not df_aniv.empty:
+            for idx, row in df_aniv.iterrows(): 
+                st.info(f"🎂 **{row['nome']}** ({row['cargo']})")
+        else: 
+            st.caption("Nenhum aniversário registrado para este mês.")
+            
+        st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
+
