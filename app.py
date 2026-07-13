@@ -39,7 +39,7 @@ def consultar_db(sql, params=None):
         except Exception: 
             return pd.DataFrame()
 
-# CRIAÇÃO DAS TABELAS (Ajustado para rodar após a definição das funções)
+# CRIAÇÃO DAS TABELAS (Garante execução inicial limpa)
 executar_query("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, senha TEXT, nivel TEXT DEFAULT 'Membro');")
 executar_query("CREATE TABLE IF NOT EXISTS membros (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telephone TEXT, cargo TEXT, data_cadastro TEXT, mes_aniversario TEXT, observacoes TEXT);")
 executar_query("CREATE TABLE IF NOT EXISTS financeiro (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, descricao TEXT, valor REAL, data TEXT, mes_ano TEXT, membro_id TEXT);")
@@ -145,27 +145,6 @@ if st.session_state.autenticado:
     escolha = st.selectbox("Selecione a seção do Portal:", menu, key="nav_main")
     st.divider()
 
-    # --- FUNÇÃO DE AUXÍLIO PARA RECOMENDAÇÃO DE LOUVORES VIA IA ---
-    def sugerir_louvores_ia(texto_v, ref_v):
-        if not client_gemini:
-            return "Chave de IA (GEMINI_API_KEY) não configurada no ambiente para recomendações em tempo real."
-        try:
-            config = types.GenerateContentConfig(
-                system_instruction=(
-                    "Atue como um ministro de louvor. Sugira 3 louvores populares que combinem com o tema do versículo. Seja breve."
-                ),
-                temperature=0.4
-            )
-            prompt = f"Sugira louvores baseados em: {ref_v} - '{texto_v}'"
-            response = client_gemini.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                config=config
-            )
-            return response.text
-        except Exception as e:
-            return f"Não foi possível contactar a IA: {e}"
-
     if escolha == "Início & Versículos":
         st.subheader("⛪ Bem-vindo ao Portal Ágape")
         st.markdown('<div class="versiculo-box"><h4>"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."</h4><span style="color:#fff;">— João 3:16 (ACF)</span></div>', unsafe_allow_html=True)
@@ -184,3 +163,21 @@ if st.session_state.autenticado:
         st.metric("Total de Membros", f"{len(consultar_db('SELECT id FROM membros'))} Irmãos")
 
     elif escolha == "Bíblia Completa & IA":
+        st.subheader("📖 Bíblia Sagrada ACF com Análise Teológica por IA")
+        
+        livros_disp = list(BIBLIA_ESTAVEL.keys())
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            livro_sel = st.selectbox("Selecione o Livro:", livros_disp)
+        with c2:
+            capitulos_disp = list(BIBLIA_ESTAVEL[livro_sel].keys())
+            capitulo_sel = st.selectbox("Capítulo:", capitulos_disp)
+        with c3:
+            versiculos_disp = list(BIBLIA_ESTAVEL[livro_sel][capitulo_sel].keys())
+            versiculo_sel = st.selectbox("Versículo Inicial:", versiculos_disp)
+            
+        texto_destaque = BIBLIA_ESTAVEL[livro_sel][capitulo_sel][versiculo_sel]
+        ref_completa = f"{livro_sel} {capitulo_sel}:{versiculo_sel}"
+        
+        st.markdown(f"### 📍 Versículo Focado: {ref_completa}")
+        st.markdown(f'<div class="leitura-box" style="font-size:18px;">{texto_destaque}</div>', unsafe_allow_html=True)
